@@ -1,0 +1,37 @@
+{
+  "name": "workflow-automation",
+  "version": "1.0.0",
+  "description": "Automate task management (task-mcp), micro-commit discipline (git), and file organization compliance during implementation work. Ensures work item progression, enforces commit intervals, validates file organization per constitutional principles, and handles graceful degradation when services offline.",
+  "triggers": [
+    "implementation work",
+    "task tracking",
+    "micro-commit discipline",
+    "file organization",
+    "development workflow"
+  ],
+  "capabilities": [
+    "task-mcp lifecycle automation",
+    "commit milestone detection",
+    "file organization validation",
+    "graceful degradation"
+  ],
+  "integration": {
+    "task_mcp": true,
+    "git": true,
+    "constitutional_compliance": true
+  },
+  "token_budget": {
+    "core": 1200,
+    "references": 1800,
+    "total_maximum": 3600
+  },
+  "dependencies": {
+    "mcp_servers": ["task-mcp"],
+    "constitutional_principles": [2, 7, 11, 12],
+    "scripts": [
+      "task_tracking.py",
+      "commit_automation.py",
+      "file_organization.py"
+    ]
+  }
+}
