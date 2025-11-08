@@ -310,15 +310,19 @@ class EmbeddingGenerator:
             raise ValueError("Cannot generate embeddings for empty text list")
 
         try:
-            embeddings = self.model_loader.encode(texts)
-            # Handle different return types from encode()
-            if isinstance(embeddings, list):
-                if embeddings and isinstance(embeddings[0], list):
-                    return embeddings
+            result = self.model_loader.encode(texts)
+            # Type handling for the overloaded encode method
+            # result is either list[float] or list[list[float]]
+            if isinstance(result, list):
+                if result and isinstance(result[0], (int, float)):
+                    # Single embedding case - list[float]
+                    return [result]
+                elif result and isinstance(result[0], list):
+                    # Multiple embeddings case - list[list[float]]
+                    return result
                 else:
-                    # Single embedding returned
-                    return [embeddings] if embeddings else [[]]
-            return [embeddings] if isinstance(embeddings, (list, tuple)) else [[]]
+                    return []
+            return []
         except Exception as e:
             logger.error(f"Failed to generate embeddings: {e}")
             raise EmbeddingGenerationError(f"Embedding generation failed: {e}") from e
@@ -362,7 +366,7 @@ class EmbeddingGenerator:
             "total": self.total_count,
         }
 
-    def get_statistics(self) -> dict[str, float | int]:
+    def get_statistics(self) -> dict[str, float | int | str]:
         """Get processing statistics.
 
         Returns:

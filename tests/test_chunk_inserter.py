@@ -25,9 +25,11 @@ def sample_chunks() -> list[ProcessedChunk]:
     """Create sample chunks with embeddings for testing."""
     chunks = []
     for i in range(5):
+        # Create proper 64-character hash (SHA-256 format)
+        chunk_hash = f"{i:064x}"  # Hex string padded to 64 chars
         chunk = ProcessedChunk(
             chunk_text=f"Sample chunk text {i}",
-            chunk_hash=f"hash{i:03d}" + "0" * 61,  # 64-char hash
+            chunk_hash=chunk_hash,
             context_header=f"file.md > Section {i}",
             source_file="test_file.md",
             source_category="test_category",
@@ -165,9 +167,14 @@ class TestChunkInserter:
         with pytest.raises(ValueError, match="Invalid embeddings"):
             inserter.insert_chunks(sample_chunks)
 
+    @patch("src.embedding.database.execute_values")
     @patch("src.embedding.database.DatabasePool.get_connection")
     def test_insert_chunks_success(
-        self, mock_get_conn: Mock, inserter: ChunkInserter, sample_chunks: list[ProcessedChunk]
+        self,
+        mock_get_conn: Mock,
+        mock_execute_values: Mock,
+        inserter: ChunkInserter,
+        sample_chunks: list[ProcessedChunk],
     ) -> None:
         """Test successful chunk insertion with batching."""
         # Mock connection and cursor
@@ -178,8 +185,9 @@ class TestChunkInserter:
 
         # Mock batch results (3 inserted, 2 updated)
         mock_cursor.fetchall.side_effect = [
-            [(True,), (True,), (False,)],  # Batch 1: 2 inserted, 1 updated
-            [(False,), (True,)],  # Batch 2: 1 inserted, 1 updated
+            [(True,), (True,)],  # Batch 1: 2 inserted
+            [(True,), (False,)],  # Batch 2: 1 inserted, 1 updated
+            [(False,)],  # Batch 3: 1 updated
         ]
 
         stats = inserter.insert_chunks(sample_chunks, create_index=False)
@@ -194,9 +202,17 @@ class TestChunkInserter:
         # Verify commit was called
         mock_conn.commit.assert_called()
 
+        # Verify execute_values was called for each batch
+        assert mock_execute_values.call_count == 3
+
+    @patch("src.embedding.database.execute_values")
     @patch("src.embedding.database.DatabasePool.get_connection")
     def test_insert_chunks_with_index_creation(
-        self, mock_get_conn: Mock, inserter: ChunkInserter, sample_chunks: list[ProcessedChunk]
+        self,
+        mock_get_conn: Mock,
+        mock_execute_values: Mock,
+        inserter: ChunkInserter,
+        sample_chunks: list[ProcessedChunk],
     ) -> None:
         """Test chunk insertion with HNSW index creation."""
         # Mock connection and cursor
@@ -227,9 +243,14 @@ class TestChunkInserter:
         # Check for CREATE INDEX with HNSW
         assert any("CREATE INDEX" in sql and "hnsw" in sql for sql in sql_statements)
 
+    @patch("src.embedding.database.execute_values")
     @patch("src.embedding.database.DatabasePool.get_connection")
     def test_insert_batch_failure_continues(
-        self, mock_get_conn: Mock, inserter: ChunkInserter, sample_chunks: list[ProcessedChunk]
+        self,
+        mock_get_conn: Mock,
+        mock_execute_values: Mock,
+        inserter: ChunkInserter,
+        sample_chunks: list[ProcessedChunk],
     ) -> None:
         """Test that batch failure doesn't stop entire operation."""
         # Mock connection and cursor
@@ -238,11 +259,18 @@ class TestChunkInserter:
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_get_conn.return_value.__enter__.return_value = mock_conn
 
-        # Simulate batch failure on second batch
+        # Simulate batch failure on second batch by raising exception
+        def side_effect_batch(*args, **kwargs):  # type: ignore[no-untyped-def]
+            # Second call raises error
+            if mock_execute_values.call_count == 2:
+                raise DatabaseError("Simulated batch failure")
+
+        mock_execute_values.side_effect = side_effect_batch
+
+        # Mock batch results
         mock_cursor.fetchall.side_effect = [
             [(True,), (True,)],  # Batch 1: success
-            DatabaseError("Simulated batch failure"),  # Batch 2: failure
-            [(True,)],  # Batch 3: success
+            [(True,)],  # Batch 3: success (batch 2 failed before fetchall)
         ]
 
         stats = inserter.insert_chunks(sample_chunks, create_index=False)
@@ -314,9 +342,10 @@ class TestIntegration:
     """Integration tests (require live database connection)."""
 
     @pytest.mark.integration
+    @patch("src.embedding.database.execute_values")
     @patch("src.embedding.database.DatabasePool.get_connection")
     def test_end_to_end_insertion(
-        self, mock_get_conn: Mock, sample_chunks: list[ProcessedChunk]
+        self, mock_get_conn: Mock, mock_execute_values: Mock, sample_chunks: list[ProcessedChunk]
     ) -> None:
         """Test end-to-end insertion workflow."""
         # Mock connection
@@ -327,8 +356,9 @@ class TestIntegration:
 
         # Mock batch results
         mock_cursor.fetchall.side_effect = [
-            [(True,)] * len(batch)
-            for batch in [sample_chunks[i : i + 2] for i in range(0, len(sample_chunks), 2)]
+            [(True,), (True,)],  # Batch 1
+            [(True,), (True,)],  # Batch 2
+            [(True,)],  # Batch 3
         ]
 
         # Create inserter and insert

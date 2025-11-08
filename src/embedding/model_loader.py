@@ -219,7 +219,7 @@ class ModelLoader:
                 raise ValueError("Cannot encode empty text")
             model = self.get_model()
             embedding = model.encode(texts, convert_to_tensor=False)
-            return embedding.tolist() if hasattr(embedding, "tolist") else embedding
+            return embedding.tolist() if hasattr(embedding, "tolist") else embedding  # type: ignore[no-any-return]
         elif isinstance(texts, list):
             if not texts:
                 raise ValueError("Cannot encode empty list")

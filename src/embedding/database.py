@@ -416,7 +416,11 @@ class ChunkInserter:
                         )
                     """)
 
-                    exists = cur.fetchone()[0]
+                    result = cur.fetchone()
+                    if result is None:
+                        return False
+
+                    exists: bool = bool(result[0])
                     logger.info(f"HNSW index exists: {exists}")
                     return exists
 
@@ -437,7 +441,11 @@ class ChunkInserter:
             with DatabasePool.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT COUNT(*) FROM knowledge_base WHERE embedding IS NOT NULL")
-                    count = cur.fetchone()[0]
+                    result = cur.fetchone()
+                    if result is None:
+                        return 0
+
+                    count: int = int(result[0])
                     logger.info(f"Vector count in knowledge_base: {count}")
                     return count
 
