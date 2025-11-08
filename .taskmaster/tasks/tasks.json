@@ -454,7 +454,7 @@
         "dependencies": [
           "5"
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -510,7 +510,7 @@
         "complexity": 6,
         "recommendedSubtasks": 4,
         "expansionPrompt": "Split into: 1) ms-marco-MiniLM-L-6-v2 model loading and inference, 2) Candidate selection strategy with adaptive pool sizing, 3) Query-document pair scoring and top-5 selection, 4) Performance optimization to meet <200ms latency targets",
-        "updatedAt": "2025-11-08T19:45:33.856Z"
+        "updatedAt": "2025-11-08T21:59:47.701Z"
       },
       {
         "id": "7",
@@ -839,9 +839,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-08T19:45:33.857Z",
+      "lastModified": "2025-11-08T21:59:47.704Z",
       "taskCount": 10,
-      "completedCount": 5,
+      "completedCount": 6,
       "tags": [
         "master"
       ]
