@@ -454,7 +454,7 @@
         "dependencies": [
           "5"
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -462,9 +462,10 @@
             "description": "Load and initialize the ms-marco-MiniLM-L-6-v2 cross-encoder model for query-document pair scoring",
             "dependencies": [],
             "details": "Use transformers library to load the ms-marco-MiniLM-L-6-v2 model from HuggingFace. Initialize tokenizer and model, implement input preprocessing for query-document pairs, and create inference pipeline with proper tensor handling and device management.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test model loading speed, validate tokenizer output format, measure inference time for single query-document pairs",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T19:45:31.954Z"
           },
           {
             "id": 2,
@@ -474,9 +475,10 @@
               1
             ],
             "details": "Develop algorithm to analyze query complexity using features like query length, entity count, and semantic density. Implement adaptive candidate pool sizing (10-50 candidates) based on complexity score. Create fallback mechanisms for edge cases and ensure consistent performance.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test pool sizing accuracy across different query types, validate complexity scoring consistency, measure selection time impact",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T19:45:32.922Z"
           },
           {
             "id": 3,
@@ -487,9 +489,10 @@
               2
             ],
             "details": "Create batch processing pipeline for query-document pairs, implement relevance scoring using cross-encoder model, develop ranking algorithm to select top 5 results with confidence scores. Handle edge cases like tied scores and insufficient candidates.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Validate ranking accuracy against golden dataset, test batch processing efficiency, verify top-5 selection consistency",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T19:45:33.856Z"
           },
           {
             "id": 4,
@@ -506,7 +509,8 @@
         ],
         "complexity": 6,
         "recommendedSubtasks": 4,
-        "expansionPrompt": "Split into: 1) ms-marco-MiniLM-L-6-v2 model loading and inference, 2) Candidate selection strategy with adaptive pool sizing, 3) Query-document pair scoring and top-5 selection, 4) Performance optimization to meet <200ms latency targets"
+        "expansionPrompt": "Split into: 1) ms-marco-MiniLM-L-6-v2 model loading and inference, 2) Candidate selection strategy with adaptive pool sizing, 3) Query-document pair scoring and top-5 selection, 4) Performance optimization to meet <200ms latency targets",
+        "updatedAt": "2025-11-08T19:45:33.856Z"
       },
       {
         "id": "7",
@@ -835,7 +839,7 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-08T19:24:43.182Z",
+      "lastModified": "2025-11-08T19:45:33.857Z",
       "taskCount": 10,
       "completedCount": 5,
       "tags": [
