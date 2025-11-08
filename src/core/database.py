@@ -20,9 +20,11 @@ from psycopg2 import pool, OperationalError, DatabaseError
 from psycopg2.extensions import connection as Connection
 
 from src.core.config import get_settings
+from src.core.logging import StructuredLogger, log_database_operation
 
 # Module logger for connection pool operations
-logger = logging.getLogger(__name__)
+# Uses StructuredLogger for automatic initialization
+logger: logging.Logger = StructuredLogger.get_logger(__name__)
 
 
 class DatabasePool:

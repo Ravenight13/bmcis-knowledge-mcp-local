@@ -13,6 +13,11 @@ from src.core.config import (
     reset_settings,
 )
 from src.core.database import DatabasePool
+from src.core.logging import (
+    StructuredLogger,
+    log_database_operation,
+    log_api_call,
+)
 
 __all__ = [
     "Settings",
@@ -22,4 +27,7 @@ __all__ = [
     "get_settings",
     "reset_settings",
     "DatabasePool",
+    "StructuredLogger",
+    "log_database_operation",
+    "log_api_call",
 ]

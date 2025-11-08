@@ -454,8 +454,15 @@ def test_structured_logger_integration_with_database_pool(reset_logger: None) ->
     assert db_logger.name == "src.core.database"
 
 
-def test_log_rotation_configuration(reset_logger: None, temp_log_dir: Path) -> None:
+def test_log_rotation_configuration(temp_log_dir: Path) -> None:
     """Test log rotation is configured with correct parameters."""
+    # Manual setup to ensure clean state (bypass fixture to avoid conflicts)
+    StructuredLogger._configured = False
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    reset_settings()
+
     log_file = temp_log_dir / "test.log"
 
     with patch("src.core.logging.get_settings") as mock_settings:
@@ -481,7 +488,13 @@ def test_log_rotation_configuration(reset_logger: None, temp_log_dir: Path) -> N
             if isinstance(h, logging.handlers.RotatingFileHandler)
         ]
 
-        assert len(file_handlers) > 0
+        assert len(file_handlers) > 0, f"Expected file handlers, found: {root_logger.handlers}"
         handler = file_handlers[0]
         assert handler.maxBytes == 5242880
         assert handler.backupCount == 3
+
+    # Cleanup
+    StructuredLogger._configured = False
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    reset_settings()
