@@ -26,4 +26,7 @@ node_modules/
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
+
+# Git branch masking - only ignore the sensitive mapping file
+.git-masking/branch-mapping.json

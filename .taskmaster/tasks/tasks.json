@@ -100,7 +100,7 @@
         "dependencies": [
           "1"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -108,9 +108,10 @@
             "description": "Create comprehensive markdown file reading system that extracts metadata from file paths, frontmatter, and document headers",
             "dependencies": [],
             "details": "Build file reader that processes markdown files and extracts vendor, category, and team_member metadata from multiple sources: file path patterns, YAML frontmatter, and document headers. Handle various markdown formats and ensure robust parsing with fallback mechanisms for missing metadata.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test with various markdown files containing different metadata formats. Validate >95% metadata extraction completeness across sample documents.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:41:26.041Z"
           },
           {
             "id": 2,
@@ -120,9 +121,10 @@
               1
             ],
             "details": "Integrate tiktoken library to provide accurate token counting for GPT models. Create tokenization functions that can handle markdown content while preserving structure. Implement token counting utilities that account for different encoding models.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Validate token counts match OpenAI's tokenization. Test with various text lengths and markdown formatting to ensure accuracy.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:41:27.120Z"
           },
           {
             "id": 3,
@@ -132,9 +134,10 @@
               2
             ],
             "details": "Implement chunking logic that creates 512-token segments with 102-token overlap (20%). Ensure chunks maintain semantic coherence by respecting paragraph and section boundaries when possible. Handle edge cases for documents shorter than chunk size.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify chunk sizes are exactly 512 tokens with 20% overlap. Test with documents of varying lengths. Validate that 343 documents produce approximately 2,600 chunks as specified.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:41:28.193Z"
           },
           {
             "id": 4,
@@ -144,9 +147,10 @@
               3
             ],
             "details": "Develop system to generate meaningful context headers that include document title, section hierarchy, and relevant metadata for each chunk. Headers should provide sufficient context for standalone understanding of chunk content.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Validate context headers provide meaningful document structure context. Test header generation across different document types and structures.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:41:29.233Z"
           },
           {
             "id": 5,
@@ -156,14 +160,16 @@
               4
             ],
             "details": "Create batch processing pipeline that can handle large document collections efficiently. Implement progress tracking, error handling, retry mechanisms, and logging. Support resumable processing for interrupted operations and provide detailed processing statistics.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test batch processing with full 343-document collection. Validate error handling, progress tracking accuracy, and performance metrics. Ensure system can handle interruptions and resume processing.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:41:30.300Z"
           }
         ],
         "complexity": 6,
         "recommendedSubtasks": 5,
-        "expansionPrompt": "Split into: 1) Markdown file reader with metadata extraction from paths/frontmatter, 2) tiktoken-based tokenization system for accurate token counting, 3) 512-token chunking with 20% overlap implementation, 4) Context header generation from document structure, 5) Batch processing pipeline with progress tracking and error handling"
+        "expansionPrompt": "Split into: 1) Markdown file reader with metadata extraction from paths/frontmatter, 2) tiktoken-based tokenization system for accurate token counting, 3) 512-token chunking with 20% overlap implementation, 4) Context header generation from document structure, 5) Batch processing pipeline with progress tracking and error handling",
+        "updatedAt": "2025-11-08T13:41:30.300Z"
       },
       {
         "id": "3",
@@ -175,7 +181,7 @@
         "dependencies": [
           "2"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -183,9 +189,10 @@
             "description": "Load all-mpnet-base-v2 model from sentence-transformers library and implement efficient caching mechanism",
             "dependencies": [],
             "details": "Import sentence-transformers library, load all-mpnet-base-v2 model, implement model caching to disk and memory to avoid reloading on subsequent runs. Configure model device placement (CPU/GPU) and handle memory optimization.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify model loads correctly, test caching mechanism saves/loads model properly, validate 768-dimensional output",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:53:00.049Z"
           },
           {
             "id": 2,
@@ -195,9 +202,10 @@
               1
             ],
             "details": "Create batch processing system to handle chunks efficiently, implement parallel processing using multiprocessing or threading, optimize batch sizes for memory usage and performance. Handle progress tracking and error recovery.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test batch processing with various batch sizes, verify parallel processing improves performance, validate all chunks get processed without errors",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:53:01.144Z"
           },
           {
             "id": 3,
@@ -207,9 +215,10 @@
               2
             ],
             "details": "Insert chunk text, embeddings, and metadata into knowledge_base table using bulk insert operations. Create HNSW index on embedding column for fast cosine similarity search. Handle database connection pooling and error handling.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify all embeddings inserted correctly, test HNSW index creation and performance, validate database schema compliance",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:53:02.249Z"
           },
           {
             "id": 4,
@@ -219,14 +228,16 @@
               3
             ],
             "details": "Validate all embeddings are exactly 768 dimensions, check for null or invalid embeddings, implement quality metrics like embedding distribution analysis. Create validation reports and error logging for failed embeddings.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify all embeddings have correct dimensions, test validation catches malformed embeddings, validate quality metrics are within expected ranges",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:48:44.062Z"
           }
         ],
         "complexity": 5,
         "recommendedSubtasks": 4,
-        "expansionPrompt": "Break down into: 1) sentence-transformers model loading with caching strategy, 2) Parallel embedding generation with batch processing, 3) Database insertion with HNSW index creation, 4) Embedding validation and quality checks with dimension verification"
+        "expansionPrompt": "Break down into: 1) sentence-transformers model loading with caching strategy, 2) Parallel embedding generation with batch processing, 3) Database insertion with HNSW index creation, 4) Embedding validation and quality checks with dimension verification",
+        "updatedAt": "2025-11-08T13:53:02.249Z"
       },
       {
         "id": "4",
@@ -238,7 +249,7 @@
         "dependencies": [
           "3"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -246,9 +257,10 @@
             "description": "Set up PostgreSQL pgvector extension and implement HNSW index with cosine similarity for vector search functionality",
             "dependencies": [],
             "details": "Install and configure pgvector extension, create vector columns with appropriate dimensions, implement HNSW indexing with optimal parameters (m=16, ef_construction=64), create cosine similarity search functions with distance thresholds and result limiting",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test vector search performance <100ms, validate cosine similarity calculations, verify HNSW index creation and search accuracy",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T14:54:38.137Z"
           },
           {
             "id": 2,
@@ -258,9 +270,10 @@
               1
             ],
             "details": "Set up ts_vector columns for searchable text content, create GIN indexes for full-text search, implement BM25 ranking function using PostgreSQL's built-in ranking with custom weights, create search functions supporting phrase queries and boolean operators",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Benchmark BM25 search <50ms, validate GIN index performance, test ranking accuracy against expected results",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T14:54:39.961Z"
           },
           {
             "id": 3,
@@ -271,9 +284,10 @@
               2
             ],
             "details": "Design JSONB schema for metadata storage (vendor, category, team_member, document_type), implement GIN indexes on JSONB columns, create filter functions using @> containment operator, support multiple filter combinations with AND/OR logic",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test JSONB filter performance, validate containment queries, ensure filter combinations work correctly with search results",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T13:59:01.633Z"
           },
           {
             "id": 4,
@@ -285,9 +299,10 @@
               3
             ],
             "details": "Implement query timing and profiling infrastructure, create performance benchmarks for vector and text search, analyze query plans and index usage, optimize HNSW parameters (ef_search, m values), tune GIN index configurations, implement query result caching strategies",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Validate performance targets are met, benchmark before/after optimization, monitor query execution plans, ensure no performance regression",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T14:54:41.772Z"
           },
           {
             "id": 5,
@@ -300,14 +315,16 @@
               4
             ],
             "details": "Create consistent result format with scores, metadata, and snippets, implement ranking validation against test queries, create result normalization functions, add result explanation features showing why documents matched, implement result deduplication and filtering",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Validate result format consistency, test ranking accuracy against golden dataset, ensure result explanations are meaningful and accurate",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T14:54:52.275Z"
           }
         ],
         "complexity": 6,
         "recommendedSubtasks": 5,
-        "expansionPrompt": "Split into: 1) pgvector HNSW cosine similarity search implementation, 2) PostgreSQL ts_vector BM25 search with GIN indexing, 3) Metadata filtering system with JSONB containment, 4) Performance profiling and optimization, 5) Search result formatting and ranking validation"
+        "expansionPrompt": "Split into: 1) pgvector HNSW cosine similarity search implementation, 2) PostgreSQL ts_vector BM25 search with GIN indexing, 3) Metadata filtering system with JSONB containment, 4) Performance profiling and optimization, 5) Search result formatting and ranking validation",
+        "updatedAt": "2025-11-08T14:54:52.275Z"
       },
       {
         "id": "5",
@@ -319,7 +336,7 @@
         "dependencies": [
           "4"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -327,9 +344,10 @@
             "description": "Develop the core RRF algorithm that combines ranking scores from multiple search sources using the reciprocal rank fusion formula with k=60 constant",
             "dependencies": [],
             "details": "Implement RRF formula: score = sum(1/(k+rank)) for each result across all search sources. Create RRF class with configurable k parameter (default 60). Handle edge cases like missing results, duplicate documents, and varying result set sizes. Ensure numerical stability and consistent scoring.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests for RRF scoring logic with known input/output pairs. Test edge cases: empty results, single result, duplicate documents. Validate mathematical correctness of fusion algorithm.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T15:54:48.414Z"
           },
           {
             "id": 2,
@@ -339,9 +357,10 @@
               1
             ],
             "details": "Design boost configuration system with Pydantic models for weight management. Implement boost calculators for each factor: vendor affinity, document type relevance, temporal recency, entity matching, and topic alignment. Create multiplicative boost application that preserves relative ranking while enhancing relevant results.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test individual boost calculations with known metadata. Validate boost combination logic maintains score ordering. Test configuration loading and weight adjustment impact on result ranking.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T15:54:49.332Z"
           },
           {
             "id": 3,
@@ -351,9 +370,10 @@
               1
             ],
             "details": "Analyze query patterns to determine optimal search strategy: short queries favor BM25, semantic queries favor vector search, complex queries use hybrid. Implement query classification based on length, entity presence, and semantic complexity. Create routing logic with fallback mechanisms and performance monitoring.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test routing decisions with various query types. Validate fallback mechanisms when primary strategy fails. Measure routing overhead and accuracy of strategy selection against manual classification.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T15:54:50.252Z"
           },
           {
             "id": 4,
@@ -365,14 +385,64 @@
               3
             ],
             "details": "Merge RRF scores with boost multipliers to generate final ranking. Implement result deduplication, score normalization, and result limiting. Create accuracy validation against test queries with expected results. Measure precision, recall, and NDCG metrics. Implement performance monitoring for end-to-end search latency.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "End-to-end testing with test query sets. Validate accuracy metrics meet 90%+ target. Test result deduplication and score consistency. Benchmark full pipeline latency against <300ms p50 target.",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T19:24:42.225Z"
+          },
+          {
+            "id": 5,
+            "title": "Implement Reciprocal Rank Fusion algorithm with k=60 parameter",
+            "description": "Create the core RRF algorithm that combines vector and BM25 search rankings using the standard RRF formula with k=60",
+            "dependencies": [],
+            "details": "Implement RRF score calculation using formula: 1/(k + rank) where k=60. Create function that takes two ranked lists (vector and BM25 results) and produces combined scores. Handle edge cases like missing results in one list, duplicate documents, and score normalization. Ensure deterministic ranking for tied scores.",
+            "status": "pending",
+            "testStrategy": "Unit tests for RRF calculation accuracy, validate against known test cases, ensure proper handling of edge cases and score distributions",
+            "parentId": "undefined"
+          },
+          {
+            "id": 6,
+            "title": "Create multi-factor boosting system with configurable weights",
+            "description": "Build boost weighting system that applies +15%/+10%/+5%/+10%/+8% multipliers for vendor/doc_type/recency/entity/topic factors",
+            "dependencies": [
+              5
+            ],
+            "details": "Implement boost calculation engine that applies vendor (+15%), doc_type (+10%), recency (+5%), entity (+10%), and topic (+8%) multipliers to base RRF scores. Create configuration system for adjustable boost weights. Handle boost factor detection from document metadata and query context. Ensure boost multiplication preserves relative ranking while enhancing relevance.",
+            "status": "pending",
+            "testStrategy": "Validate boost calculations are applied correctly, test configuration changes take effect, measure impact on search relevance metrics",
+            "parentId": "undefined"
+          },
+          {
+            "id": 7,
+            "title": "Design query routing mechanism for search strategy selection",
+            "description": "Create intelligent routing system that determines optimal combination of vector and BM25 search based on query characteristics",
+            "dependencies": [
+              5
+            ],
+            "details": "Implement query analysis to determine search strategy: pure vector for semantic queries, pure BM25 for exact matches, hybrid for complex queries. Create routing logic based on query length, keyword density, entity presence, and semantic complexity. Include fallback mechanisms and performance-based routing adjustments.",
+            "status": "pending",
+            "testStrategy": "Test routing decisions match expected strategies, validate performance improvements, ensure fallback mechanisms work correctly",
+            "parentId": "undefined"
+          },
+          {
+            "id": 8,
+            "title": "Implement results merging and final ranking with validation",
+            "description": "Combine RRF scores with boost factors to produce final ranked results and validate against expected accuracy metrics",
+            "dependencies": [
+              5,
+              6,
+              7
+            ],
+            "details": "Merge RRF scores with boost multipliers to generate final ranking. Implement result deduplication, score normalization, and result limiting. Create accuracy validation against test queries with expected results. Measure precision, recall, and NDCG metrics. Implement performance monitoring for end-to-end search latency.",
+            "status": "pending",
+            "testStrategy": "Validate final ranking accuracy against test dataset, measure precision/recall/NDCG metrics, ensure performance targets are met",
             "parentId": "undefined"
           }
         ],
         "complexity": 7,
         "recommendedSubtasks": 4,
-        "expansionPrompt": "Break into: 1) Reciprocal Rank Fusion algorithm implementation with k=60 parameter, 2) Multi-factor boosting system with configurable weights (+15%/+10%/+5%/+10%/+8%), 3) Query routing mechanism for choosing search strategies, 4) Results merging and final ranking with validation against expected accuracy metrics"
+        "expansionPrompt": "Break into: 1) Reciprocal Rank Fusion algorithm implementation with k=60 parameter, 2) Multi-factor boosting system with configurable weights (+15%/+10%/+5%/+10%/+8%), 3) Query routing mechanism for choosing search strategies, 4) Results merging and final ranking with validation against expected accuracy metrics",
+        "updatedAt": "2025-11-08T19:24:43.181Z"
       },
       {
         "id": "6",
@@ -765,9 +835,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-08T03:44:12.309Z",
+      "lastModified": "2025-11-08T19:24:43.182Z",
       "taskCount": 10,
-      "completedCount": 1,
+      "completedCount": 5,
       "tags": [
         "master"
       ]
