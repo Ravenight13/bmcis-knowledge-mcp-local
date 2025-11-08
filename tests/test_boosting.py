@@ -1,819 +1,567 @@
-"""Test suite for search result boosting and re-ranking.
+"""Test suite for multi-factor boosting system.
 
 Tests cover:
 - Individual boost factors (vendor, doc type, recency, entity, topic)
-- Cumulative boost logic and combinations
-- Score clamping (0-1 bounds)
-- Re-ranking after boosts
-- Edge cases (null metadata, empty results, large result sets)
-- Performance benchmarks
-
-Boost factors:
-- Vendor boost: +15%
-- Doc type boost: +10%
-- Recency boost: +5% (max, decays)
-- Entity boost: +10%
-- Topic boost: +8%
+- Cumulative boost logic and score clamping
+- Query analysis and context extraction
+- Re-ranking after boosts applied
+- Edge cases and error handling
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from typing import Any
-from unittest.mock import MagicMock
+from datetime import date, datetime, timedelta
 
 import pytest
 
+from src.search.boosting import BoostingSystem, BoostWeights, KNOWN_VENDORS
 from src.search.results import SearchResult
 
 
-# Test Fixtures
 @pytest.fixture
-def sample_result() -> SearchResult:
-    """Create a sample search result for boosting tests."""
-    return SearchResult(
-        chunk_id=1,
-        chunk_text="Sample content about machine learning.",
-        similarity_score=0.75,
-        bm25_score=0.65,
-        hybrid_score=0.72,
-        rank=1,
-        score_type="hybrid",
-        source_file="docs/ml-guide.md",
-        source_category="guide",
-        document_date=datetime.now(),
-        context_header="ml-guide > Introduction",
-        chunk_index=0,
-        total_chunks=10,
-        chunk_token_count=512,
-        metadata={
-            "vendor": "openai",
-            "doc_type": "api_docs",
-            "tags": ["ml", "ai"],
-            "entities": ["neural networks", "deep learning"],
-            "topics": ["machine-learning"],
-        },
-    )
-
-
-@pytest.fixture
-def sample_results_list() -> list[SearchResult]:
-    """Create multiple sample results for testing."""
+def sample_results() -> list[SearchResult]:
+    """Create sample search results with various metadata."""
+    today = date.today()
     return [
         SearchResult(
-            chunk_id=i,
-            chunk_text=f"Content about topic {i}",
-            similarity_score=0.95 - (i * 0.05),
-            bm25_score=0.85 - (i * 0.05),
-            hybrid_score=0.92 - (i * 0.05),
-            rank=i + 1,
+            chunk_id=1,
+            chunk_text="This is about OpenAI GPT models and API design patterns",
+            similarity_score=0.85,
+            bm25_score=0.70,
+            hybrid_score=0.78,
+            rank=1,
             score_type="hybrid",
-            source_file=f"docs/doc{i}.md",
-            source_category="guide" if i % 2 == 0 else "reference",
-            document_date=datetime.now() - timedelta(days=i*10),
-            context_header=f"doc{i} > Section",
+            source_file="doc1.md",
+            source_category="api_docs",
+            document_date=today - timedelta(days=5),
+            context_header="doc1.md > Section A",
             chunk_index=0,
-            total_chunks=10,
+            total_chunks=5,
+            chunk_token_count=256,
+            metadata={"vendor": "OpenAI", "tags": ["api", "auth"]},
+        ),
+        SearchResult(
+            chunk_id=2,
+            chunk_text="Anthropic Claude documentation and authentication guide",
+            similarity_score=0.80,
+            bm25_score=0.75,
+            hybrid_score=0.78,
+            rank=2,
+            score_type="hybrid",
+            source_file="doc2.md",
+            source_category="guide",
+            document_date=today - timedelta(days=45),
+            context_header="doc2.md > Section B",
+            chunk_index=1,
+            total_chunks=3,
+            chunk_token_count=384,
+            metadata={"vendor": "Anthropic"},
+        ),
+        SearchResult(
+            chunk_id=3,
+            chunk_text="Google Cloud Platform deployment and infrastructure setup",
+            similarity_score=0.75,
+            bm25_score=0.80,
+            hybrid_score=0.77,
+            rank=3,
+            score_type="hybrid",
+            source_file="doc3.md",
+            source_category="kb_article",
+            document_date=None,
+            context_header="doc3.md > Section C",
+            chunk_index=0,
+            total_chunks=8,
             chunk_token_count=512,
-            metadata={
-                "vendor": ["openai", "anthropic"][i % 2],
-                "doc_type": ["api_docs", "kb_article", "tutorial"][i % 3],
-                "tags": [["ml"], ["ai"], ["data"], ["python"]][i % 4],
-                "entities": ["entity1", "entity2"],
-                "topics": ["topic1"],
-            },
-        )
-        for i in range(10)
+            metadata={},
+        ),
+        SearchResult(
+            chunk_id=4,
+            chunk_text="AWS S3 data storage and optimization techniques",
+            similarity_score=0.70,
+            bm25_score=0.85,
+            hybrid_score=0.76,
+            rank=4,
+            score_type="hybrid",
+            source_file="doc4.md",
+            source_category="reference",
+            document_date=today - timedelta(days=3),
+            context_header="doc4.md > Section D",
+            chunk_index=2,
+            total_chunks=6,
+            chunk_token_count=256,
+            metadata={"vendor": "AWS"},
+        ),
     ]
 
 
-@pytest.fixture
-def booster() -> Any:
-    """Create booster instance for testing."""
-    class ResultBooster:
-        """Boost search result scores based on metadata."""
-
-        # Boost percentages
-        VENDOR_BOOST = 0.15
-        DOC_TYPE_BOOST = 0.10
-        RECENCY_BOOST_MAX = 0.05
-        ENTITY_BOOST = 0.10
-        TOPIC_BOOST = 0.08
-
-        # Recency decay: max boost for < 7 days, decay over 365 days
-        RECENCY_DECAY_START_DAYS = 7
-        RECENCY_DECAY_END_DAYS = 365
-
-        def __init__(self) -> None:
-            """Initialize booster."""
-            self.preferred_vendors = ["anthropic", "openai"]
-            self.preferred_doc_types = ["api_docs", "kb_article"]
-            self.preferred_entities = ["neural networks", "deep learning"]
-            self.preferred_topics = ["machine-learning"]
-
-        def apply_vendor_boost(
-            self,
-            result: SearchResult,
-            boost_amount: float | None = None,
-        ) -> float:
-            """Apply vendor boost (+15% if vendor matches)."""
-            if boost_amount is None:
-                boost_amount = self.VENDOR_BOOST
-
-            vendor = result.metadata.get("vendor", "").lower()
-            if vendor in self.preferred_vendors:
-                return boost_amount
-            return 0.0
-
-        def apply_doc_type_boost(
-            self,
-            result: SearchResult,
-            boost_amount: float | None = None,
-        ) -> float:
-            """Apply doc type boost (+10% if type matches)."""
-            if boost_amount is None:
-                boost_amount = self.DOC_TYPE_BOOST
-
-            doc_type = result.metadata.get("doc_type", "").lower()
-            if doc_type in self.preferred_doc_types:
-                return boost_amount
-            return 0.0
-
-        def apply_recency_boost(
-            self,
-            result: SearchResult,
-            boost_amount: float | None = None,
-        ) -> float:
-            """Apply recency boost (+5% max, decays over time)."""
-            if boost_amount is None:
-                boost_amount = self.RECENCY_BOOST_MAX
-
-            if result.document_date is None:
-                return 0.0
-
-            now = datetime.now()
-            age_days = (now - result.document_date).days
-
-            # Max boost for documents < 7 days old
-            if age_days <= self.RECENCY_DECAY_START_DAYS:
-                return boost_amount
-
-            # Gradual decay from 7 to 365 days
-            if age_days >= self.RECENCY_DECAY_END_DAYS:
-                return 0.0
-
-            # Linear decay
-            decay_range = (
-                self.RECENCY_DECAY_END_DAYS -
-                self.RECENCY_DECAY_START_DAYS
-            )
-            days_in_decay = age_days - self.RECENCY_DECAY_START_DAYS
-            decay_factor = 1.0 - (days_in_decay / decay_range)
-
-            return boost_amount * decay_factor
-
-        def apply_entity_boost(
-            self,
-            result: SearchResult,
-            boost_amount: float | None = None,
-        ) -> float:
-            """Apply entity boost (+10% if entities match)."""
-            if boost_amount is None:
-                boost_amount = self.ENTITY_BOOST
-
-            result_entities = result.metadata.get("entities", [])
-            if isinstance(result_entities, str):
-                result_entities = [result_entities]
-
-            for entity in result_entities:
-                if entity.lower() in [e.lower() for e in self.preferred_entities]:
-                    return boost_amount
-
-            return 0.0
-
-        def apply_topic_boost(
-            self,
-            result: SearchResult,
-            boost_amount: float | None = None,
-        ) -> float:
-            """Apply topic boost (+8% if topic matches)."""
-            if boost_amount is None:
-                boost_amount = self.TOPIC_BOOST
-
-            result_topics = result.metadata.get("topics", [])
-            if isinstance(result_topics, str):
-                result_topics = [result_topics]
-
-            for topic in result_topics:
-                if topic.lower() in [t.lower() for t in self.preferred_topics]:
-                    return boost_amount
-
-            return 0.0
-
-        def apply_all_boosts(
-            self, result: SearchResult
-        ) -> tuple[SearchResult, dict[str, float]]:
-            """Apply all boost factors to a result."""
-            boosts = {
-                "vendor": self.apply_vendor_boost(result),
-                "doc_type": self.apply_doc_type_boost(result),
-                "recency": self.apply_recency_boost(result),
-                "entity": self.apply_entity_boost(result),
-                "topic": self.apply_topic_boost(result),
-            }
-
-            total_boost = sum(boosts.values())
-
-            # Calculate new score with clamping
-            original_score = result.hybrid_score
-            boosted_score = original_score + (original_score * total_boost)
-            final_score = min(1.0, max(0.0, boosted_score))
-
-            # Create new result with boosted score
-            boosted_result = SearchResult(
-                chunk_id=result.chunk_id,
-                chunk_text=result.chunk_text,
-                similarity_score=result.similarity_score,
-                bm25_score=result.bm25_score,
-                hybrid_score=final_score,
-                rank=result.rank,
-                score_type=result.score_type,
-                source_file=result.source_file,
-                source_category=result.source_category,
-                document_date=result.document_date,
-                context_header=result.context_header,
-                chunk_index=result.chunk_index,
-                total_chunks=result.total_chunks,
-                chunk_token_count=result.chunk_token_count,
-                metadata=result.metadata,
-                highlighted_context=result.highlighted_context,
-                confidence=result.confidence,
-            )
-
-            return boosted_result, boosts
-
-        def rerank_results(
-            self, results: list[SearchResult]
-        ) -> list[SearchResult]:
-            """Apply boosts and rerank results."""
-            boosted_results = []
-
-            for result in results:
-                boosted, _ = self.apply_all_boosts(result)
-                boosted_results.append(boosted)
-
-            # Sort by boosted score descending
-            boosted_results.sort(
-                key=lambda x: x.hybrid_score,
-                reverse=True
-            )
-
-            # Update ranks
-            for new_rank, result in enumerate(boosted_results, 1):
-                result.rank = new_rank
-
-            return boosted_results
-
-    return ResultBooster()
-
-
-# Individual Boost Factor Tests
-class TestIndividualBoostFactors:
-    """Test individual boost factors."""
-
-    def test_vendor_boost_match(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test vendor boost with matching vendor."""
-        original_score = sample_result.hybrid_score
-        boost_amount = booster.apply_vendor_boost(sample_result)
-
-        assert boost_amount == 0.15  # 15% boost
-        boosted_score = original_score + (original_score * boost_amount)
-        assert boosted_score > original_score
-
-    def test_vendor_boost_no_match(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test vendor boost with non-matching vendor."""
-        sample_result.metadata["vendor"] = "google"
-        boost_amount = booster.apply_vendor_boost(sample_result)
-
-        assert boost_amount == 0.0
-
-    def test_vendor_boost_missing_vendor(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test vendor boost when vendor not in metadata."""
-        sample_result.metadata = {}
-        boost_amount = booster.apply_vendor_boost(sample_result)
-
-        assert boost_amount == 0.0
-
-    def test_doc_type_boost_match(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test doc type boost with matching type."""
-        original_score = sample_result.hybrid_score
-        boost_amount = booster.apply_doc_type_boost(sample_result)
-
-        assert boost_amount == 0.10  # 10% boost
-        boosted_score = original_score + (original_score * boost_amount)
-        assert boosted_score > original_score
-
-    def test_doc_type_boost_no_match(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test doc type boost with non-matching type."""
-        sample_result.metadata["doc_type"] = "blog_post"
-        boost_amount = booster.apply_doc_type_boost(sample_result)
-
-        assert boost_amount == 0.0
-
-    def test_doc_type_boost_unknown_type(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test doc type boost with unknown type."""
-        sample_result.metadata["doc_type"] = "unknown_format"
-        boost_amount = booster.apply_doc_type_boost(sample_result)
-
-        assert boost_amount == 0.0
-
-    def test_recency_boost_recent_doc(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test recency boost for recent document (<7 days)."""
-        sample_result.document_date = datetime.now() - timedelta(days=3)
-        boost_amount = booster.apply_recency_boost(sample_result)
-
-        assert boost_amount == 0.05  # Max boost
-
-    def test_recency_boost_old_doc(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test recency boost for old document (>1 year)."""
-        sample_result.document_date = datetime.now() - timedelta(days=400)
-        boost_amount = booster.apply_recency_boost(sample_result)
-
-        assert boost_amount == 0.0  # No boost
-
-    def test_recency_boost_gradual_decay(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test gradual decay of recency boost over time."""
-        # 30 days old: should have some boost
-        sample_result.document_date = datetime.now() - timedelta(days=30)
-        boost_30 = booster.apply_recency_boost(sample_result)
-
-        # 60 days old: should have less boost
-        sample_result.document_date = datetime.now() - timedelta(days=60)
-        boost_60 = booster.apply_recency_boost(sample_result)
-
-        # 90 days old: should have even less boost
-        sample_result.document_date = datetime.now() - timedelta(days=90)
-        boost_90 = booster.apply_recency_boost(sample_result)
-
-        assert 0.0 < boost_90 < boost_60 < boost_30 < 0.05
-
-    def test_recency_boost_null_date(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test recency boost with null document_date."""
-        sample_result.document_date = None
-        boost_amount = booster.apply_recency_boost(sample_result)
-
-        assert boost_amount == 0.0
-
-    def test_entity_boost_match(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test entity boost with matching entity."""
-        boost_amount = booster.apply_entity_boost(sample_result)
-
-        assert boost_amount == 0.10  # 10% boost (has "neural networks")
-
-    def test_entity_boost_no_match(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test entity boost with non-matching entities."""
-        sample_result.metadata["entities"] = ["unknown_entity"]
-        boost_amount = booster.apply_entity_boost(sample_result)
-
-        assert boost_amount == 0.0
-
-    def test_entity_boost_multiple_matches(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test entity boost counts only once with multiple matches."""
-        sample_result.metadata["entities"] = ["neural networks", "deep learning"]
-        boost_amount = booster.apply_entity_boost(sample_result)
-
-        assert boost_amount == 0.10  # Not 0.20, just 0.10
-
-    def test_topic_boost_match(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test topic boost with matching topic."""
-        boost_amount = booster.apply_topic_boost(sample_result)
-
-        assert boost_amount == 0.08  # 8% boost
-
-    def test_topic_boost_no_match(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test topic boost with non-matching topic."""
-        sample_result.metadata["topics"] = ["other-topic"]
-        boost_amount = booster.apply_topic_boost(sample_result)
-
-        assert boost_amount == 0.0
-
-
-# Cumulative Boost Logic Tests
-class TestCumulativeBoostLogic:
-    """Test cumulative boost application."""
-
-    def test_single_boost_applied(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test single boost correctly increases score."""
-        original_score = sample_result.hybrid_score
-        boosted_result, boosts = booster.apply_all_boosts(sample_result)
-
-        # Should have some boosts applied
-        total_boosts = sum(boosts.values())
-        assert total_boosts > 0
-
-        # Score should be higher
-        assert boosted_result.hybrid_score > original_score
-
-    def test_two_boosts_cumulative(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test cumulative effect of multiple boosts."""
-        # Ensure both vendor and doc_type will boost
-        sample_result.metadata["vendor"] = "anthropic"
-        sample_result.metadata["doc_type"] = "api_docs"
-
-        original_score = sample_result.hybrid_score
-        boosted_result, boosts = booster.apply_all_boosts(sample_result)
-
-        # Both vendor and doc_type should have boosts
-        assert boosts["vendor"] > 0
-        assert boosts["doc_type"] > 0
-
-        # Combined effect
-        total_boost = sum(boosts.values())
-        expected_score = original_score + (original_score * total_boost)
-        assert abs(boosted_result.hybrid_score - min(1.0, expected_score)) < 0.001
-
-    def test_all_five_boosts_applied(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test all five boosts applied together."""
-        # Set up to trigger all boosts
-        sample_result.metadata["vendor"] = "anthropic"
-        sample_result.metadata["doc_type"] = "api_docs"
-        sample_result.document_date = datetime.now() - timedelta(days=3)
-        sample_result.metadata["entities"] = ["neural networks"]
-        sample_result.metadata["topics"] = ["machine-learning"]
-
-        boosted_result, boosts = booster.apply_all_boosts(sample_result)
-
-        # All boosts should be applied
-        assert boosts["vendor"] > 0
-        assert boosts["doc_type"] > 0
-        assert boosts["recency"] > 0
-        assert boosts["entity"] > 0
-        assert boosts["topic"] > 0
-
-        # Combined boost
-        total_boost = sum(boosts.values())
-        assert total_boost > 0.40  # At least 40% combined boost
-
-    def test_boosts_dont_exceed_1_0(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test that final score never exceeds 1.0."""
-        # Set up to trigger all boosts
-        sample_result.hybrid_score = 0.5
-        sample_result.metadata["vendor"] = "anthropic"
-        sample_result.metadata["doc_type"] = "api_docs"
-        sample_result.document_date = datetime.now() - timedelta(days=3)
-        sample_result.metadata["entities"] = ["neural networks"]
-        sample_result.metadata["topics"] = ["machine-learning"]
-
-        boosted_result, _ = booster.apply_all_boosts(sample_result)
-
-        assert boosted_result.hybrid_score <= 1.0
-
-    def test_clamping_high_score(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test score clamping when boosted score would exceed 1.0."""
-        sample_result.hybrid_score = 0.9
-        sample_result.metadata["vendor"] = "anthropic"
-        sample_result.metadata["doc_type"] = "api_docs"
-        sample_result.document_date = datetime.now() - timedelta(days=3)
-
-        boosted_result, boosts = booster.apply_all_boosts(sample_result)
-
-        assert boosted_result.hybrid_score <= 1.0
-
-    def test_clamping_low_score(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test that score never goes below 0.0."""
-        sample_result.hybrid_score = 0.01
-        sample_result.metadata = {}  # No boosts
-
-        boosted_result, _ = booster.apply_all_boosts(sample_result)
-
-        assert boosted_result.hybrid_score >= 0.0
-
-    def test_zero_boosts_no_change(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test that zero boosts don't change original score."""
-        original_score = sample_result.hybrid_score
-        sample_result.metadata = {}  # No matching metadata for boosts
-
-        boosted_result, boosts = booster.apply_all_boosts(sample_result)
-
-        # All boosts should be 0
-        assert sum(boosts.values()) == 0
-        assert abs(boosted_result.hybrid_score - original_score) < 0.001
-
-
-# Score Clamping Tests
-class TestScoreClamping:
-    """Test score boundary clamping."""
-
-    def test_score_never_exceeds_1_0(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test score never exceeds 1.0."""
-        sample_result.hybrid_score = 0.95
-        sample_result.metadata["vendor"] = "anthropic"
-        sample_result.metadata["doc_type"] = "api_docs"
-        sample_result.document_date = datetime.now() - timedelta(days=1)
-
-        boosted_result, _ = booster.apply_all_boosts(sample_result)
-
-        assert boosted_result.hybrid_score <= 1.0
-
-    def test_score_never_below_0_0(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test score never goes below 0.0."""
-        sample_result.hybrid_score = 0.05
-        sample_result.metadata = {}  # Will result in negative boost internally (shouldn't happen)
-
-        boosted_result, _ = booster.apply_all_boosts(sample_result)
-
-        assert boosted_result.hybrid_score >= 0.0
-
-    def test_exact_1_0_boundary(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test clamping at exact 1.0 boundary."""
-        sample_result.hybrid_score = 1.0
-        sample_result.metadata["vendor"] = "anthropic"  # Would add more boost
-
-        boosted_result, _ = booster.apply_all_boosts(sample_result)
-
-        assert boosted_result.hybrid_score == 1.0
-
-    def test_fractional_clamping(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test clamping with fractional boost values."""
-        sample_result.hybrid_score = 0.85
-        sample_result.metadata["vendor"] = "anthropic"
-        sample_result.metadata["doc_type"] = "api_docs"
-
-        boosted_result, _ = booster.apply_all_boosts(sample_result)
-
-        assert 0.0 <= boosted_result.hybrid_score <= 1.0
-
-
-# Re-ranking After Boosts Tests
-class TestRerankingAfterBoosts:
-    """Test re-ranking of results after boosts."""
-
-    def test_rerank_with_boost_changes_order(
-        self, booster: Any
-    ) -> None:
-        """Test that boosts can change result order."""
+class TestBoostingSystemInit:
+    """Tests for BoostingSystem initialization."""
+
+    def test_default_initialization(self) -> None:
+        """Test initialization with no arguments."""
+        system = BoostingSystem()
+        assert system is not None
+
+    def test_initialization_with_db_pool(self) -> None:
+        """Test initialization with database pool."""
+        system = BoostingSystem(db_pool=None)
+        assert system is not None
+
+
+class TestBoostWeightsDefaults:
+    """Tests for BoostWeights default configuration."""
+
+    def test_default_weights(self) -> None:
+        """Test default boost weight values."""
+        weights = BoostWeights()
+        assert weights.vendor == 0.15
+        assert weights.doc_type == 0.10
+        assert weights.recency == 0.05
+        assert weights.entity == 0.10
+        assert weights.topic == 0.08
+
+    def test_custom_weights(self) -> None:
+        """Test custom boost weight configuration."""
+        weights = BoostWeights(
+            vendor=0.20,
+            doc_type=0.15,
+            recency=0.10,
+            entity=0.05,
+            topic=0.05,
+        )
+        assert weights.vendor == 0.20
+        assert weights.doc_type == 0.15
+
+
+class TestVendorExtraction:
+    """Tests for vendor name extraction from queries."""
+
+    def test_extract_single_vendor(self) -> None:
+        """Test extraction of single vendor name."""
+        system = BoostingSystem()
+        vendors = system._extract_vendors("OpenAI API documentation")
+        assert "openai" in vendors
+
+    def test_extract_multiple_vendors(self) -> None:
+        """Test extraction of multiple vendor names."""
+        system = BoostingSystem()
+        vendors = system._extract_vendors("Compare OpenAI, Google, and AWS APIs")
+        assert "openai" in vendors
+        assert "google" in vendors
+        assert "aws" in vendors
+
+    def test_extract_no_vendors(self) -> None:
+        """Test query with no known vendors."""
+        system = BoostingSystem()
+        vendors = system._extract_vendors("How to write Python code")
+        assert len(vendors) == 0
+
+    def test_case_insensitive_vendor_extraction(self) -> None:
+        """Test that vendor extraction is case-insensitive."""
+        system = BoostingSystem()
+        vendors_lower = system._extract_vendors("openai documentation")
+        vendors_upper = system._extract_vendors("OPENAI DOCUMENTATION")
+        assert "openai" in vendors_lower
+        assert "openai" in vendors_upper
+
+
+class TestDocTypeDetection:
+    """Tests for document type detection from queries."""
+
+    def test_detect_api_docs(self) -> None:
+        """Test detection of API documentation intent."""
+        system = BoostingSystem()
+        doc_type = system._detect_doc_type("API documentation for endpoints")
+        assert doc_type == "api_docs"
+
+    def test_detect_guide(self) -> None:
+        """Test detection of guide/tutorial intent."""
+        system = BoostingSystem()
+        doc_type = system._detect_doc_type("Getting started guide")
+        assert doc_type == "guide"
+
+    def test_detect_kb_article(self) -> None:
+        """Test detection of KB article intent."""
+        system = BoostingSystem()
+        doc_type = system._detect_doc_type("Troubleshooting FAQ")
+        assert doc_type == "kb_article"
+
+    def test_detect_code_sample(self) -> None:
+        """Test detection of code sample intent."""
+        system = BoostingSystem()
+        doc_type = system._detect_doc_type("Code snippet implementation")
+        assert doc_type == "code_sample"
+
+    def test_detect_reference(self) -> None:
+        """Test detection of reference intent."""
+        system = BoostingSystem()
+        doc_type = system._detect_doc_type("Schema reference specification")
+        assert doc_type == "reference"
+
+    def test_detect_no_type(self) -> None:
+        """Test query with no clear document type."""
+        system = BoostingSystem()
+        doc_type = system._detect_doc_type("random query text")
+        assert doc_type == ""
+
+
+class TestRecencyBoost:
+    """Tests for recency boost calculation."""
+
+    def test_very_recent_boost(self) -> None:
+        """Test boost for very recent document (< 7 days)."""
+        system = BoostingSystem()
+        today = date.today()
+        recent_date = today - timedelta(days=3)
+        boost = system._calculate_recency_boost(recent_date)
+        assert boost == 1.0
+
+    def test_moderate_recency_boost(self) -> None:
+        """Test boost for moderately recent document (7-30 days)."""
+        system = BoostingSystem()
+        today = date.today()
+        moderate_date = today - timedelta(days=15)
+        boost = system._calculate_recency_boost(moderate_date)
+        assert boost == 0.7
+
+    def test_old_document_no_boost(self) -> None:
+        """Test that old document (> 30 days) gets no boost."""
+        system = BoostingSystem()
+        today = date.today()
+        old_date = today - timedelta(days=60)
+        boost = system._calculate_recency_boost(old_date)
+        assert boost == 0.0
+
+    def test_no_date_no_boost(self) -> None:
+        """Test that None date produces no boost."""
+        system = BoostingSystem()
+        boost = system._calculate_recency_boost(None)
+        assert boost == 0.0
+
+    def test_datetime_object_handling(self) -> None:
+        """Test handling of datetime objects."""
+        system = BoostingSystem()
+        today = datetime.now()
+        recent_dt = today - timedelta(days=2)
+        boost = system._calculate_recency_boost(recent_dt)
+        assert boost == 1.0
+
+    def test_future_date_handling(self) -> None:
+        """Test handling of future dates."""
+        system = BoostingSystem()
+        today = date.today()
+        future_date = today + timedelta(days=10)
+        boost = system._calculate_recency_boost(future_date)
+        assert boost == 1.0
+
+
+class TestTopicDetection:
+    """Tests for topic detection from queries."""
+
+    def test_detect_authentication_topic(self) -> None:
+        """Test detection of authentication topic."""
+        system = BoostingSystem()
+        topic = system._detect_topic("How to use JWT authentication")
+        assert topic == "authentication"
+
+    def test_detect_api_design_topic(self) -> None:
+        """Test detection of API design topic."""
+        system = BoostingSystem()
+        topic = system._detect_topic("REST API design patterns")
+        assert topic == "api_design"
+
+    def test_detect_deployment_topic(self) -> None:
+        """Test detection of deployment topic."""
+        system = BoostingSystem()
+        topic = system._detect_topic("Deploy to Kubernetes")
+        assert topic == "deployment"
+
+    def test_detect_optimization_topic(self) -> None:
+        """Test detection of optimization topic."""
+        system = BoostingSystem()
+        topic = system._detect_topic("Performance optimization tips")
+        assert topic == "optimization"
+
+    def test_detect_no_topic(self) -> None:
+        """Test query with no clear topic."""
+        system = BoostingSystem()
+        topic = system._detect_topic("random text without meaning")
+        assert topic == ""
+
+
+class TestEntityExtraction:
+    """Tests for entity extraction and matching."""
+
+    def test_extract_capitalized_entities(self, sample_results: list[SearchResult]) -> None:
+        """Test extraction of capitalized entities."""
+        system = BoostingSystem()
+        entities = system._extract_entities("OpenAI API", sample_results)
+        # Should find some entities
+        assert isinstance(entities, dict)
+
+    def test_entity_matching_in_results(self, sample_results: list[SearchResult]) -> None:
+        """Test matching of entities to results."""
+        system = BoostingSystem()
+        entities = system._extract_entities("OpenAI GPT", sample_results)
+        # First result mentions OpenAI and GPT
+        if 0 in entities:
+            assert len(entities[0]) > 0
+
+
+class TestScoreBoosting:
+    """Tests for score boosting and clamping."""
+
+    def test_no_boost(self) -> None:
+        """Test score with no boost applied."""
+        system = BoostingSystem()
+        boosted = system._boost_score(0.75, 0.0)
+        assert abs(boosted - 0.75) < 1e-6
+
+    def test_single_boost(self) -> None:
+        """Test score with single boost factor."""
+        system = BoostingSystem()
+        # 0.5 * (1 + 0.1) = 0.55
+        boosted = system._boost_score(0.5, 0.1)
+        assert abs(boosted - 0.55) < 1e-6
+
+    def test_multiple_boosts(self) -> None:
+        """Test score with multiple cumulative boosts."""
+        system = BoostingSystem()
+        # 0.6 * (1 + 0.30) = 0.78
+        boosted = system._boost_score(0.6, 0.30)
+        assert abs(boosted - 0.78) < 1e-6
+
+    def test_boost_clamping_upper(self) -> None:
+        """Test that boosted score doesn't exceed 1.0."""
+        system = BoostingSystem()
+        boosted = system._boost_score(0.9, 0.5)  # Would be 1.35, clamped to 1.0
+        assert boosted == 1.0
+
+    def test_boost_clamping_lower(self) -> None:
+        """Test that boosted score doesn't go below 0.0."""
+        system = BoostingSystem()
+        boosted = system._boost_score(0.0, 1.0)
+        assert boosted == 0.0
+
+
+class TestMetadataExtraction:
+    """Tests for metadata extraction from results."""
+
+    def test_extract_vendor_from_metadata(self) -> None:
+        """Test extraction of vendor from result metadata."""
+        system = BoostingSystem()
+        result = SearchResult(
+            chunk_id=1,
+            chunk_text="Test",
+            similarity_score=0.8,
+            bm25_score=0.7,
+            hybrid_score=0.75,
+            rank=1,
+            score_type="hybrid",
+            source_file="doc.md",
+            source_category="guide",
+            document_date=None,
+            context_header="doc.md",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=128,
+            metadata={"vendor": "OpenAI"},
+        )
+        vendor = system._get_vendor_from_metadata(result)
+        assert vendor == "OpenAI"
+
+    def test_extract_doc_type_from_category(self) -> None:
+        """Test extraction of document type from source_category."""
+        system = BoostingSystem()
+        result = SearchResult(
+            chunk_id=1,
+            chunk_text="Test",
+            similarity_score=0.8,
+            bm25_score=0.7,
+            hybrid_score=0.75,
+            rank=1,
+            score_type="hybrid",
+            source_file="doc.md",
+            source_category="api_docs",
+            document_date=None,
+            context_header="doc.md",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=128,
+        )
+        doc_type = system._get_doc_type_from_result(result)
+        assert doc_type == "api_docs"
+
+    def test_missing_vendor_returns_none(self) -> None:
+        """Test that missing vendor returns None."""
+        system = BoostingSystem()
+        result = SearchResult(
+            chunk_id=1,
+            chunk_text="Test",
+            similarity_score=0.8,
+            bm25_score=0.7,
+            hybrid_score=0.75,
+            rank=1,
+            score_type="hybrid",
+            source_file="doc.md",
+            source_category="guide",
+            document_date=None,
+            context_header="doc.md",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=128,
+            metadata={},
+        )
+        vendor = system._get_vendor_from_metadata(result)
+        assert vendor is None
+
+
+class TestApplyBoosts:
+    """Tests for full boost application workflow."""
+
+    def test_apply_boosts_empty_results(self) -> None:
+        """Test applying boosts to empty result list."""
+        system = BoostingSystem()
+        result = system.apply_boosts([], "test query")
+        assert result == []
+
+    def test_apply_boosts_preserves_count(self, sample_results: list[SearchResult]) -> None:
+        """Test that boost application preserves result count."""
+        system = BoostingSystem()
+        boosted = system.apply_boosts(sample_results, "OpenAI API")
+        assert len(boosted) == len(sample_results)
+
+    def test_apply_boosts_reranks_results(self, sample_results: list[SearchResult]) -> None:
+        """Test that boosts affect ranking."""
+        system = BoostingSystem()
+        boosted = system.apply_boosts(sample_results, "OpenAI API documentation")
+
+        # Verify results are reranked (scores may differ)
+        boosted_scores = [r.hybrid_score for r in boosted]
+        assert boosted_scores == sorted(boosted_scores, reverse=True)
+
+    def test_apply_boosts_updates_scores(self, sample_results: list[SearchResult]) -> None:
+        """Test that boost application updates scores."""
+        system = BoostingSystem()
+        original_scores = [r.hybrid_score for r in sample_results]
+        boosted = system.apply_boosts(sample_results, "OpenAI recent API guide")
+
+        boosted_scores = [r.hybrid_score for r in boosted]
+        # Some scores should be different (boosted)
+        assert original_scores != boosted_scores
+
+    def test_apply_boosts_score_type(self, sample_results: list[SearchResult]) -> None:
+        """Test that score type is set to 'hybrid' after boosting."""
+        system = BoostingSystem()
+        boosted = system.apply_boosts(sample_results, "test query")
+        assert all(r.score_type == "hybrid" for r in boosted)
+
+    def test_apply_boosts_vendor_matching(self) -> None:
+        """Test vendor boost is applied correctly."""
         results = [
             SearchResult(
                 chunk_id=1,
-                chunk_text="Text 1",
-                similarity_score=0.90,
-                bm25_score=0.85,
-                hybrid_score=0.88,
-                rank=1,
-                score_type="hybrid",
-                source_file="d.md",
-                source_category="doc",
-                document_date=None,
-                context_header="d > s",
-                chunk_index=0,
-                total_chunks=1,
-                chunk_token_count=100,
-                metadata={"vendor": "google", "doc_type": "blog"},
-            ),
-            SearchResult(
-                chunk_id=2,
-                chunk_text="Text 2",
-                similarity_score=0.80,
-                bm25_score=0.75,
-                hybrid_score=0.78,
-                rank=2,
-                score_type="hybrid",
-                source_file="d.md",
-                source_category="doc",
-                document_date=None,
-                context_header="d > s",
-                chunk_index=1,
-                total_chunks=1,
-                chunk_token_count=100,
-                metadata={"vendor": "anthropic", "doc_type": "api_docs"},
-            ),
-        ]
-
-        reranked = booster.rerank_results(results)
-
-        # Result 2 should rank first due to better boosts
-        assert reranked[0].chunk_id == 2
-        assert reranked[1].chunk_id == 1
-
-    def test_rerank_preserves_all_results(
-        self, booster: Any, sample_results_list: list[SearchResult]
-    ) -> None:
-        """Test that reranking preserves all results."""
-        reranked = booster.rerank_results(sample_results_list)
-
-        assert len(reranked) == len(sample_results_list)
-        assert set(r.chunk_id for r in reranked) == set(
-            r.chunk_id for r in sample_results_list
-        )
-
-    def test_rerank_updates_ranks_correctly(
-        self, booster: Any
-    ) -> None:
-        """Test that ranks are updated sequentially after reranking."""
-        results = [
-            SearchResult(
-                chunk_id=i,
-                chunk_text=f"Text {i}",
-                similarity_score=0.9 - (i * 0.1),
-                bm25_score=0.8 - (i * 0.1),
-                hybrid_score=0.85 - (i * 0.1),
-                rank=i + 1,
-                score_type="hybrid",
-                source_file="d.md",
-                source_category="doc",
-                document_date=None,
-                context_header="d > s",
-                chunk_index=i,
-                total_chunks=5,
-                chunk_token_count=100,
-                metadata={},
-            )
-            for i in range(5)
-        ]
-
-        reranked = booster.rerank_results(results)
-
-        # Ranks should be 1-5 in order
-        for i, result in enumerate(reranked, 1):
-            assert result.rank == i
-
-
-# Edge Cases Tests
-class TestBoostingEdgeCases:
-    """Test edge cases in boosting."""
-
-    def test_null_metadata(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test boosting with null metadata."""
-        sample_result.metadata = {}
-        boosted_result, boosts = booster.apply_all_boosts(sample_result)
-
-        # All boosts should be 0
-        assert sum(boosts.values()) == 0
-
-    def test_empty_results_list(self, booster: Any) -> None:
-        """Test re-ranking empty results."""
-        reranked = booster.rerank_results([])
-
-        assert len(reranked) == 0
-
-    def test_single_result(
-        self, booster: Any, sample_result: SearchResult
-    ) -> None:
-        """Test boosting single result."""
-        reranked = booster.rerank_results([sample_result])
-
-        assert len(reranked) == 1
-        assert reranked[0].rank == 1
-
-    def test_duplicate_scores_tie_breaking(
-        self, booster: Any
-    ) -> None:
-        """Test re-ranking with duplicate scores (tie-breaking)."""
-        results = [
-            SearchResult(
-                chunk_id=i,
-                chunk_text=f"Text {i}",
+                chunk_text="OpenAI API documentation",
                 similarity_score=0.8,
                 bm25_score=0.7,
-                hybrid_score=0.75,  # All same score
-                rank=i + 1,
+                hybrid_score=0.75,
+                rank=1,
                 score_type="hybrid",
-                source_file="d.md",
-                source_category="doc",
+                source_file="doc.md",
+                source_category="guide",
                 document_date=None,
-                context_header="d > s",
-                chunk_index=i,
-                total_chunks=3,
-                chunk_token_count=100,
-                metadata={},
-            )
-            for i in range(3)
+                context_header="doc.md",
+                chunk_index=0,
+                total_chunks=1,
+                chunk_token_count=128,
+                metadata={"vendor": "OpenAI"},
+            ),
         ]
 
-        reranked = booster.rerank_results(results)
+        system = BoostingSystem()
+        boosted = system.apply_boosts(results, "OpenAI documentation")
 
-        # Should maintain some order (stable sort)
-        assert len(reranked) == 3
+        # Score should be boosted (vendor match)
+        assert boosted[0].hybrid_score > results[0].hybrid_score
 
-    def test_large_result_set(self, booster: Any) -> None:
-        """Test boosting large result set (500+ results)."""
+    def test_apply_boosts_custom_weights(self, sample_results: list[SearchResult]) -> None:
+        """Test applying boosts with custom weight configuration."""
+        system = BoostingSystem()
+        weights = BoostWeights(vendor=0.5, doc_type=0.0, recency=0.0, entity=0.0, topic=0.0)
+
+        boosted = system.apply_boosts(sample_results, "OpenAI", boosts=weights)
+
+        assert len(boosted) == len(sample_results)
+        assert all(r.score_type == "hybrid" for r in boosted)
+
+
+class TestEdgeCases:
+    """Tests for edge cases and boundary conditions."""
+
+    def test_boost_zero_original_score(self) -> None:
+        """Test boosting when original score is 0.0."""
+        system = BoostingSystem()
+        boosted = system._boost_score(0.0, 0.5)
+        assert boosted == 0.0
+
+    def test_boost_zero_boost_factor(self) -> None:
+        """Test boosting when boost factor is 0.0."""
+        system = BoostingSystem()
+        boosted = system._boost_score(0.5, 0.0)
+        assert abs(boosted - 0.5) < 1e-6
+
+    def test_apply_boosts_with_null_metadata(self) -> None:
+        """Test boost application with results missing metadata."""
+        results = [
+            SearchResult(
+                chunk_id=1,
+                chunk_text="Some text",
+                similarity_score=0.8,
+                bm25_score=0.7,
+                hybrid_score=0.75,
+                rank=1,
+                score_type="hybrid",
+                source_file="doc.md",
+                source_category=None,
+                document_date=None,
+                context_header="doc.md",
+                chunk_index=0,
+                total_chunks=1,
+                chunk_token_count=128,
+                metadata=None,
+            ),
+        ]
+
+        system = BoostingSystem()
+        boosted = system.apply_boosts(results, "test query")
+
+        assert len(boosted) == 1
+        assert boosted[0].hybrid_score >= 0.0
+
+    def test_apply_boosts_large_result_set(self) -> None:
+        """Test boost application performance with many results."""
         results = [
             SearchResult(
                 chunk_id=i,
-                chunk_text=f"Text {i}",
-                similarity_score=1.0 - (i * 0.001),
-                bm25_score=0.9 - (i * 0.0009),
-                hybrid_score=0.95 - (i * 0.00095),
-                rank=i + 1,
+                chunk_text=f"Result {i}",
+                similarity_score=0.5 + (i * 0.001),
+                bm25_score=0.5,
+                hybrid_score=0.5 + (i * 0.001),
+                rank=i + 1,  # rank must be >= 1
                 score_type="hybrid",
-                source_file="d.md",
-                source_category="doc",
+                source_file="doc.md",
+                source_category="guide",
                 document_date=None,
-                context_header="d > s",
-                chunk_index=i,
-                total_chunks=500,
-                chunk_token_count=100,
-                metadata={},
-            )
-            for i in range(500)
-        ]
-
-        reranked = booster.rerank_results(results)
-
-        assert len(reranked) == 500
-
-
-# Performance Benchmarking Tests
-class TestBoostingPerformance:
-    """Test boosting performance."""
-
-    def test_boost_100_results_performance(self, booster: Any) -> None:
-        """Test boosting 100 results completes quickly."""
-        results = [
-            SearchResult(
-                chunk_id=i,
-                chunk_text=f"Text {i}",
-                similarity_score=0.9 - (i * 0.005),
-                bm25_score=0.85 - (i * 0.004),
-                hybrid_score=0.88 - (i * 0.0045),
-                rank=i + 1,
-                score_type="hybrid",
-                source_file="d.md",
-                source_category="doc",
-                document_date=datetime.now() - timedelta(days=i),
-                context_header="d > s",
-                chunk_index=i,
-                total_chunks=100,
-                chunk_token_count=100,
-                metadata={
-                    "vendor": ["anthropic", "openai"][i % 2],
-                    "doc_type": ["api_docs", "kb_article"][i % 2],
-                },
+                context_header="doc.md",
+                chunk_index=0,
+                total_chunks=1,
+                chunk_token_count=128,
             )
             for i in range(100)
         ]
 
-        reranked = booster.rerank_results(results)
+        system = BoostingSystem()
+        boosted = system.apply_boosts(results, "test query")
 
-        # Should complete successfully
-        assert len(reranked) == 100
-        # Verify all scores valid
-        assert all(0.0 <= r.hybrid_score <= 1.0 for r in reranked)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        assert len(boosted) == 100
+        assert all(0 <= r.hybrid_score <= 1.0 for r in boosted)
