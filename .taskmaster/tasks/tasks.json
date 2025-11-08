@@ -344,9 +344,10 @@
             "description": "Develop the core RRF algorithm that combines ranking scores from multiple search sources using the reciprocal rank fusion formula with k=60 constant",
             "dependencies": [],
             "details": "Implement RRF formula: score = sum(1/(k+rank)) for each result across all search sources. Create RRF class with configurable k parameter (default 60). Handle edge cases like missing results, duplicate documents, and varying result set sizes. Ensure numerical stability and consistent scoring.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests for RRF scoring logic with known input/output pairs. Test edge cases: empty results, single result, duplicate documents. Validate mathematical correctness of fusion algorithm.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T15:54:48.414Z"
           },
           {
             "id": 2,
@@ -356,9 +357,10 @@
               1
             ],
             "details": "Design boost configuration system with Pydantic models for weight management. Implement boost calculators for each factor: vendor affinity, document type relevance, temporal recency, entity matching, and topic alignment. Create multiplicative boost application that preserves relative ranking while enhancing relevant results.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test individual boost calculations with known metadata. Validate boost combination logic maintains score ordering. Test configuration loading and weight adjustment impact on result ranking.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T15:54:49.332Z"
           },
           {
             "id": 3,
@@ -368,9 +370,10 @@
               1
             ],
             "details": "Analyze query patterns to determine optimal search strategy: short queries favor BM25, semantic queries favor vector search, complex queries use hybrid. Implement query classification based on length, entity presence, and semantic complexity. Create routing logic with fallback mechanisms and performance monitoring.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test routing decisions with various query types. Validate fallback mechanisms when primary strategy fails. Measure routing overhead and accuracy of strategy selection against manual classification.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2025-11-08T15:54:50.252Z"
           },
           {
             "id": 4,
@@ -390,7 +393,7 @@
         "complexity": 7,
         "recommendedSubtasks": 4,
         "expansionPrompt": "Break into: 1) Reciprocal Rank Fusion algorithm implementation with k=60 parameter, 2) Multi-factor boosting system with configurable weights (+15%/+10%/+5%/+10%/+8%), 3) Query routing mechanism for choosing search strategies, 4) Results merging and final ranking with validation against expected accuracy metrics",
-        "updatedAt": "2025-11-08T15:41:14.163Z"
+        "updatedAt": "2025-11-08T15:54:50.252Z"
       },
       {
         "id": "6",
@@ -783,7 +786,7 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-08T15:41:14.166Z",
+      "lastModified": "2025-11-08T15:54:50.253Z",
       "taskCount": 10,
       "completedCount": 4,
       "tags": [
