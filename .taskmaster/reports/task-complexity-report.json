@@ -1,0 +1,93 @@
+{
+	"meta": {
+		"generatedAt": "2025-11-08T01:38:32.280Z",
+		"tasksAnalyzed": 10,
+		"totalTasks": 10,
+		"analysisCount": 10,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Database and Core Utilities Setup",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into: 1) PostgreSQL 16 installation with pgvector extension, 2) Schema creation from sql/schema_768.sql with proper indexing, 3) Pydantic configuration system with environment variable support, 4) Database connection pooling setup with psycopg2, 5) Structured logging configuration with JSON formatting, 6) Virtual environment setup with pytest, pre-commit hooks, and development tooling",
+			"reasoning": "This is a foundational task requiring multiple technology integrations. Setting up PostgreSQL with pgvector requires system-level configuration, schema execution needs validation, Pydantic config requires type definitions, and connection pooling needs tuning. The greenfield nature and multiple moving parts justify high complexity."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Document Parsing and Chunking System",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Split into: 1) Markdown file reader with metadata extraction from paths/frontmatter, 2) tiktoken-based tokenization system for accurate token counting, 3) 512-token chunking with 20% overlap implementation, 4) Context header generation from document structure, 5) Batch processing pipeline with progress tracking and error handling",
+			"reasoning": "Moderate complexity due to multiple parsing requirements and token-based chunking. The challenge lies in accurately extracting metadata from various sources (paths, headers, frontmatter) and implementing precise token-based chunking with proper overlap. Requires careful handling of different markdown formats."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Embedding Generation Pipeline",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down into: 1) sentence-transformers model loading with caching strategy, 2) Parallel embedding generation with batch processing, 3) Database insertion with HNSW index creation, 4) Embedding validation and quality checks with dimension verification",
+			"reasoning": "Medium complexity involving ML model integration and parallel processing. The main challenges are efficient model caching, batch processing optimization, and ensuring proper HNSW indexing. Benefits from existing sentence-transformers library but requires careful memory and performance management."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "Vector and BM25 Search Implementation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Split into: 1) pgvector HNSW cosine similarity search implementation, 2) PostgreSQL ts_vector BM25 search with GIN indexing, 3) Metadata filtering system with JSONB containment, 4) Performance profiling and optimization, 5) Search result formatting and ranking validation",
+			"reasoning": "Moderately complex requiring deep PostgreSQL knowledge for both vector and full-text search. HNSW parameter tuning, BM25 scoring implementation, and metadata filtering integration require careful optimization. Performance targets add complexity."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Hybrid Search with Reciprocal Rank Fusion",
+			"complexityScore": 7,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break into: 1) Reciprocal Rank Fusion algorithm implementation with k=60 parameter, 2) Multi-factor boosting system with configurable weights (+15%/+10%/+5%/+10%/+8%), 3) Query routing mechanism for choosing search strategies, 4) Results merging and final ranking with validation against expected accuracy metrics",
+			"reasoning": "High complexity due to algorithmic implementation and multiple ranking factors. RRF requires precise mathematical implementation, boost weighting system needs configuration management, and query routing adds decision logic. The combination of multiple search strategies increases complexity significantly."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Cross-Encoder Reranking System",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Split into: 1) ms-marco-MiniLM-L-6-v2 model loading and inference, 2) Candidate selection strategy with adaptive pool sizing, 3) Query-document pair scoring and top-5 selection, 4) Performance optimization to meet <200ms latency targets",
+			"reasoning": "Moderate complexity involving transformer model integration and performance optimization. Adaptive candidate selection adds algorithmic complexity, and meeting strict latency requirements while maintaining accuracy requires careful optimization."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Entity Extraction and Knowledge Graph",
+			"complexityScore": 8,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into: 1) spaCy NER setup and entity extraction, 2) Entity deduplication and canonicalization with Levenshtein similarity, 3) Knowledge graph schema design with JSONB relationships, 4) Relationship detection and bidirectional linking, 5) Graph traversal query implementation (1-hop and 2-hop), 6) Entity extraction accuracy validation with manual annotation comparison",
+			"reasoning": "High complexity due to NLP processing, graph algorithms, and accuracy requirements. Entity extraction requires NLP expertise, deduplication involves string similarity algorithms, graph design needs careful schema planning, and accuracy validation requires ground truth data. Multiple interconnected components."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Neon Production Validation System",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Split into: 1) Read-only Neon database connection with credential management, 2) A/B search comparison system executing identical queries, 3) Golden query dataset creation with manual annotations, 4) Accuracy metrics calculation (overlap@5, rank correlation, precision/recall), 5) Pre-commit hook integration for automated validation",
+			"reasoning": "High complexity due to external system integration and metrics validation. Requires secure connection management, identical query execution across systems, statistical metrics implementation, and CI/CD integration. Critical for validating the entire system's accuracy."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Search Optimization and Tuning",
+			"complexityScore": 8,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break into: 1) HNSW parameter tuning (ef_search, m values) with performance testing, 2) Boost weight optimization across multiple factors, 3) Chunking strategy experimentation (token sizes, overlap percentages), 4) Candidate pool size optimization for cross-encoder, 5) Performance profiling and bottleneck identification, 6) A/B testing framework for validating improvements",
+			"reasoning": "High complexity requiring systematic experimentation and optimization. Multiple parameters need tuning with interdependencies, performance profiling requires deep technical knowledge, and A/B testing framework adds infrastructure complexity. Success depends on achieving specific accuracy and latency targets."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "FastMCP Server Integration",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: 1) FastMCP server setup with semantic_search and find_vendor_info tools, 2) Request handler implementation with proper error handling, 3) Authentication system integration, 4) Response formatting for Claude Desktop compatibility, 5) End-to-end testing and performance validation",
+			"reasoning": "Moderate complexity for API integration and server setup. FastMCP framework should simplify implementation, but proper error handling, authentication, and Claude Desktop integration require careful attention. End-to-end testing adds validation complexity."
+		}
+	]
+}

@@ -1,0 +1,430 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Database and Core Utilities Setup",
+        "description": "Initialize PostgreSQL 16 with pgvector, create database schema, and establish core configuration management",
+        "details": "Execute sql/schema_768.sql, create config system with Pydantic, set up connection pooling, implement logging and error handling utilities. Configure virtual environment, pytest, pre-commit hooks.",
+        "testStrategy": "Unit tests for database connection, configuration loading, retry logic. Validate all core utilities handle edge cases.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "PostgreSQL 16 installation with pgvector extension",
+            "description": "Install PostgreSQL 16 database system and configure pgvector extension for vector similarity operations",
+            "dependencies": [],
+            "details": "Download and install PostgreSQL 16, enable pgvector extension using CREATE EXTENSION, verify installation with SELECT * FROM pg_available_extensions WHERE name = 'vector', configure postgresql.conf for optimal vector operations, set up database user and permissions",
+            "status": "pending",
+            "testStrategy": "Verify PostgreSQL service starts successfully, confirm pgvector extension loads without errors, test basic vector operations"
+          },
+          {
+            "id": 2,
+            "title": "Schema creation from sql/schema_768.sql with proper indexing",
+            "description": "Execute database schema file and create appropriate indexes for vector and text search operations",
+            "dependencies": [
+              1
+            ],
+            "details": "Execute sql/schema_768.sql file to create tables and initial schema, create HNSW indexes for vector columns, set up GIN indexes for full-text search, validate schema integrity and relationships, configure appropriate table permissions",
+            "status": "pending",
+            "testStrategy": "Verify all tables created successfully, confirm indexes are properly configured, test query performance on indexed columns"
+          },
+          {
+            "id": 3,
+            "title": "Pydantic configuration system with environment variable support",
+            "description": "Implement configuration management using Pydantic models with environment variable loading and validation",
+            "dependencies": [],
+            "details": "Create BaseSettings class using Pydantic, define configuration models for database, logging, and application settings, implement environment variable loading with .env support, add configuration validation and type checking, create configuration factory pattern",
+            "status": "pending",
+            "testStrategy": "Test configuration loading from environment variables and .env files, validate type checking and error handling for invalid configurations"
+          },
+          {
+            "id": 4,
+            "title": "Database connection pooling setup with psycopg2",
+            "description": "Configure database connection pooling for efficient database access and resource management",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Implement connection pooling using psycopg2.pool, configure pool size and connection parameters from configuration system, implement connection retry logic and health checks, create database session management utilities, handle connection failures gracefully",
+            "status": "pending",
+            "testStrategy": "Test connection pool creation and management, verify connection retry logic, validate pool performance under load"
+          },
+          {
+            "id": 5,
+            "title": "Structured logging configuration with JSON formatting",
+            "description": "Set up comprehensive logging system with JSON formatting and structured log output",
+            "dependencies": [
+              3
+            ],
+            "details": "Configure Python logging with JSON formatter, implement log levels and filtering, create structured logging utilities for database operations and API calls, set up log rotation and file handling, integrate with configuration system for log level control",
+            "status": "pending",
+            "testStrategy": "Verify JSON log format output, test log level filtering, validate log rotation functionality"
+          },
+          {
+            "id": 6,
+            "title": "Virtual environment setup with pytest, pre-commit hooks, and development tooling",
+            "description": "Configure development environment with testing framework and code quality tools",
+            "dependencies": [],
+            "details": "Create virtual environment using venv or conda, install pytest and testing dependencies, configure pre-commit hooks for code formatting and linting, set up black, flake8, mypy for code quality, create requirements.txt and development dependencies file",
+            "status": "pending",
+            "testStrategy": "Verify virtual environment activation, test pytest execution, confirm pre-commit hooks run successfully"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Document Parsing and Chunking System",
+        "description": "Build document ingestion pipeline for markdown files with metadata extraction and token-based chunking",
+        "details": "Implement functions to read markdown files, extract metadata (vendor, category, team_member), use tiktoken for 512-token chunks with 20% overlap. Generate context headers, implement batch processing.",
+        "testStrategy": "Validate 343 documents result in ~2,600 chunks, check metadata extraction >95% completeness, verify chunk generation matches specifications.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Embedding Generation Pipeline",
+        "description": "Generate 768-dimensional embeddings for document chunks using all-mpnet-base-v2 model",
+        "details": "Load sentence-transformers model, implement parallel embedding generation, handle model caching. Insert chunks with embeddings into knowledge_base table with HNSW indexing.",
+        "testStrategy": "Check embedding dimensionality, validate all 2,600 chunks get embedded, measure generation time, verify HNSW index creation.",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Vector and BM25 Search Implementation",
+        "description": "Develop vector similarity and full-text search capabilities using pgvector and PostgreSQL ts_vector",
+        "details": "Implement HNSW cosine similarity search, BM25 full-text search via GIN indexes. Create search functions supporting metadata filtering, performance profiling.",
+        "testStrategy": "Benchmark vector search <100ms, BM25 search <50ms. Test metadata filtering, validate search accuracy on test queries.",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Hybrid Search with Reciprocal Rank Fusion",
+        "description": "Combine vector and BM25 search results using Reciprocal Rank Fusion (RRF)",
+        "details": "Implement RRF algorithm (k=60), create multi-factor boosting system (+15%/+10%/+5%/+10%/+8% for vendor/doc_type/recency/entity/topic). Design query routing mechanism.",
+        "testStrategy": "Validate RRF scoring logic, test boost weights, measure search accuracy improvements. Ensure merged results maintain relevance.",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Reciprocal Rank Fusion algorithm with k=60 parameter",
+            "description": "Develop the core RRF algorithm that combines ranking scores from multiple search sources using the reciprocal rank fusion formula with k=60 constant",
+            "dependencies": [],
+            "details": "Implement RRF formula: score = sum(1/(k+rank)) for each result across all search sources. Create RRF class with configurable k parameter (default 60). Handle edge cases like missing results, duplicate documents, and varying result set sizes. Ensure numerical stability and consistent scoring.",
+            "status": "pending",
+            "testStrategy": "Unit tests for RRF scoring logic with known input/output pairs. Test edge cases: empty results, single result, duplicate documents. Validate mathematical correctness of fusion algorithm."
+          },
+          {
+            "id": 2,
+            "title": "Create multi-factor boosting system with configurable weights",
+            "description": "Build a boosting system that applies vendor (+15%), doc_type (+10%), recency (+5%), entity (+10%), and topic (+8%) boosts to search results",
+            "dependencies": [
+              1
+            ],
+            "details": "Design boost configuration system with Pydantic models for weight management. Implement boost calculators for each factor: vendor affinity, document type relevance, temporal recency, entity matching, and topic alignment. Create multiplicative boost application that preserves relative ranking while enhancing relevant results.",
+            "status": "pending",
+            "testStrategy": "Test individual boost calculations with known metadata. Validate boost combination logic maintains score ordering. Test configuration loading and weight adjustment impact on result ranking."
+          },
+          {
+            "id": 3,
+            "title": "Design query routing mechanism for search strategy selection",
+            "description": "Implement intelligent query routing that determines whether to use vector search, BM25 search, or hybrid approach based on query characteristics",
+            "dependencies": [
+              1
+            ],
+            "details": "Analyze query patterns to determine optimal search strategy: short queries favor BM25, semantic queries favor vector search, complex queries use hybrid. Implement query classification based on length, entity presence, and semantic complexity. Create routing logic with fallback mechanisms and performance monitoring.",
+            "status": "pending",
+            "testStrategy": "Test routing decisions with various query types. Validate fallback mechanisms when primary strategy fails. Measure routing overhead and accuracy of strategy selection against manual classification."
+          },
+          {
+            "id": 4,
+            "title": "Implement results merging and final ranking with accuracy validation",
+            "description": "Combine RRF scores with boost factors to produce final ranked results and validate against expected accuracy metrics",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Merge RRF scores with boost multipliers to generate final ranking. Implement result deduplication, score normalization, and result limiting. Create accuracy validation against test queries with expected results. Measure precision, recall, and NDCG metrics. Implement performance monitoring for end-to-end search latency.",
+            "status": "pending",
+            "testStrategy": "End-to-end testing with test query sets. Validate accuracy metrics meet 90%+ target. Test result deduplication and score consistency. Benchmark full pipeline latency against <300ms p50 target."
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Cross-Encoder Reranking System",
+        "description": "Implement final reranking stage using ms-marco-MiniLM-L-6-v2 cross-encoder model",
+        "details": "Load cross-encoder model, develop candidate selection strategy, implement scoring and final result selection. Add adaptive pool sizing based on query complexity.",
+        "testStrategy": "Measure cross-encoder latency, validate top-5 selection accuracy, test adaptive candidate pool sizing.",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Entity Extraction and Knowledge Graph",
+        "description": "Build entity recognition system and knowledge graph with relationship mapping",
+        "details": "Implement NER using spaCy, create knowledge_entities and entity_relationships tables. Develop entity deduplication, canonicalization, and graph traversal queries.",
+        "testStrategy": "Validate entity extraction >85% accuracy, test graph relationship detection, verify 1-hop and 2-hop graph queries.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Setup spaCy NER and implement entity extraction",
+            "description": "Install and configure spaCy with English language model, implement named entity recognition pipeline to extract PERSON, ORG, GPE, and other relevant entities from text chunks",
+            "dependencies": [],
+            "details": "Install spaCy and en_core_web_sm model, create entity extraction function that processes text chunks and returns extracted entities with their types, positions, and confidence scores. Handle batch processing for efficiency and implement error handling for malformed text.",
+            "status": "pending",
+            "testStrategy": "Test entity extraction on sample documents, validate entity types are correctly identified, measure processing speed on batch operations"
+          },
+          {
+            "id": 2,
+            "title": "Implement entity deduplication and canonicalization",
+            "description": "Build system to identify and merge duplicate entities using Levenshtein similarity and other string matching techniques",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement fuzzy string matching using Levenshtein distance, create canonicalization rules for common entity variations (e.g., abbreviations, different spellings), develop merging strategy for duplicate entities with confidence thresholds, and create entity normalization pipeline.",
+            "status": "pending",
+            "testStrategy": "Test deduplication accuracy on known duplicate entities, validate canonicalization rules work correctly, measure false positive/negative rates"
+          },
+          {
+            "id": 3,
+            "title": "Design knowledge graph database schema",
+            "description": "Create database tables and schema for storing entities and relationships using JSONB for flexible relationship properties",
+            "dependencies": [
+              2
+            ],
+            "details": "Design knowledge_entities table with fields for entity_id, name, type, canonical_name, confidence, metadata. Create entity_relationships table with source_entity_id, target_entity_id, relationship_type, properties (JSONB), confidence. Add appropriate indexes for graph queries.",
+            "status": "pending",
+            "testStrategy": "Validate schema supports all required entity types and relationship patterns, test JSONB query performance, verify index effectiveness"
+          },
+          {
+            "id": 4,
+            "title": "Implement relationship detection and bidirectional linking",
+            "description": "Build system to detect relationships between entities and create bidirectional graph connections",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement co-occurrence analysis to detect entity relationships, create rules for different relationship types (works_for, located_in, part_of), develop bidirectional linking to ensure graph traversal works in both directions, and add relationship confidence scoring.",
+            "status": "pending",
+            "testStrategy": "Test relationship detection accuracy on known entity pairs, validate bidirectional links are created correctly, measure relationship detection coverage"
+          },
+          {
+            "id": 5,
+            "title": "Build graph traversal query implementation",
+            "description": "Develop efficient SQL queries for 1-hop and 2-hop graph traversal with performance optimization",
+            "dependencies": [
+              4
+            ],
+            "details": "Implement recursive CTEs for multi-hop queries, create optimized queries for finding related entities within 1-2 degrees of separation, add query result ranking by relationship strength, and implement query caching for frequently accessed paths.",
+            "status": "pending",
+            "testStrategy": "Test query performance on large graphs, validate 1-hop and 2-hop results are accurate, measure query execution times and optimize as needed"
+          },
+          {
+            "id": 6,
+            "title": "Validate entity extraction accuracy with manual annotation",
+            "description": "Create validation system comparing automated entity extraction against manually annotated ground truth data",
+            "dependencies": [
+              5
+            ],
+            "details": "Create sample set of manually annotated documents with ground truth entities, implement comparison logic to calculate precision, recall, and F1 scores, build reporting dashboard for accuracy metrics, and establish minimum 85% accuracy threshold validation.",
+            "status": "pending",
+            "testStrategy": "Compare automated extraction against manual annotations, calculate accuracy metrics, validate system meets 85% accuracy requirement, test on diverse document types"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Neon Production Validation System",
+        "description": "Create cross-checking mechanism to validate local search against Neon production results",
+        "details": "Implement read-only Neon database connection, develop A/B search comparison, create golden query set for accuracy testing. Build pre-commit accuracy validation hook.",
+        "testStrategy": "Compare local vs Neon results, calculate overlap@5, rank correlation, precision/recall metrics. Ensure >90% accuracy match.",
+        "priority": "high",
+        "dependencies": [
+          6,
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Read-only Neon Database Connection with Credential Management",
+            "description": "Establish secure read-only connection to Neon production database with proper credential handling and connection pooling",
+            "dependencies": [],
+            "details": "Implement secure credential management using environment variables or secret management. Create connection pool configuration for read-only access. Add connection health checks and retry logic. Ensure proper SSL/TLS configuration for production security.",
+            "status": "pending",
+            "testStrategy": "Test connection establishment, verify read-only permissions, validate SSL certificate, test connection pooling under load"
+          },
+          {
+            "id": 2,
+            "title": "A/B Search Comparison System for Identical Query Execution",
+            "description": "Build system to execute identical search queries against both local and Neon production systems for comparison",
+            "dependencies": [
+              1
+            ],
+            "details": "Develop query execution engine that runs identical searches on both systems. Implement result normalization and formatting. Add query timing and performance metrics collection. Handle edge cases like timeouts and errors gracefully.",
+            "status": "pending",
+            "testStrategy": "Verify identical query execution, test error handling, validate result format consistency, measure execution timing accuracy"
+          },
+          {
+            "id": 3,
+            "title": "Golden Query Dataset Creation with Manual Annotations",
+            "description": "Create curated dataset of search queries with manually verified expected results for accuracy testing",
+            "dependencies": [],
+            "details": "Develop representative query set covering various search patterns and edge cases. Create manual annotation process for expected results. Include queries for different metadata filters, complexity levels, and document types. Store in structured format for automated testing.",
+            "status": "pending",
+            "testStrategy": "Validate query diversity, verify annotation quality, test dataset loading and parsing, ensure comprehensive coverage"
+          },
+          {
+            "id": 4,
+            "title": "Accuracy Metrics Calculation System",
+            "description": "Implement statistical metrics calculation including overlap@5, rank correlation, precision and recall measurements",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Develop overlap@5 calculation for top-5 result comparison. Implement Spearman rank correlation for result ordering analysis. Build precision/recall metrics for result quality assessment. Add configurable threshold settings and detailed reporting.",
+            "status": "pending",
+            "testStrategy": "Validate metric calculations against known datasets, test edge cases with empty results, verify statistical accuracy"
+          },
+          {
+            "id": 5,
+            "title": "Pre-commit Hook Integration for Automated Validation",
+            "description": "Build automated pre-commit validation system that runs accuracy checks before code commits",
+            "dependencies": [
+              4
+            ],
+            "details": "Create pre-commit hook script that executes validation suite automatically. Implement configurable accuracy thresholds and failure conditions. Add reporting and logging for validation results. Ensure fast execution time for developer workflow integration.",
+            "status": "pending",
+            "testStrategy": "Test hook installation and execution, validate threshold enforcement, measure execution time, test failure scenarios"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Search Optimization and Tuning",
+        "description": "Fine-tune search parameters to achieve 90%+ accuracy and maintain performance targets",
+        "details": "Experiment with HNSW parameters, chunking strategies, boost weights, candidate pool sizing. Profile and optimize each search stage for latency.",
+        "testStrategy": "Benchmark p50 <300ms, p95 <500ms. Validate accuracy improvements, no >10% latency regression.",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "HNSW parameter tuning with performance testing",
+            "description": "Optimize HNSW index parameters (ef_search, m values) to balance search accuracy and query latency through systematic testing",
+            "dependencies": [],
+            "details": "Experiment with ef_search values (100-400) and m values (16-64). Run performance benchmarks for each combination measuring p50/p95 latency and accuracy metrics. Document optimal parameter combinations for different query types and data sizes.",
+            "status": "pending",
+            "testStrategy": "Benchmark each parameter combination against baseline. Validate p50 <300ms, p95 <500ms targets. Measure accuracy improvements and ensure no >10% latency regression."
+          },
+          {
+            "id": 2,
+            "title": "Boost weight optimization across multiple factors",
+            "description": "Fine-tune boost weights for vendor, document type, recency, entity, and topic factors to maximize search relevance",
+            "dependencies": [
+              1
+            ],
+            "details": "Systematically test boost weight combinations for vendor (+15%), doc_type (+10%), recency (+5%), entity (+10%), and topic (+8%) factors. Use grid search or Bayesian optimization to find optimal weights. Validate against test queries with known relevant results.",
+            "status": "pending",
+            "testStrategy": "A/B test different weight combinations against baseline. Measure search accuracy improvements using precision@k and nDCG metrics. Validate boost effects don't negatively impact overall relevance."
+          },
+          {
+            "id": 3,
+            "title": "Chunking strategy experimentation",
+            "description": "Optimize token sizes and overlap percentages for document chunking to improve search accuracy and context preservation",
+            "dependencies": [],
+            "details": "Test various chunk sizes (256, 512, 768, 1024 tokens) and overlap percentages (10%, 20%, 30%). Measure impact on search accuracy, context preservation, and storage requirements. Analyze chunk boundary effects on semantic coherence.",
+            "status": "pending",
+            "testStrategy": "Compare search accuracy across different chunking strategies. Validate context preservation in retrieved chunks. Measure storage overhead and indexing performance for each strategy."
+          },
+          {
+            "id": 4,
+            "title": "Candidate pool size optimization for cross-encoder",
+            "description": "Optimize the number of candidates passed to cross-encoder re-ranking to balance accuracy and computational cost",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Experiment with candidate pool sizes (50, 100, 200, 500) for cross-encoder re-ranking. Measure accuracy improvements versus computational overhead. Find optimal trade-off between search quality and response time.",
+            "status": "pending",
+            "testStrategy": "Benchmark accuracy and latency for different pool sizes. Validate 90%+ accuracy target while maintaining performance requirements. Profile computational cost of cross-encoder processing."
+          },
+          {
+            "id": 5,
+            "title": "Performance profiling and bottleneck identification",
+            "description": "Profile each stage of the search pipeline to identify performance bottlenecks and optimization opportunities",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Use profiling tools to measure latency at each stage: query processing, vector search, BM25 search, RRF merging, cross-encoder re-ranking. Identify bottlenecks and implement targeted optimizations. Monitor memory usage and database connection efficiency.",
+            "status": "pending",
+            "testStrategy": "Profile end-to-end search pipeline with realistic query loads. Validate p50 <300ms, p95 <500ms targets. Identify and resolve performance bottlenecks affecting latency targets."
+          },
+          {
+            "id": 6,
+            "title": "A/B testing framework for validating improvements",
+            "description": "Implement comprehensive A/B testing framework to validate search optimizations against baseline performance",
+            "dependencies": [
+              5
+            ],
+            "details": "Build A/B testing infrastructure with baseline capture, experiment tracking, statistical significance testing, and automated performance regression detection. Create test query sets with ground truth relevance scores for consistent evaluation.",
+            "status": "pending",
+            "testStrategy": "Validate A/B test framework captures accurate baselines and detects improvements. Test statistical significance calculations. Ensure framework can detect both accuracy improvements and performance regressions reliably."
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "FastMCP Server Integration",
+        "description": "Package search system as FastMCP server with Claude Desktop integration",
+        "details": "Implement MCP server with semantic_search and find_vendor_info tools. Create request handlers, implement authentication, comprehensive error handling.",
+        "testStrategy": "End-to-end testing of full workflow, validate MCP server responses, security testing, performance validation.",
+        "priority": "high",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-11-08T01:37:10.984Z",
+      "updated": "2025-11-08T01:37:10.984Z",
+      "description": "Tasks for master context"
+    }
+  }
+}
