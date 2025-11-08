@@ -12,6 +12,7 @@ from src.core.config import (
     get_settings,
     reset_settings,
 )
+from src.core.database import DatabasePool
 
 __all__ = [
     "Settings",
@@ -20,4 +21,5 @@ __all__ = [
     "ApplicationConfig",
     "get_settings",
     "reset_settings",
+    "DatabasePool",
 ]
