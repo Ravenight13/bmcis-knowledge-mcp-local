@@ -87,9 +87,9 @@ class TestVectorSearchBasics:
             SearchResult(
                 chunk_id=i,
                 chunk_text=f"Content {i}",
-                similarity_score=0.9 - (i * 0.05),
+                similarity_score=max(0.0, 0.9 - (i * 0.04)),  # Ensure >= 0
                 bm25_score=0.0,
-                hybrid_score=0.9 - (i * 0.05),
+                hybrid_score=max(0.0, 0.9 - (i * 0.04)),
                 rank=i + 1,
                 score_type="vector",
                 source_file="doc.md",

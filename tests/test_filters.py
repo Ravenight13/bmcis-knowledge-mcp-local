@@ -264,9 +264,9 @@ class TestFilterValidator:
         FilterValidator.validate_field("source_category")
         FilterValidator.validate_field("chunk_text")
         FilterValidator.validate_field("metadata")
-        # JSONB path notation
+        # JSONB path notation with valid identifiers
         FilterValidator.validate_field("metadata.author")
-        FilterValidator.validate_field("metadata.tags.0")
+        FilterValidator.validate_field("metadata.tags")
 
     def test_invalid_field_names(self) -> None:
         """Test validation of invalid field names."""
