@@ -97,6 +97,46 @@ find .claude/skills -name "*.md" | grep {keyword}
 ls -t session-handoffs/*.md | head -5
 ```
 
+### Git Branch Masking
+
+This project uses **opaque session identifiers** for all public-facing git operations to prevent exposure of internal task IDs and implementation details.
+
+**Quick Reference:**
+
+```bash
+# Create new masked branch
+.git-masking/new-branch.sh
+
+# Check current task/session
+.git-masking/check-branch.sh
+
+# Commit with masked session ID (always use session-NNN format)
+git commit -m "feat: session-004 - implement search functionality"
+
+# NEVER expose task IDs or implementation details in commits
+# ❌ WRONG:  git commit -m "feat: task 5.1 - implement RRF algorithm"
+# ✅ RIGHT:  git commit -m "feat: session-004 - implement ranking"
+```
+
+**Branch Naming Convention:**
+- Format: `work/session-{NNN}` (e.g., `work/session-001`, `work/session-042`)
+- Session IDs are completely opaque (no task details visible)
+- Internal mapping stored in `.git-masking/branch-mapping.json` (never committed)
+
+**Key Concepts:**
+- Only you have the mapping between session IDs and actual task IDs
+- Helper scripts in `.git-masking/` handle branch creation and lookup
+- All documentation in `BRANCH_MASKING.md` and `.git-masking/README.md`
+- Template commit messages in `.git-masking/template-commit-messages.txt`
+
+**Security:**
+- `branch-mapping.json` is gitignored (never committed to remote)
+- Pre-commit hook prevents accidental commits of sensitive mapping file
+- Public git history shows only session numbers, no task details
+- Code changes are visible, but task context is hidden
+
+**For detailed usage and troubleshooting, see:** `BRANCH_MASKING.md`
+
 ### Quality Validation
 
 This project has no linting/testing configured. When adding to projects that do:
