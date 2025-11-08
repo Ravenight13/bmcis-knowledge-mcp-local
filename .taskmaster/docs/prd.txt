@@ -1,0 +1,741 @@
+# BMCIS Knowledge MCP Local - Product Requirements Document
+# Repository Planning Graph (RPG) Format
+
+**Project Name:** bmcis-knowledge-mcp-local
+**Created:** November 7, 2025
+**Version:** 1.0
+**Target Launch:** Production-ready with 90%+ semantic search accuracy
+**Tech Stack:** PostgreSQL 16 + pgvector, Python 3.11+, FastMCP, sentence-transformers
+
+---
+
+## PROBLEM STATEMENT
+
+The BMCIS sales team (27 people) relies on the production bmcis-knowledge-mcp system (Neon PostgreSQL) to search 343 markdown documents (~2,600 chunks) for vendor information, pricing strategies, team contacts, and technical specifications. While the current system achieves 80% semantic search accuracy using hybrid search (vector + BM25 + cross-encoder reranking), this leaves 1 in 5 queries returning suboptimal results—a critical gap for sales scenarios where incorrect vendor pricing can lead to lost deals.
+
+**Fundamental Limitations of Neon Production Environment:**
+1. **Serverless Architecture Constraints:** Cannot fine-tune pgvector parameters (HNSW ef_construction, ef_search) for optimization
+2. **No Safe Testing Environment:** All search quality experiments risk production degradation during business hours
+3. **Limited Observability:** Free tier provides minimal query performance metrics
+
+**Target Goal:** Achieve 90%+ semantic search accuracy (vs 80% baseline) while maintaining <300ms p50 latency, validated through A/B testing against production Neon results. The local PostgreSQL environment must support full feature parity with production, plus knowledge graph capabilities for entity relationship mapping.
+
+---
+
+## TARGET USERS
+
+**Primary Users:**
+- **Sales Team (27 people):** Need fast, accurate access to vendor information, pricing strategies, product specifications during client calls
+- **Developers (2-3 active):** Need safe environment to test search quality improvements without risking production stability
+
+**Secondary Users:**
+- **Administrators (1-2):** Manage knowledge base ingestion, monitor search quality metrics, maintain entity relationships
+
+---
+
+## SUCCESS METRICS
+
+### Primary Metrics (Must-Have)
+| Metric | Baseline | Target | Measurement |
+|--------|----------|--------|-------------|
+| Semantic Search Accuracy (Relevance@5) | 80% | **90%+** | A/B test 50 queries against Neon |
+| Query Latency p50 | 270ms | **<300ms** | PostgreSQL query logging + Python profiling |
+| Query Latency p95 | 320ms | **<500ms** | Track worst-case scenarios |
+| Neon Result Parity | N/A | **100%** | Validate identical results for same query/params |
+
+### Secondary Metrics (Should-Have)
+- Knowledge Graph Coverage: >80% entity relationships
+- Search Result Diversity: <30% duplicate vendors in top 5
+- Metadata Completeness: >95% chunks have vendor/category
+- Iteration Velocity: <2 hours for search improvement cycle
+
+### Tertiary Metrics (Nice-to-Have)
+- Index Rebuild Time: <5 minutes for full re-index
+- Entity Extraction Accuracy: >85% correct vendor/product extraction
+- Cross-Graph Query Latency: <500ms for 2-hop traversal
+
+---
+
+## CAPABILITY TREE (FUNCTIONAL DECOMPOSITION)
+
+### Capability 1: Semantic Search & Retrieval
+Enable users to find relevant knowledge base content using natural language queries.
+
+#### Feature 1.1: Vector Similarity Search
+- **Description:** Search document chunks by semantic similarity using 768-dimensional embeddings (all-mpnet-base-v2 model)
+- **Inputs:** User query (string, 1-500 chars), result limit (1-20, default: 5), optional metadata filters
+- **Outputs:** Top-N SearchResult objects ranked by cosine similarity (0-1 scale)
+- **Behavior:** Generate query embedding (30-50ms) → execute HNSW search → apply metadata filtering → sort by relevance
+- **Quality Expectation:** Relevance@5 ≥ 72% (baseline from production)
+
+#### Feature 1.2: BM25 Keyword Search
+- **Description:** Full-text BM25 ranking for exact keyword matches and rare term boosting
+- **Inputs:** User query (string), result limit (1-20, default: 5), language config
+- **Outputs:** Top-N SearchResult objects ranked by BM25 score
+- **Behavior:** Convert to ts_query → execute GIN index search → apply ts_rank scoring → sort by BM25 score
+- **Quality Expectation:** Relevance@5 ≥ 68% (baseline from production)
+
+#### Feature 1.3: Metadata Filtering
+- **Description:** Filter search results by structured metadata (vendor, category, team_member, document_type)
+- **Inputs:** Metadata filters dict (e.g., {"vendor": ["Lutron"]}), base search results
+- **Outputs:** Filtered SearchResult list matching ALL specified filters
+- **Behavior:** Use JSONB containment (@>) for arrays, case-insensitive matching, preserve ranking order
+- **Performance Target:** <5ms overhead per query
+
+### Capability 2: Hybrid Search (Vector + BM25 Fusion)
+Combine vector similarity and BM25 keyword ranking using Reciprocal Rank Fusion.
+
+#### Feature 2.1: Reciprocal Rank Fusion (RRF)
+- **Description:** Merge ranked lists from vector and BM25 search using RRF algorithm (k=60)
+- **Inputs:** Vector search results (top 20), BM25 results (top 20), k parameter
+- **Outputs:** Unified ranked list with RRF scores
+- **Behavior:** RRF score = Σ 1/(k+rank) for each result, sort by descending score
+- **Quality Expectation:** Relevance@5 ≥ 85% (10% improvement over single-method)
+
+#### Feature 2.2: Multi-Factor Boosting
+- **Description:** Apply additive score boosts based on metadata matches, document type, recency, entity/topic alignment
+- **Inputs:** RRF-ranked results, query metadata, current date
+- **Outputs:** Boosted SearchResult list
+- **Behavior:** Vendor match (+15%), doc type +10%, recency +5%, entity match +10%, topic match +8% (max 48% total)
+- **Tuning:** All boost weights configurable in src/core/config.py
+
+### Capability 3: Cross-Encoder Reranking
+Apply transformer-based query-document similarity scoring as final reranking stage (ms-marco-MiniLM-L-6-v2).
+
+#### Feature 3.1: Cross-Encoder Scoring
+- **Description:** Use cross-encoder model to score query-document pairs for final top-5 selection
+- **Inputs:** Query string, top 20 candidates from hybrid search, final limit (default: 5)
+- **Outputs:** Top-5 SearchResult objects with cross-encoder scores (-10 to +10 range)
+- **Behavior:** Create pairs → run model inference (150-200ms for 20 pairs) → sort by score → return top 5
+- **Quality Expectation:** Relevance@5 ≥ 92% (+7% over hybrid alone)
+
+#### Feature 3.2: Adaptive Candidate Selection
+- **Description:** Dynamically adjust cross-encoder candidate pool based on query complexity
+- **Inputs:** Query complexity score (tokens, entity count), hybrid results, diversity threshold
+- **Outputs:** Optimized candidate pool size (10-30 documents)
+- **Behavior:** Simple queries <5 tokens → top 10, Complex >10 tokens → top 30, adjust for diversity
+- **Performance Target:** Reduce cross-encoder latency to 100-150ms
+
+### Capability 4: Knowledge Graph Management
+Build and query entity relationships (vendors ↔ products ↔ team members ↔ regions) using PostgreSQL-native JSONB.
+
+#### Feature 4.1: Entity Extraction & Linking
+- **Description:** Extract structured entities (VENDOR, PRODUCT, TEAM_MEMBER, REGION) and store in knowledge_entities table
+- **Inputs:** Document chunk content, source metadata (vendor, team_member from paths/headers)
+- **Outputs:** Extracted entities with types and relationships with confidence scores (0-1)
+- **Behavior:** NER extraction → match against known vendor/product lists → create bidirectional relationships → store in DB
+- **Quality Target:** >85% extraction accuracy (validated against manual annotations)
+
+#### Feature 4.2: Graph-Enhanced Search
+- **Description:** Expand search results to include related entities and their associated documents
+- **Inputs:** Base search results, expansion depth (1-hop or 2-hop), relation types to follow
+- **Outputs:** Expanded SearchResult list with relationship path metadata
+- **Behavior:** Extract entities from top results → query entity_relationships → retrieve associated chunks → merge with originals
+- **Performance Target:** <500ms for 2-hop traversal + chunk retrieval
+
+#### Feature 4.3: Entity Deduplication & Canonicalization
+- **Description:** Merge duplicate entities (e.g., "Lutron", "Lutron Electronics") into canonical records
+- **Inputs:** Raw extracted entities, similarity threshold (default: 0.85 Levenshtein)
+- **Outputs:** Canonical entity records with metadata.aliases arrays
+- **Behavior:** Compare pairs within entity_type → merge exceeding threshold → store variants in aliases
+- **Quality Target:** <5% duplicate entity rate
+
+### Capability 5: Cross-Checking & Validation
+Validate local system accuracy against production Neon results.
+
+#### Feature 5.1: A/B Search Comparison
+- **Description:** Execute identical queries against local PostgreSQL and production Neon, comparing results
+- **Inputs:** Test query, expected result source, comparison depth (top-5 or top-20)
+- **Outputs:** Comparison report: overlap %, rank correlation, unique results
+- **Behavior:** Execute on local → Execute on Neon → Calculate overlap@5, Kendall's tau, flag <80% overlap for review
+- **Automation:** Run nightly against 50-query test set
+
+#### Feature 5.2: Accuracy Regression Testing
+- **Description:** Maintain golden dataset of query-expected_result pairs, validate after each change
+- **Inputs:** Golden dataset (50 queries with manually annotated results), current system implementation
+- **Outputs:** Metrics: Precision@5, Recall@5, MRR, NDCG@5
+- **Behavior:** Execute all golden queries → Compare against expected → Calculate metrics → Fail if >5% accuracy drop
+- **Integration:** Run as pre-commit hook or CI/CD pipeline
+
+### Capability 6: Data Ingestion & Chunking
+Transform raw markdown documents into indexed, searchable chunks with embeddings.
+
+#### Feature 6.1: Document Parsing & Metadata Extraction
+- **Description:** Parse markdown files, extract structured metadata from paths/headers/frontmatter
+- **Inputs:** Markdown file path, file content
+- **Outputs:** Parsed metadata dict {vendor, category, team_member, document_type, date_published}, cleaned content
+- **Behavior:** Extract vendor from path → parse YAML frontmatter → extract team_member from headers → infer doc_type
+- **Quality Target:** >95% metadata completeness
+
+#### Feature 6.2: Token-Based Chunking with Overlap
+- **Description:** Split documents into 512-token chunks with 20% overlap, prepending contextual headers
+- **Inputs:** Document content, source metadata, chunk size (default: 512), overlap % (default: 20%)
+- **Outputs:** DocumentChunk objects with content, token_count, chunk_index, total_chunks
+- **Behavior:** Tokenize using cl100k_base → create 512-token chunks with 102-token overlap → prepend context headers
+- **Quality Target:** 95% of chunks within 480-544 token range
+
+#### Feature 6.3: Embedding Generation
+- **Description:** Generate 768-dimensional vector embeddings for each chunk using all-mpnet-base-v2
+- **Inputs:** DocumentChunk content (with contextual headers)
+- **Outputs:** 768-dimensional float vector
+- **Behavior:** Load cached model → encode content → normalize to unit length → cache in memory (singleton)
+- **Performance:** 30-50ms per chunk, parallelizable for batch ingestion
+
+#### Feature 6.4: Database Insertion with Indexing
+- **Description:** Insert chunks, embeddings, metadata into PostgreSQL knowledge_base table with automatic indexing
+- **Inputs:** DocumentChunk objects, generated embeddings, extracted metadata
+- **Outputs:** Inserted database rows with auto-generated IDs, updated indexes (HNSW, GIN, B-tree)
+- **Behavior:** Insert into knowledge_base → auto-update tsvector → increment indexes → auto-update timestamps
+- **Performance Target:** <5 minutes for full 2,600-chunk ingestion
+
+### Capability 7: Query Enhancement (Experimental)
+Test query transformation techniques (expansion, spell correction) with A/B validation.
+
+#### Feature 7.1: Acronym & Term Expansion
+- **Description:** Expand domain-specific acronyms before search (e.g., "KAM" → "Key Account Manager")
+- **Inputs:** Raw query string, acronym dictionary
+- **Outputs:** Expanded query string
+- **Status:** Currently DISABLED (caused -23.8% accuracy regression in production)
+- **Note:** Contextual chunk headers provide better results than query-side expansion
+
+#### Feature 7.2: Spell Correction
+- **Description:** Detect and correct spelling errors using domain-specific dictionary
+- **Inputs:** Query string, custom dictionary (vendor names, product terms)
+- **Outputs:** Corrected query string with confidence score
+- **Status:** NOT IMPLEMENTED (future enhancement)
+
+---
+
+## REPOSITORY STRUCTURE
+
+```
+bmcis-knowledge-mcp-local/
+├── src/
+│   ├── core/                    # Foundation (Phase 0)
+│   │   ├── config.py            # Configuration management
+│   │   ├── types.py             # Type definitions
+│   │   ├── exceptions.py        # Custom exceptions
+│   │   └── logging.py           # Logging config
+│   ├── database/                # Data layer (Phase 1)
+│   │   ├── connection.py        # PostgreSQL connection pooling
+│   │   ├── schema.py            # Schema definitions
+│   │   └── operations.py        # CRUD operations
+│   ├── embeddings/              # Embedding generation (Phase 1)
+│   │   ├── generator.py         # all-mpnet-base-v2 model
+│   │   ├── cache.py             # Model caching
+│   │   └── validator.py         # Dimension validation
+│   ├── chunking/                # Document processing (Phase 1)
+│   │   ├── tokenizer.py         # Token-based chunking
+│   │   ├── strategies.py        # Chunking strategies
+│   │   └── context.py           # Context headers
+│   ├── search/                  # Search engine (Phase 2)
+│   │   ├── vector.py            # Vector search (HNSW)
+│   │   ├── bm25.py              # BM25 search (GIN)
+│   │   ├── hybrid.py            # RRF fusion
+│   │   └── boost.py             # Multi-factor boosting
+│   ├── reranking/               # Cross-encoder (Phase 2)
+│   │   ├── cross_encoder.py     # ms-marco-MiniLM-L-6-v2
+│   │   └── pipeline.py          # Two-stage ranking
+│   ├── graph/                   # Knowledge graph (Phase 3)
+│   │   ├── entities.py          # Entity extraction
+│   │   ├── relationships.py     # Relationship mapping
+│   │   ├── topics.py            # Topic hierarchy
+│   │   └── query.py             # Graph traversal
+│   ├── ingestion/               # Data pipeline (Phase 2)
+│   │   ├── loader.py            # File discovery
+│   │   ├── metadata.py          # Metadata extraction
+│   │   ├── pipeline.py          # Orchestration
+│   │   └── stats.py             # Statistics tracking
+│   ├── validation/              # Truth verification (Phase 3)
+│   │   ├── neon_connector.py    # Neon production DB
+│   │   ├── comparator.py        # Local vs Neon comparison
+│   │   └── metrics.py           # Accuracy metrics
+│   ├── query/                   # Query processing (Phase 2)
+│   │   ├── parser.py            # Query understanding
+│   │   ├── expansion.py         # Query expansion
+│   │   └── router.py            # Query routing
+│   └── server/                  # API/MCP (Phase 4)
+│       ├── mcp_server.py        # FastMCP server
+│       ├── handlers.py          # Request handlers
+│       └── auth.py              # Authentication
+├── tests/                       # Test suite
+│   ├── unit/                    # Unit tests
+│   ├── integration/             # Integration tests
+│   └── fixtures/                # Test data
+├── sql/
+│   └── schema_768.sql           # Database schema
+├── .taskmaster/
+│   ├── docs/
+│   │   └── prd.txt              # This PRD
+│   ├── tasks/                   # Generated tasks
+│   └── config.json              # Task Master config
+├── docs/
+│   ├── subagent-reports/        # Analysis documents
+│   └── analysis/                # Architecture docs
+├── pyproject.toml
+├── requirements.txt
+└── Makefile
+```
+
+---
+
+## DEPENDENCY CHAIN (TOPOLOGICAL ORDERING)
+
+### Foundation Layer (Phase 0) - No Dependencies
+- **config** → Configuration management, environment variables
+- **types** → Type definitions and schemas
+- **exceptions** → Custom exception hierarchy
+- **logging** → Structured logging configuration
+
+### Core Data Layer (Phase 1) - Depends on [Foundation]
+- **database/connection** → Depends on [config, logging]
+- **database/schema** → Depends on [config, logging]
+- **embeddings/generator** → Depends on [config, logging]
+- **embeddings/cache** → Depends on [config, embeddings/generator]
+- **chunking/tokenizer** → Depends on [config, logging]
+- **chunking/context** → Depends on [config, chunking/tokenizer]
+
+### Search & Ingestion Layer (Phase 2) - Depends on [Foundation, Core Data]
+- **search/vector** → Depends on [database/connection, embeddings/generator]
+- **search/bm25** → Depends on [database/connection]
+- **search/hybrid** → Depends on [search/vector, search/bm25]
+- **search/boost** → Depends on [search/hybrid, config]
+- **reranking/cross_encoder** → Depends on [search/hybrid, embeddings/generator]
+- **reranking/pipeline** → Depends on [reranking/cross_encoder, search/boost]
+- **query/parser** → Depends on [config]
+- **query/expansion** → Depends on [query/parser, config]
+- **query/router** → Depends on [query/parser]
+- **ingestion/loader** → Depends on [config, logging]
+- **ingestion/metadata** → Depends on [config]
+- **ingestion/pipeline** → Depends on [ingestion/loader, ingestion/metadata, chunking/tokenizer, chunking/context, embeddings/generator, database/connection]
+- **ingestion/stats** → Depends on [logging]
+
+### Graph & Validation Layer (Phase 3) - Depends on [Foundation, Core Data, Search]
+- **graph/entities** → Depends on [database/connection, config]
+- **graph/relationships** → Depends on [database/connection, graph/entities]
+- **graph/topics** → Depends on [database/connection]
+- **graph/query** → Depends on [graph/entities, graph/relationships]
+- **validation/neon_connector** → Depends on [config, logging]
+- **validation/comparator** → Depends on [validation/neon_connector, reranking/pipeline]
+- **validation/metrics** → Depends on [logging]
+
+### Server Integration Layer (Phase 4) - Depends on [All Above]
+- **server/mcp_server** → Depends on [reranking/pipeline, graph/query, validation/metrics]
+- **server/handlers** → Depends on [server/mcp_server, reranking/pipeline]
+- **server/auth** → Depends on [config, logging]
+
+---
+
+## DEVELOPMENT PHASES
+
+### Phase 0: Foundation Setup (2-3 days)
+**Goal:** Establish database infrastructure, configuration management, and core utilities
+
+**Entry Criteria:** PostgreSQL 16 installed, Python 3.11+ available, Neon credentials ready
+
+**Tasks:**
+- [ ] Database Initialization: Install PostgreSQL 16 + pgvector, create bmcis_knowledge_local DB
+- [ ] Schema Creation: Execute sql/schema_768.sql, create all indexes and triggers
+- [ ] Configuration Management: Create config/settings.py with Pydantic, support .env variables
+- [ ] Core Utilities: Database pooling, logging, error handling, retry logic
+- [ ] Development Environment: Virtual environment, pytest setup, pre-commit hooks, Makefile
+
+**Exit Criteria:** PostgreSQL with pgvector operational, all configuration loaded, utilities tested
+
+**Delivers:** Working local database, configuration system, development tooling
+
+---
+
+### Phase 1: Data Layer (4-5 days)
+**Goal:** Ingest full 343-document corpus and generate embeddings
+
+**Entry Criteria:** Phase 0 complete
+
+**Tasks:**
+- [ ] Document Parser: Read markdown files, extract metadata (vendor, category, team_member, doc_type)
+- [ ] Token-Based Chunking: Implement 512-token chunks with 20% overlap (tiktoken)
+- [ ] Context Headers: Generate and prepend document hierarchy context
+- [ ] Embedding Generation: Load all-mpnet-base-v2, generate 768-dim embeddings (parallelized)
+- [ ] Database Insertion: Batch insert chunks with metadata, auto-index management
+- [ ] Ingestion Pipeline: Orchestrate end-to-end (file reading → chunking → embedding → insertion)
+- [ ] Statistics Tracking: Log progress, chunk counts, token distributions, embedding times
+
+**Exit Criteria:** 343 files → ~2,600 chunks with embeddings indexed in knowledge_base table
+
+**Delivers:** Fully populated local database with search-ready content
+
+---
+
+### Phase 2: Search Layer (3-4 days)
+**Goal:** Implement hybrid search with vector + BM25 + cross-encoder reranking
+
+**Entry Criteria:** Phase 1 complete (database populated)
+
+**Tasks:**
+- [ ] Vector Search: Implement HNSW cosine similarity search via pgvector
+- [ ] BM25 Search: Implement full-text search via PostgreSQL ts_vector and GIN indexes
+- [ ] Reciprocal Rank Fusion: Merge vector and BM25 results using RRF (k=60)
+- [ ] Multi-Factor Boosting: Implement vendor/doc_type/recency/entity/topic boosting (+15%/+10%/+5%/+10%/+8%)
+- [ ] Cross-Encoder Integration: Load ms-marco-MiniLM-L-6-v2, score top 20 candidates, return top 5
+- [ ] Adaptive Candidate Selection: Dynamic pool sizing based on query complexity
+- [ ] Query Processing: Parse queries, route to appropriate search method
+- [ ] Performance Profiling: Measure latency (p50, p95, p99) for each search stage
+
+**Exit Criteria:** All 3-stage search pipeline operational (<300ms p50 latency target), 92%+ accuracy on test set
+
+**Delivers:** Production-ready hybrid search comparable to Neon
+
+---
+
+### Phase 3: Graph Layer (5-6 days)
+**Goal:** Build knowledge graph with entity extraction and relationship mapping
+
+**Entry Criteria:** Phase 2 complete (search operational)
+
+**Tasks:**
+- [ ] Entity Extraction: Implement NER (spaCy) + curated vendor/product list matching
+- [ ] Entity Storage: Create knowledge_entities table, store extracted entities with confidence
+- [ ] Relationship Detection: Identify co-occurrences, explicit links, create bidirectional relationships
+- [ ] Relationship Storage: Create entity_relationships table with JSONB graph structure
+- [ ] Entity Deduplication: Implement canonicalization (Levenshtein 0.85 threshold)
+- [ ] Graph Queries: Implement 1-hop and 2-hop traversal queries
+- [ ] Graph-Enhanced Search: Expand search results using discovered relationships
+- [ ] Entity Extraction Accuracy: Validate extraction against manual annotations (>85% target)
+
+**Exit Criteria:** >80% vendor-product relationship coverage, entity extraction >85% accurate, <500ms graph queries
+
+**Delivers:** Knowledge graph integrated with search, enabling multi-hop entity queries
+
+---
+
+### Phase 4: Validation Layer (3-4 days)
+**Goal:** Cross-check with Neon production and establish accuracy baselines
+
+**Entry Criteria:** Phase 3 complete (full local system)
+
+**Tasks:**
+- [ ] Neon Connector: Build read-only connection to production Neon database
+- [ ] Golden Query Set: Create 50-query test set with expected results (manual annotation)
+- [ ] A/B Search Comparison: Execute queries on local and Neon, measure overlap@5, rank correlation
+- [ ] Accuracy Metrics: Calculate Precision@5, Recall@5, MRR, NDCG@5 against golden set
+- [ ] Latency Benchmarking: Compare p50/p95/p99 latencies between local and Neon
+- [ ] Regression Testing: Create pre-commit hook for accuracy validation
+- [ ] Validation Reporting: Generate accuracy reports comparing local vs Neon
+
+**Exit Criteria:** 100% result parity with Neon on test set, accuracy metrics established (baseline: 92%+)
+
+**Delivers:** Validated local system with proven parity to production
+
+---
+
+### Phase 5: Reranking & Optimization (4-5 days)
+**Goal:** Optimize search parameters and boost weights to achieve 90%+ accuracy
+
+**Entry Criteria:** Phase 4 complete (validation established)
+
+**Tasks:**
+- [ ] Boost Weight Tuning: Test 20+ combinations of vendor/doc_type/recency/entity/topic boosts
+- [ ] HNSW Parameter Tuning: Test ef_search values (40/80/100), measure latency/quality trade-offs
+- [ ] Chunking Strategy Experiments: Test 256/512/1024 token sizes, 10%/20%/30% overlap percentages
+- [ ] Candidate Pool Optimization: Fine-tune cross-encoder pool sizing (10-30 documents)
+- [ ] Latency Optimization: Profile each search stage, optimize bottlenecks
+- [ ] Graph Query Caching: Cache frequent graph traversals to reduce latency
+- [ ] Performance Benchmarking: Validate p50 <300ms, p95 <500ms targets maintained
+- [ ] Accuracy Validation: Ensure >5% improvement over Neon baseline, no >10% latency regression
+
+**Exit Criteria:** ≥90%+ accuracy achieved, <300ms p50 latency maintained, >5% improvement over Neon
+
+**Delivers:** Optimized search system ready for production deployment
+
+---
+
+### Phase 6: Integration & Deployment (4-5 days)
+**Goal:** Package as FastMCP server and integrate with Claude Desktop
+
+**Entry Criteria:** Phase 5 complete (optimization done)
+
+**Tasks:**
+- [ ] FastMCP Server Implementation: Create MCP server with semantic_search, find_vendor_info tools
+- [ ] Request Handlers: Implement handlers for all search capabilities
+- [ ] Response Formatting: Format search results as MCP-compliant responses
+- [ ] Authentication: Implement Cloudflare SSO integration (read from config)
+- [ ] Error Handling: Comprehensive error handling for search failures, database issues
+- [ ] E2E Testing: Full workflow tests (query → response → validation)
+- [ ] Documentation: API docs, setup instructions, deployment guide
+- [ ] Production Deployment: Prepare deployment package, migration plan for Neon promotion
+
+**Exit Criteria:** FastMCP server operational, full e2e testing complete, documentation finished, ready for production
+
+**Delivers:** Production-ready local system with Claude Desktop integration
+
+---
+
+## TEST STRATEGY
+
+### Test Pyramid
+- **Unit Tests (60%):** Fast, isolated function testing (~240 tests)
+- **Integration Tests (30%):** Module interactions, database operations (~120 tests)
+- **E2E Tests (10%):** Full user workflows, latency validation (~40 tests)
+
+### Coverage Requirements
+- Overall: 85% minimum line coverage
+- Critical modules (search, database, embeddings): 90-95%
+- API/server: 85%
+
+### Critical Test Scenarios
+
+**Search Engine Module:**
+- Happy path: Valid queries return ranked results
+- Edge cases: Empty queries, single-character queries, very long queries (500 chars)
+- Error handling: Database unavailable, model loading failure, invalid embeddings
+- Performance: Vector search <100ms, BM25 <50ms, hybrid <250ms, cross-encoder <200ms
+
+**Knowledge Graph Module:**
+- Entity extraction: Vendor names, product names, team members recognized correctly
+- Entity deduplication: Duplicate variations merged correctly (>85% accuracy)
+- Graph queries: 1-hop traversal works, 2-hop within <500ms
+- Relationship integrity: Bidirectional relationships maintained
+
+**Validation Module:**
+- A/B comparison: Identical results for same query on local and Neon
+- Accuracy regression: Golden query set triggers failures on >5% accuracy drop
+- Latency regression: p95 latency triggers warning if >10% slower than baseline
+
+**Data Ingestion:**
+- 343 documents ingested completely (<5 min for full corpus)
+- Chunk count correct (expected ~2,600)
+- Embeddings generated (768-dim, all values finite)
+- Metadata extracted >95% completeness
+
+### Quality Gates
+- **Pre-Commit:** Linting (black, ruff, mypy --strict) + unit tests + 85% coverage
+- **Pre-Phase:** Phase-specific test suite + performance benchmarks + validation against golden set
+- **Pre-Deployment:** All tests + security scan + load testing (5-10 q/s) + accuracy >90%
+
+---
+
+## TECHNOLOGY STACK & ARCHITECTURE
+
+### Key Technology Decisions
+
+| Technology | Choice | Rationale | Trade-offs | Alternatives |
+|-----------|--------|-----------|-----------|--------------|
+| **Database** | PostgreSQL 16 + pgvector | Single database for chunks + graph, HNSW support, full-text search | Slower than specialized vector DBs | Pinecone, Milvus, Weaviate |
+| **Embedding Model** | sentence-transformers (all-mpnet-base-v2, 768-dim) | Free, offline-capable, good semantic understanding | Lower quality than OpenAI | OpenAI text-embedding, Voyage AI |
+| **Search Fusion** | Reciprocal Rank Fusion (RRF, k=60) | Proven 85%+ accuracy in production, simple to tune | Doesn't learn weights | Learned fusion, Cohere reranking |
+| **Cross-Encoder** | ms-marco-MiniLM-L-6-v2 | Lightweight (90MB), fast (150ms/batch), proven >92% accuracy | Less accurate than larger models | ms-marco-MiniLM-L-12-v2 (larger) |
+| **Framework** | FastMCP 0.2.0+ | Simple Claude Desktop integration, type-safe, async | Limited to MCP protocol | FastAPI, gRPC, GraphQL |
+| **Vector Indexing** | HNSW (m=16, ef_construction=64) | Fast (<100ms searches), efficient space usage | Parameter tuning required | IVFFlat, HNSW (larger m) |
+| **Graph Storage** | JSONB relationships in PostgreSQL | Flexible schema, avoids dedicated graph DB | Not as efficient as Neo4j | Neo4j, ArangoDB |
+| **Chunking Strategy** | 512 tokens, 20% overlap | Empirically optimized (+10% accuracy vs 256-token) | Some context duplication | 256 tokens (faster), 1024 tokens (less chunks) |
+| **Query Expansion** | DISABLED | Production testing showed -23.8% regression | Can't use acronym expansion | Use contextual chunk headers instead |
+| **Connection Pool** | psycopg2 ThreadedConnectionPool (min=1, max=10) | Efficient for 27 users, low overhead | May bottleneck if >10 concurrent | asyncpg with async/await |
+| **Logging** | Structured JSON logging with timestamps | Easy log aggregation and analysis | Verbose output in development | Simple text logging |
+
+### System Architecture
+
+```
+FastMCP Server (Claude Desktop)
+    ↓ [MCP protocol]
+Search Engine Module
+  ├── Vector Search (pgvector HNSW)
+  ├── BM25 Search (PostgreSQL GIN)
+  ├── RRF Fusion (k=60)
+  └── Cross-Encoder Reranking (ms-marco-MiniLM)
+    ↓
+Knowledge Graph Module
+  ├── Entity Extraction (spaCy NER)
+  ├── Relationship Detection
+  └── Graph Traversal Queries
+    ↓
+PostgreSQL 16 + pgvector
+  ├── knowledge_base (2,600 chunks + 768-dim embeddings)
+  ├── knowledge_entities (NER-extracted entities)
+  └── entity_relationships (JSONB graph)
+    ↓
+Data Ingestion Pipeline
+  └── 343 markdown files → chunks → embeddings → database
+```
+
+### Core Data Models
+
+**knowledge_base Table:**
+```sql
+CREATE TABLE knowledge_base (
+    id SERIAL PRIMARY KEY,
+    chunk_text TEXT NOT NULL,              -- 512-token chunk
+    chunk_hash VARCHAR(64) UNIQUE NOT NULL, -- SHA-256 deduplication
+    embedding vector(768),                  -- all-mpnet-base-v2
+    source_file VARCHAR(512) NOT NULL,      -- Original markdown path
+    source_category VARCHAR(128),           -- product_docs, kb_article, etc.
+    document_date DATE,                     -- Document publish/update date
+    chunk_index INTEGER NOT NULL,           -- Position in document
+    total_chunks INTEGER NOT NULL,          -- Total chunks in document
+    context_header TEXT,                    -- "filename.md > Section > Subsection"
+    ts_vector tsvector,                     -- Auto-updated BM25 vector
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- HNSW index for vector search (cosine similarity)
+CREATE INDEX idx_knowledge_embedding ON knowledge_base
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- GIN index for full-text search
+CREATE INDEX idx_knowledge_fts ON knowledge_base USING GIN(ts_vector);
+
+-- B-tree index for metadata filtering
+CREATE INDEX idx_knowledge_category ON knowledge_base(source_category);
+```
+
+**knowledge_entities Table:**
+```sql
+CREATE TABLE knowledge_entities (
+    id SERIAL PRIMARY KEY,
+    entity_name TEXT NOT NULL,              -- "Lutron", "Quantum System", etc.
+    entity_type VARCHAR(50),                -- VENDOR, PRODUCT, TEAM_MEMBER, REGION
+    metadata JSONB,                         -- {aliases: [], confidence: 0.95, context: "..."}
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Unique constraint on canonical entities
+CREATE UNIQUE INDEX idx_entity_canonical ON knowledge_entities(lower(entity_name), entity_type)
+WHERE metadata->>'canonical' = 'true';
+```
+
+**entity_relationships Table:**
+```sql
+CREATE TABLE entity_relationships (
+    id SERIAL PRIMARY KEY,
+    source_entity_id INT REFERENCES knowledge_entities(id),
+    target_entity_id INT REFERENCES knowledge_entities(id),
+    relation_type VARCHAR(100),             -- OFFERS, WORKS_WITH, LOCATED_IN, etc.
+    confidence FLOAT,                       -- 0-1 extraction confidence
+    source_chunk_id INT REFERENCES knowledge_base(id),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Composite index for efficient graph traversal
+CREATE INDEX idx_relationships_source ON entity_relationships(source_entity_id, relation_type);
+CREATE INDEX idx_relationships_target ON entity_relationships(target_entity_id, relation_type);
+```
+
+---
+
+## RISKS & MITIGATIONS
+
+### Technical Risks
+
+**Risk 1: Search accuracy doesn't reach 90% despite optimization**
+- **Impact:** HIGH (defeats purpose of local system)
+- **Likelihood:** MEDIUM (requires parameter tuning)
+- **Mitigation:** Start with proven hybrid + cross-encoder (92% in production), focus on boost weight optimization
+- **Fallback:** Accept 85% if 90% unachievable, focus on other improvements (latency, graph)
+
+**Risk 2: Knowledge graph extraction <80% accuracy**
+- **Impact:** HIGH (entities become unusable)
+- **Likelihood:** MEDIUM (NER never perfect)
+- **Mitigation:** Curate vendor/product lists, use for entity linking, manual validation on sample
+- **Fallback:** Use explicit relationships from document metadata instead of extracted
+
+**Risk 3: Performance regression from graph queries**
+- **Impact:** MEDIUM (latency SLA unachievable)
+- **Likelihood:** MEDIUM (graph traversal adds latency)
+- **Mitigation:** Test latency with each phase, implement caching for frequent traversals
+- **Fallback:** Limit graph expansion to 1-hop only (not 2-hop)
+
+**Risk 4: PostgreSQL scalability bottleneck**
+- **Impact:** MEDIUM (questioned system reliability)
+- **Likelihood:** LOW (Neon handles it, local should too)
+- **Mitigation:** Local postgres optimized with proper indexes, connection pooling tuned
+- **Fallback:** Upgrade to PostgreSQL Pro or managed service (RDS, Supabase)
+
+**Risk 5: Cross-checking with Neon becomes bottleneck**
+- **Impact:** LOW (affects iteration speed)
+- **Likelihood:** HIGH (MCP API rate limits)
+- **Mitigation:** Batch queries, cache results, implement local-only testing mode
+- **Fallback:** Only A/B test new changes, not every query
+
+**Risk 6: Embedding model quality issues**
+- **Impact:** MEDIUM (degraded search quality)
+- **Likelihood:** LOW (all-mpnet is stable)
+- **Mitigation:** Version pinning, offline model caching, fallback to cached embeddings
+- **Fallback:** Test alternative models (MiniLM, Instructor) if quality issues emerge
+
+**Risk 7: HNSW index build time excessive**
+- **Impact:** LOW (re-indexing slow)
+- **Likelihood:** LOW (HNSW designed for efficiency)
+- **Mitigation:** Incremental index updates (no full rebuilds), batch insertions
+- **Fallback:** Implement IVFFlat indexing as backup (slower searches but faster builds)
+
+**Risk 8: Cross-encoder latency unacceptable**
+- **Impact:** MEDIUM (violates <300ms p50 SLA)
+- **Likelihood:** MEDIUM (cross-encoder adds 150-200ms)
+- **Mitigation:** Reduce candidate pool (10-15 instead of 20), batch inference optimization
+- **Fallback:** Use vector-only search if cross-encoder unavailable (drop to 85% accuracy)
+
+### Dependency Risks
+
+- **Model Availability:** sentence-transformers and cross-encoder downloads may fail → Use offline caching
+- **Neon Database:** Production DB may become unavailable → Implement graceful degradation, cache query results
+- **PostgreSQL Version:** pgvector requires PostgreSQL 16+ → Document version requirements, provide upgrade path
+
+### Scope Risks
+
+- **Scope Creep:** Knowledge graph becomes too complex → Use JSONB constraints, 1-hop default limits complexity
+- **Underestimation:** Graph extraction takes 2x longer → Start with 50-document subset, validate before full corpus
+- **Unclear Requirements:** "Better search quality" undefined → Concrete 90%+ accuracy metric, specific test set
+
+---
+
+## APPENDIX
+
+### Glossary
+
+- **HNSW:** Hierarchical Navigable Small World graph indexing (vector search)
+- **pgvector:** PostgreSQL extension for vector similarity search
+- **RRF:** Reciprocal Rank Fusion (hybrid search fusion algorithm)
+- **BM25:** Okapi BM25 full-text ranking algorithm
+- **Cross-Encoder:** Transformer model that jointly encodes query-document pairs
+- **Entity Extraction:** NER (Named Entity Recognition) to identify vendors, products, etc.
+- **Metadata Filtering:** JSONB containment operators for filtering before ranking
+- **ts_vector:** PostgreSQL full-text search vector (tsvector type)
+- **Relevance@5:** Percentage of queries where at least one relevant result appears in top 5
+- **MRR:** Mean Reciprocal Rank (ranking quality metric)
+- **NDCG@5:** Normalized Discounted Cumulative Gain (ranking quality metric)
+
+### Key References
+
+- PostgreSQL pgvector documentation: https://github.com/pgvector/pgvector
+- sentence-transformers: https://www.sbert.net/
+- cross-encoder: https://www.sbert.net/docs/cross_encoders/cross_encoders.html
+- FastMCP framework: https://docs.anthropic.com/en/docs/build-an-mcp-server
+- Reciprocal Rank Fusion: http://www.lemoda.net/text-fuzzy/rrf/
+
+### Open Questions
+
+1. **Query Expansion Alternative:** Should we implement spell correction instead of acronym expansion? How to validate?
+2. **Graph Depth Trade-off:** Is 1-hop default the right balance, or should some queries expand to 2-hop?
+3. **Boost Weight Tuning:** Should boost weights be dynamic (learned) rather than static configuration?
+4. **Entity Extraction Method:** Should we use spaCy, rule-based patterns, or a fine-tuned NER model?
+5. **Chunk Overlap Strategy:** Is 20% overlap optimal for all content types, or should it vary?
+6. **Cross-Encoder Efficiency:** Can we distill ms-marco-MiniLM further without accuracy loss?
+7. **Graph Relationship Types:** What relationships are most valuable to extract and maintain?
+8. **Production Promotion Criteria:** What accuracy threshold justifies promoting changes to Neon?
+
+### Future Work (Post-MVP)
+
+- **Phase 2 (Post-MVP):** Fine-tune embedding model on BMCIS-specific content
+- **Phase 3:** Implement learning-to-rank for boost weight optimization
+- **Phase 4:** Add dialogue/conversation context tracking
+- **Phase 5:** Multi-modal search (text + images for product specs)
+- **Phase 6:** Team member expertise graph (who knows what topics)
+- **Phase 7:** Real-time knowledge updates (webhook ingestion)
+
+---
+
+**Document Status:** v1.0 Complete - Ready for Task Master Parsing
+**Next Steps:** Run `task-master parse-prd .taskmaster/docs/prd.txt` to generate tasks
+**Estimated Implementation Timeline:** 7 weeks (35 days)
+**Last Updated:** November 7, 2025
