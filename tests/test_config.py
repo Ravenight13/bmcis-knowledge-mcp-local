@@ -37,7 +37,7 @@ class TestDatabaseConfig:
         assert config.port == 5432
         assert config.database == "bmcis_knowledge_dev"
         assert config.user == "postgres"
-        assert config.password == ""
+        assert config.password.get_secret_value() == ""
         assert config.pool_min_size == 5
         assert config.pool_max_size == 20
         assert config.connection_timeout == 10.0
@@ -57,7 +57,7 @@ class TestDatabaseConfig:
             assert config.port == 5433
             assert config.database == "custom_db"
             assert config.user == "custom_user"
-            assert config.password == "secret"
+            assert config.password.get_secret_value() == "secret"
         finally:
             # Cleanup
             for key in [

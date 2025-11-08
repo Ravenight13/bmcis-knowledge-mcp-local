@@ -16,6 +16,7 @@ from pydantic import (
     field_validator,
     ConfigDict,
     ValidationInfo,
+    SecretStr,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -64,9 +65,9 @@ class DatabaseConfig(BaseSettings):
         description="Database user for authentication",
         min_length=1,
     )
-    password: str = Field(
-        default="",
-        description="Password for database user",
+    password: SecretStr = Field(
+        default=SecretStr(""),
+        description="Password for database user (never logged or exposed)",
     )
     pool_min_size: int = Field(
         default=5,

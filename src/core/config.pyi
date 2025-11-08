@@ -5,7 +5,7 @@ and application settings with environment variable loading and validation.
 """
 
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 # Type aliases
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -19,7 +19,7 @@ class DatabaseConfig(BaseModel):
     port: int
     database: str
     user: str
-    password: str
+    password: SecretStr
     pool_min_size: int
     pool_max_size: int
     connection_timeout: float
