@@ -517,8 +517,11 @@ class HybridSearch:
             converted_results: SearchResultList = []
             for idx, vec_result in enumerate(results, 1):
                 # VectorSearch.SearchResult has similarity and chunk attributes
+                # Use hash for ID since ProcessedChunk doesn't have database chunk_id yet
+                chunk_id = abs(hash(vec_result.chunk.chunk_hash)) % (10 ** 8)
+
                 unified_result = SearchResult(
-                    chunk_id=vec_result.chunk.chunk_id,
+                    chunk_id=chunk_id,
                     chunk_text=vec_result.chunk.chunk_text,
                     similarity_score=vec_result.similarity,
                     bm25_score=0.0,  # No BM25 score for vector-only search

@@ -32,12 +32,16 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import Mock, MagicMock, patch
 
+# Import only what we need to avoid torch dependency during testing
 from src.search.rrf import RRFScorer
 from src.search.boosting import BoostingSystem, BoostWeights
 from src.search.query_router import QueryRouter
 from src.search.results import SearchResult
 from src.core.database import DatabasePool
 from src.core.logging import StructuredLogger
+
+# Note: HybridSearch import is not done at module level to avoid torch dependency
+# It will be created during tests when needed
 
 
 # Test fixtures for result data creation
