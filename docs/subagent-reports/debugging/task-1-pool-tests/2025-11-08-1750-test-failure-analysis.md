@@ -367,10 +367,67 @@ finally:
 
 ---
 
+## Fix Implementation & Verification
+
+### Fix Applied
+**File:** `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local/src/core/database.py`
+**Commit:** `4cc3808` - "fix: task-1 connection pool - remove premature yielded_conn reset in inner finally block"
+**Lines Changed:** 206-212 (reduced from 9 lines to 3 lines)
+
+**Before:**
+```python
+yielded_conn = conn
+try:
+    yield conn
+finally:
+    # If user's code raises exception, we still return the connection
+    yielded_conn = None
+
+return
+```
+
+**After:**
+```python
+# CRITICAL: Track yielded connection for outer finally cleanup
+yielded_conn = conn
+yield conn
+return
+```
+
+### Test Verification Results
+
+**Status:** ALL 3 TESTS NOW PASS
+
+```
+tests/test_database_connection_pool.py::TestConnectionPoolLeakPrevention::test_connection_release_on_exception_after_getconn PASSED
+tests/test_database_connection_pool.py::TestConnectionPoolLeakPrevention::test_connection_recovery_after_all_retries_fail PASSED
+tests/test_database_connection_pool.py::TestConnectionPoolLeakPrevention::test_connection_pool_status_after_error_sequence PASSED
+
+============================== 3 passed in 4.33s =======================================
+```
+
+### Full Test Suite Results
+**Total:** 6 tests in connection pool test suite
+**Passed:** 6/6
+**Failed:** 0/6
+**Coverage:** 78% (src/core/database.py)
+
+All tests pass including:
+- `test_connection_leak_on_retry_failure` - Validates no putconn when all retries fail ✓
+- `test_connection_leak_under_concurrent_failures` - Validates thread-safe cleanup ✓
+- `test_pool_state_consistency_after_failures` - Validates pool state stability ✓
+
+---
+
 ## Conclusion
 
-The implementation correctly tracks yielded connections in `yielded_conn` variable and has an outer finally block designed to return them. However, the inner finally block (lines 206-212) unconditionally sets `yielded_conn = None` before the outer finally block executes, causing the condition on line 259 to be false and preventing connection returns.
+The implementation correctly tracks yielded connections in `yielded_conn` variable and has an outer finally block designed to return them. The inner try-finally block (lines 206-212 in original) unconditionally set `yielded_conn = None` before the outer finally block executed, causing the condition to be false and preventing connection returns.
 
-**Fix:** Remove the inner try-finally block or don't clear yielded_conn within it. The simplest fix is to delete the inner finally block entirely since its purpose (handling user exceptions) is already managed by Python's context manager protocol.
+**Fix Applied:** Removed the inner try-finally block entirely. The outer finally block now correctly executes and returns all successfully acquired connections to the pool.
 
-This is a critical connection leak bug that affects all successful connection acquisitions.
+**Result:** The fix eliminates the critical connection leak bug that affected all successful connection acquisitions. Connections are now properly returned to the pool in all scenarios:
+- Normal completion without exceptions
+- User code raises exceptions
+- After retries succeed following transient failures
+
+This fix has been verified with 100% test pass rate on the connection pool test suite.
