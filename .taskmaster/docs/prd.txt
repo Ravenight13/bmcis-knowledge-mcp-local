@@ -110,11 +110,23 @@ Apply transformer-based query-document similarity scoring as final reranking sta
 - **Quality Expectation:** Relevance@5 ≥ 92% (+7% over hybrid alone)
 
 #### Feature 3.2: Adaptive Candidate Selection
-- **Description:** Dynamically adjust cross-encoder candidate pool based on query complexity
-- **Inputs:** Query complexity score (tokens, entity count), hybrid results, diversity threshold
-- **Outputs:** Optimized candidate pool size (10-30 documents)
-- **Behavior:** Simple queries <5 tokens → top 10, Complex >10 tokens → top 30, adjust for diversity
-- **Performance Target:** Reduce cross-encoder latency to 100-150ms
+- **Description:** Dynamically adjust cross-encoder candidate pool based on query complexity and result diversity
+- **Inputs:**
+  - Query complexity metric (object with: token_count, entity_count, query_type)
+  - Hybrid search results (list of SearchResult objects with RRF scores)
+  - Diversity threshold (float, 0-1, default: 0.7 cosine similarity)
+  - Minimum pool size (int, default: 10)
+  - Maximum pool size (int, default: 30)
+- **Outputs:**
+  - Optimized candidate list (10-30 SearchResult objects selected for cross-encoder processing)
+  - Selection metadata (reason for pool size choice, diversity metrics)
+- **Behavior:**
+  1. Calculate query complexity: Count tokens, identify named entities, classify query type (simple/complex)
+  2. Determine base pool size: Simple queries (<5 tokens) → top 10, Complex (>10 tokens) → top 30
+  3. Measure result diversity: Calculate average cosine similarity between top results
+  4. Adjust for diversity: High diversity (avg <0.7) → use top 15, Low diversity (avg >0.9) → expand to top 25
+  5. Return ordered candidate list for cross-encoder reranking
+- **Performance Target:** Reduce cross-encoder latency to 100-150ms (vs 150-200ms with fixed pool)
 
 ### Capability 4: Knowledge Graph Management
 Build and query entity relationships (vendors ↔ products ↔ team members ↔ regions) using PostgreSQL-native JSONB.
@@ -128,9 +140,10 @@ Build and query entity relationships (vendors ↔ products ↔ team members ↔ 
 
 #### Feature 4.2: Graph-Enhanced Search
 - **Description:** Expand search results to include related entities and their associated documents
-- **Inputs:** Base search results, expansion depth (1-hop or 2-hop), relation types to follow
-- **Outputs:** Expanded SearchResult list with relationship path metadata
-- **Behavior:** Extract entities from top results → query entity_relationships → retrieve associated chunks → merge with originals
+- **Inputs:** Base search results (list of SearchResult objects), expansion depth (1-hop or 2-hop, default: 1), relation types to follow (list of strings, e.g., ["OFFERS", "WORKS_WITH"])
+- **Outputs:** Expanded SearchResult list with relationship path metadata (relationship_path: string describing traversal path)
+- **Behavior:** Extract entities from top results → query entity_relationships for neighbors → retrieve associated chunks → merge with originals, preserving original ranking
+- **Quality Target:** >30% of expanded results are novel (not in original top-5) AND relevant to query
 - **Performance Target:** <500ms for 2-hop traversal + chunk retrieval
 
 #### Feature 4.3: Entity Deduplication & Canonicalization
