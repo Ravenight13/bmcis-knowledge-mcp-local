@@ -12,15 +12,15 @@ validation at every step.
 
 import logging
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator, Optional, Any
 
 import psycopg2
-from psycopg2 import pool, OperationalError, DatabaseError
+from psycopg2 import DatabaseError, OperationalError, pool
 from psycopg2.extensions import connection as Connection
 
 from src.core.config import get_settings
-from src.core.logging import StructuredLogger, log_database_operation
+from src.core.logging import StructuredLogger
 
 # Module logger for connection pool operations
 # Uses StructuredLogger for automatic initialization
@@ -50,7 +50,7 @@ class DatabasePool:
         ...         version = cur.fetchone()
     """
 
-    _pool: Optional[pool.SimpleConnectionPool] = None
+    _pool: pool.SimpleConnectionPool | None = None
 
     @classmethod
     def initialize(cls) -> None:
@@ -118,9 +118,7 @@ class DatabasePool:
             logger.error("Failed to initialize connection pool: %s", e, exc_info=True)
             raise RuntimeError(f"Failed to initialize connection pool: {e}") from e
         except Exception as e:
-            logger.error(
-                "Unexpected error during pool initialization: %s", e, exc_info=True
-            )
+            logger.error("Unexpected error during pool initialization: %s", e, exc_info=True)
             raise
 
     @classmethod
@@ -180,7 +178,7 @@ class DatabasePool:
         if cls._pool is None:
             cls.initialize()
 
-        conn: Optional[Connection] = None
+        conn: Connection | None = None
 
         try:
             # Retry loop with exponential backoff
@@ -205,10 +203,9 @@ class DatabasePool:
                     # Connection failed, log and potentially retry
                     if attempt < retries - 1:
                         # Calculate exponential backoff wait time
-                        wait_time = 2 ** attempt  # 1, 2, 4, 8... seconds
+                        wait_time = 2**attempt  # 1, 2, 4, 8... seconds
                         logger.warning(
-                            "Connection attempt %d failed: %s. "
-                            "Retrying in %d seconds...",
+                            "Connection attempt %d failed: %s. " "Retrying in %d seconds...",
                             attempt + 1,
                             e,
                             wait_time,

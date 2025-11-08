@@ -4,10 +4,12 @@ Defines the complete type interface for connection pool management,
 including connection lifecycle, retry logic, and health checks.
 """
 
-from typing import Generator, Optional, Any
-from contextlib import contextmanager
-from psycopg2.extensions import connection as Connection
 import logging
+from collections.abc import Generator
+from contextlib import contextmanager
+from typing import Any
+
+from psycopg2.extensions import connection as Connection
 
 logger: logging.Logger
 
@@ -19,7 +21,7 @@ class DatabasePool:
     All connections are validated before use and properly cleaned up.
     """
 
-    _pool: Optional[Any]
+    _pool: Any | None
 
     @classmethod
     def initialize(cls) -> None:
@@ -40,10 +42,7 @@ class DatabasePool:
 
     @classmethod
     @contextmanager
-    def get_connection(
-        cls,
-        retries: int = 3
-    ) -> Generator[Connection, None, None]:
+    def get_connection(cls, retries: int = 3) -> Generator[Connection, None, None]:
         """Acquire a database connection from the pool with retry logic.
 
         Automatically initializes the pool if needed. Performs exponential backoff

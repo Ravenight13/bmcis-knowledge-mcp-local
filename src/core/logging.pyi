@@ -5,7 +5,6 @@ structured logging utilities for database operations and API calls.
 """
 
 import logging
-from typing import Optional
 
 class StructuredLogger:
     """Centralized logging configuration and management."""
@@ -55,7 +54,7 @@ def log_database_operation(
     operation: str,
     duration_ms: float,
     rows_affected: int,
-    error: Optional[str] = None,
+    error: str | None = None,
 ) -> None:
     """Log database operation with structured fields.
 

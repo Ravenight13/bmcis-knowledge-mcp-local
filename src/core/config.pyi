@@ -5,6 +5,7 @@ and application settings with environment variable loading and validation.
 """
 
 from typing import Literal
+
 from pydantic import BaseModel, SecretStr
 
 # Type aliases

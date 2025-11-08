@@ -12,18 +12,17 @@ Tests cover:
 
 from __future__ import annotations
 
-import logging
 import os
 import time
-from typing import Any, Generator, Optional
-from unittest.mock import MagicMock, Mock, patch, call
+from collections.abc import Generator
+from typing import Any
+from unittest.mock import MagicMock, call, patch
 
 import pytest
-import psycopg2
 from psycopg2 import DatabaseError, OperationalError
 from psycopg2.extensions import connection as Connection
 
-from src.core.config import DatabaseConfig, get_settings, reset_settings
+from src.core.config import get_settings, reset_settings
 from src.core.database import DatabasePool
 
 
@@ -126,9 +125,7 @@ class TestDatabasePoolInitialization:
             call_kwargs: dict[str, Any] = mock_pool_class.call_args[1]
             settings = get_settings()
 
-            assert call_kwargs["connect_timeout"] == int(
-                settings.database.connection_timeout
-            )
+            assert call_kwargs["connect_timeout"] == int(settings.database.connection_timeout)
 
     def test_initialize_is_idempotent(self) -> None:
         """Test initialize can be called multiple times safely."""
@@ -426,9 +423,7 @@ class TestRetryLogic:
         with patch("src.core.database.pool.SimpleConnectionPool") as mock_pool_class:
             with patch("src.core.database.logger") as mock_logger:
                 mock_pool_instance: MagicMock = MagicMock()
-                mock_pool_instance.getconn.side_effect = OperationalError(
-                    "Connection refused"
-                )
+                mock_pool_instance.getconn.side_effect = OperationalError("Connection refused")
                 mock_pool_class.return_value = mock_pool_instance
                 DatabasePool._pool = mock_pool_instance
 

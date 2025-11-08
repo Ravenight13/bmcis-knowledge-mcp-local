@@ -10,17 +10,15 @@ Tests cover:
 """
 
 import os
-import pytest
-from pathlib import Path
-from tempfile import NamedTemporaryFile, TemporaryDirectory
 
+import pytest
 from pydantic import ValidationError
 
 from src.core.config import (
-    Settings,
+    ApplicationConfig,
     DatabaseConfig,
     LoggingConfig,
-    ApplicationConfig,
+    Settings,
     get_settings,
     reset_settings,
 )
@@ -392,15 +390,17 @@ class TestConfigurationIntegration:
 
     def test_complete_configuration_load(self) -> None:
         """Test loading complete configuration from environment."""
-        os.environ.update({
-            "APP_ENVIRONMENT": "staging",
-            "APP_DEBUG": "false",
-            "DB_HOST": "staging-db.example.com",
-            "DB_PORT": "5433",
-            "DB_POOL_MAX_SIZE": "30",
-            "LOG_LEVEL": "WARNING",
-            "LOG_FORMAT": "json",
-        })
+        os.environ.update(
+            {
+                "APP_ENVIRONMENT": "staging",
+                "APP_DEBUG": "false",
+                "DB_HOST": "staging-db.example.com",
+                "DB_PORT": "5433",
+                "DB_POOL_MAX_SIZE": "30",
+                "LOG_LEVEL": "WARNING",
+                "LOG_FORMAT": "json",
+            }
+        )
 
         try:
             settings = Settings()

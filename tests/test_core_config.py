@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import os
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Optional, Generator
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -27,12 +27,13 @@ from pydantic import ValidationError
 # These imports assume the configuration module exists at src/core/config.py
 try:
     from src.core.config import (
-        Settings,
         DatabaseConfig,
-        LoggingConfig,
-        get_settings,
         Environment,
+        LoggingConfig,
+        Settings,
+        get_settings,
     )
+
     CONFIG_AVAILABLE = True
 except ImportError:
     CONFIG_AVAILABLE = False
@@ -52,9 +53,7 @@ except ImportError:
 @pytest.fixture
 def temp_env_file() -> Generator[Path, None, None]:
     """Create a temporary .env file for testing."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".env", delete=False, newline=""
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False, newline="") as f:
         temp_path = Path(f.name)
     try:
         yield temp_path
@@ -105,9 +104,9 @@ class TestDatabaseConfig:
         assert config.port == 5432, "Default port should be 5432 (PostgreSQL)"
         assert config.user == "postgres", "Default user should be 'postgres'"
         assert config.name == "bmcis_knowledge_dev", "Default database name mismatch"
-        assert config.password is None or config.password == "", (
-            "Default password should be None or empty"
-        )
+        assert (
+            config.password is None or config.password == ""
+        ), "Default password should be None or empty"
 
     def test_custom_values(self) -> None:
         """Test DatabaseConfig with custom initialization values."""
@@ -130,27 +129,21 @@ class TestDatabaseConfig:
         with pytest.raises(ValidationError) as exc_info:
             DatabaseConfig(port=0)
 
-        assert "port" in str(exc_info.value).lower(), (
-            "Error message should mention 'port'"
-        )
+        assert "port" in str(exc_info.value).lower(), "Error message should mention 'port'"
 
     def test_invalid_port_too_high(self) -> None:
         """Test that port > 65535 raises ValidationError."""
         with pytest.raises(ValidationError) as exc_info:
             DatabaseConfig(port=65536)
 
-        assert "port" in str(exc_info.value).lower(), (
-            "Error message should mention 'port'"
-        )
+        assert "port" in str(exc_info.value).lower(), "Error message should mention 'port'"
 
     def test_invalid_port_negative(self) -> None:
         """Test that negative port raises ValidationError."""
         with pytest.raises(ValidationError) as exc_info:
             DatabaseConfig(port=-1)
 
-        assert "port" in str(exc_info.value).lower(), (
-            "Error message should mention 'port'"
-        )
+        assert "port" in str(exc_info.value).lower(), "Error message should mention 'port'"
 
     def test_valid_port_boundaries(self) -> None:
         """Test valid port boundaries (1 and 65535)."""
@@ -219,9 +212,7 @@ class TestLoggingConfig:
         config = LoggingConfig()
 
         assert config.level == "INFO", "Default log level should be 'INFO'"
-        assert hasattr(
-            config, "format"
-        ), "LoggingConfig should have format attribute"
+        assert hasattr(config, "format"), "LoggingConfig should have format attribute"
         assert config.format is not None, "Format should not be None"
 
     def test_custom_values(self) -> None:
@@ -242,9 +233,7 @@ class TestLoggingConfig:
         with pytest.raises(ValidationError) as exc_info:
             LoggingConfig(level="INVALID_LEVEL")
 
-        assert "level" in str(exc_info.value).lower(), (
-            "Error should mention 'level'"
-        )
+        assert "level" in str(exc_info.value).lower(), "Error should mention 'level'"
 
     def test_log_level_case_sensitivity(self) -> None:
         """Test log level enum case handling."""
@@ -340,9 +329,7 @@ class TestSettings:
         settings = Settings()
 
         assert hasattr(settings, "debug"), "Settings should have debug field"
-        assert isinstance(
-            settings.debug, bool
-        ), "Debug field should be boolean"
+        assert isinstance(settings.debug, bool), "Debug field should be boolean"
 
 
 # ==============================================================================
@@ -436,9 +423,9 @@ class TestEnvironmentVariableLoading:
         os.environ["database_host"] = "wrong-host"
 
         config = DatabaseConfig()
-        assert config.host == "correct-host", (
-            "Should use DATABASE_HOST (uppercase) not database_host"
-        )
+        assert (
+            config.host == "correct-host"
+        ), "Should use DATABASE_HOST (uppercase) not database_host"
 
 
 # ==============================================================================
@@ -450,9 +437,7 @@ class TestEnvironmentVariableLoading:
 class TestEnvFileLoading:
     """Test loading configuration from .env files."""
 
-    def test_load_from_env_file(
-        self, temp_env_file: Path, clean_environ: dict[str, str]
-    ) -> None:
+    def test_load_from_env_file(self, temp_env_file: Path, clean_environ: dict[str, str]) -> None:
         """Test loading configuration from .env file."""
         # Write test values to .env file
         env_content = """DATABASE_HOST=file-host.example.com
@@ -548,9 +533,7 @@ DATABASE_PORT=5434
         # Load configuration
         with patch.dict(os.environ, {"ENV_FILE": str(temp_env_file)}):
             config = DatabaseConfig()
-            assert config.host == "env-host", (
-                "Environment variables should override .env file"
-            )
+            assert config.host == "env-host", "Environment variables should override .env file"
 
 
 # ==============================================================================
@@ -566,9 +549,7 @@ class TestSettingsFactory:
         """Test that get_settings() returns a Settings instance."""
         settings = get_settings()
 
-        assert isinstance(
-            settings, Settings
-        ), "get_settings() should return Settings instance"
+        assert isinstance(settings, Settings), "get_settings() should return Settings instance"
 
     def test_get_settings_valid_composition(self) -> None:
         """Test that get_settings() returns properly composed Settings."""
@@ -682,9 +663,7 @@ class TestEdgeCases:
 
     def test_whitespace_handling(self) -> None:
         """Test handling of whitespace in configuration values."""
-        config = DatabaseConfig(
-            host=" whitespace-host ", user=" whitespace-user "
-        )
+        config = DatabaseConfig(host=" whitespace-host ", user=" whitespace-user ")
 
         # Whitespace should be handled (stripped or preserved depending on validator)
         assert isinstance(config.host, str)
@@ -745,9 +724,7 @@ class TestEdgeCases:
 class TestIntegration:
     """Integration tests for complete configuration system."""
 
-    def test_full_settings_initialization(
-        self, clean_environ: dict[str, str]
-    ) -> None:
+    def test_full_settings_initialization(self, clean_environ: dict[str, str]) -> None:
         """Test complete Settings initialization with all components."""
         # Set up environment
         os.environ.update(
@@ -785,9 +762,7 @@ class TestIntegration:
         assert 1 <= settings.database.port <= 65535
         assert settings.logging.level in ["DEBUG", "INFO"]
 
-    def test_production_configuration_requires_setup(
-        self, clean_environ: dict[str, str]
-    ) -> None:
+    def test_production_configuration_requires_setup(self, clean_environ: dict[str, str]) -> None:
         """Test that production configuration requires explicit setup."""
         os.environ["ENVIRONMENT"] = "production"
 
@@ -800,12 +775,10 @@ class TestIntegration:
             DatabaseConfig(port=99999)
 
         error_message = str(exc_info.value)
-        assert "port" in error_message.lower(), (
-            "Error should clearly indicate which field failed"
-        )
-        assert "65535" in error_message or "range" in error_message.lower(), (
-            "Error should indicate the valid range"
-        )
+        assert "port" in error_message.lower(), "Error should clearly indicate which field failed"
+        assert (
+            "65535" in error_message or "range" in error_message.lower()
+        ), "Error should indicate the valid range"
 
 
 # ==============================================================================
@@ -827,9 +800,9 @@ class TestPerformance:
         end = time.perf_counter()
 
         elapsed = end - start
-        assert elapsed < 1.0, (
-            f"Creating 100 config instances should be fast (< 1s), took {elapsed}s"
-        )
+        assert (
+            elapsed < 1.0
+        ), f"Creating 100 config instances should be fast (< 1s), took {elapsed}s"
 
     def test_get_settings_performance(self) -> None:
         """Test that get_settings() factory is reasonably fast."""
@@ -841,9 +814,9 @@ class TestPerformance:
         end = time.perf_counter()
 
         elapsed = end - start
-        assert elapsed < 1.0, (
-            f"Calling get_settings() 100 times should be fast (< 1s), took {elapsed}s"
-        )
+        assert (
+            elapsed < 1.0
+        ), f"Calling get_settings() 100 times should be fast (< 1s), took {elapsed}s"
 
     def test_thread_safety(self) -> None:
         """Test that config access is thread-safe."""

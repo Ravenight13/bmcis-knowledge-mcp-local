@@ -7,20 +7,19 @@ JSON/text formatting, file rotation, and structured logging utilities.
 import json
 import logging
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.core.config import LoggingConfig, reset_settings
 from src.core.logging import (
-    StructuredLogger,
     JsonFormatter,
-    log_database_operation,
+    StructuredLogger,
     log_api_call,
+    log_database_operation,
 )
-from src.core.config import LoggingConfig, get_settings, reset_settings
-
 
 # Test fixtures
 
@@ -113,9 +112,7 @@ def test_structured_logger_with_console_enabled(reset_logger: None) -> None:
         assert any(isinstance(h, logging.StreamHandler) for h in handlers)
 
 
-def test_structured_logger_with_file_enabled(
-    reset_logger: None, temp_log_dir: Path
-) -> None:
+def test_structured_logger_with_file_enabled(reset_logger: None, temp_log_dir: Path) -> None:
     """Test StructuredLogger with file handler enabled."""
     log_file = temp_log_dir / "test.log"
 
@@ -135,14 +132,10 @@ def test_structured_logger_with_file_enabled(
 
         root_logger = logging.getLogger()
         handlers = root_logger.handlers
-        assert any(
-            isinstance(h, logging.handlers.RotatingFileHandler) for h in handlers
-        )
+        assert any(isinstance(h, logging.handlers.RotatingFileHandler) for h in handlers)
 
 
-def test_structured_logger_creates_log_directory(
-    reset_logger: None, temp_log_dir: Path
-) -> None:
+def test_structured_logger_creates_log_directory(reset_logger: None, temp_log_dir: Path) -> None:
     """Test StructuredLogger creates log directory if it doesn't exist."""
     log_file = temp_log_dir / "subdir" / "test.log"
     assert not log_file.parent.exists()
@@ -483,9 +476,7 @@ def test_log_rotation_configuration(temp_log_dir: Path) -> None:
 
         root_logger = logging.getLogger()
         file_handlers = [
-            h
-            for h in root_logger.handlers
-            if isinstance(h, logging.handlers.RotatingFileHandler)
+            h for h in root_logger.handlers if isinstance(h, logging.handlers.RotatingFileHandler)
         ]
 
         assert len(file_handlers) > 0, f"Expected file handlers, found: {root_logger.handlers}"

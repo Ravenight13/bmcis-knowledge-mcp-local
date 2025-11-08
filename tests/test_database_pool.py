@@ -5,12 +5,13 @@ and proper resource cleanup. Uses test fixtures and mocking to avoid
 requiring actual database connections.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock, call
-from psycopg2 import OperationalError, DatabaseError
+from unittest.mock import MagicMock, Mock, call, patch
 
-from src.core.database import DatabasePool
+import pytest
+from psycopg2 import DatabaseError, OperationalError
+
 from src.core.config import reset_settings
+from src.core.database import DatabasePool
 
 
 class TestDatabasePoolInitialization:

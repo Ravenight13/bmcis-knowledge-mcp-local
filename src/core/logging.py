@@ -21,7 +21,7 @@ import logging
 import logging.handlers
 import sys
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any
 
 from src.core.config import get_settings
 
@@ -235,7 +235,7 @@ def log_database_operation(
     operation: str,
     duration_ms: float,
     rows_affected: int,
-    error: Optional[str] = None,
+    error: str | None = None,
 ) -> None:
     """Log database operation with structured fields.
 

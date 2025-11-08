@@ -7,16 +7,13 @@ Implements factory pattern for global configuration access with validation
 against Pydantic v2 strict mode for type safety.
 """
 
-from typing import Literal, Any
-from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import (
-    BaseModel,
     Field,
-    field_validator,
-    ConfigDict,
-    ValidationInfo,
     SecretStr,
+    ValidationInfo,
+    field_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
