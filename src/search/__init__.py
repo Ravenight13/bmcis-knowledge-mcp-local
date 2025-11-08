@@ -13,7 +13,8 @@ Key components:
 """
 
 from src.search.bm25_search import BM25Search, SearchResult as BM25SearchResult
-from src.search.hybrid_search import HybridSearch, SearchExplanation, SearchProfile
+# Note: HybridSearch import deferred to avoid torch dependency in test environments
+# from src.search.hybrid_search import HybridSearch, SearchExplanation, SearchProfile
 from src.search.profiler import (
     SearchProfiler,
     ProfileResult,
@@ -27,9 +28,9 @@ from src.search.vector_search import VectorSearch, SearchResult, SearchStats
 __all__ = [
     "BM25Search",
     "BM25SearchResult",
-    "HybridSearch",
-    "SearchExplanation",
-    "SearchProfile",
+    # "HybridSearch",  # Deferred to avoid torch import
+    # "SearchExplanation",  # Deferred
+    # "SearchProfile",  # Deferred
     "SearchProfiler",
     "ProfileResult",
     "TimingBreakdown",
