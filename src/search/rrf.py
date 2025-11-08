@@ -217,9 +217,7 @@ class RRFScorer:
         if weights is None:
             # Equal weights for all sources
             weight_value = 1.0 / len(non_empty_sources)
-            source_weights: dict[str, float] = {
-                name: weight_value for name in non_empty_sources
-            }
+            source_weights = {name: weight_value for name in non_empty_sources}  # noqa: C420
         else:
             source_weights = weights
 
