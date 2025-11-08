@@ -57,7 +57,7 @@ CREATE OR REPLACE FUNCTION search_bm25(
     total_chunks INTEGER,
     chunk_token_count INTEGER,
     metadata JSONB,
-    similarity FLOAT
+    similarity REAL
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -102,7 +102,7 @@ CREATE OR REPLACE FUNCTION search_bm25_phrase(
     total_chunks INTEGER,
     chunk_token_count INTEGER,
     metadata JSONB,
-    similarity FLOAT
+    similarity REAL
 ) AS $$
 BEGIN
     RETURN QUERY
