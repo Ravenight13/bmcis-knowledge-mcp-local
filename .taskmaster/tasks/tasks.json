@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": 1,
+        "id": "1",
         "title": "Database and Core Utilities Setup",
         "description": "Initialize PostgreSQL 16 with pgvector, create database schema, and establish core configuration management",
         "details": "Execute sql/schema_768.sql, create config system with Pydantic, set up connection pooling, implement logging and error handling utilities. Configure virtual environment, pytest, pre-commit hooks.",
@@ -91,7 +91,7 @@
         "updatedAt": "2025-11-08T03:44:12.305Z"
       },
       {
-        "id": 2,
+        "id": "2",
         "title": "Document Parsing and Chunking System",
         "description": "Build document ingestion pipeline for markdown files with metadata extraction and token-based chunking",
         "details": "Implement functions to read markdown files, extract metadata (vendor, category, team_member), use tiktoken for 512-token chunks with 20% overlap. Generate context headers, implement batch processing.",
@@ -172,7 +172,7 @@
         "updatedAt": "2025-11-08T13:41:30.300Z"
       },
       {
-        "id": 3,
+        "id": "3",
         "title": "Embedding Generation Pipeline",
         "description": "Generate 768-dimensional embeddings for document chunks using all-mpnet-base-v2 model",
         "details": "Load sentence-transformers model, implement parallel embedding generation, handle model caching. Insert chunks with embeddings into knowledge_base table with HNSW indexing.",
@@ -240,7 +240,7 @@
         "updatedAt": "2025-11-08T13:53:02.249Z"
       },
       {
-        "id": 4,
+        "id": "4",
         "title": "Vector and BM25 Search Implementation",
         "description": "Develop vector similarity and full-text search capabilities using pgvector and PostgreSQL ts_vector",
         "details": "Implement HNSW cosine similarity search, BM25 full-text search via GIN indexes. Create search functions supporting metadata filtering, performance profiling.",
@@ -327,7 +327,7 @@
         "updatedAt": "2025-11-08T14:54:52.275Z"
       },
       {
-        "id": 5,
+        "id": "5",
         "title": "Hybrid Search with Reciprocal Rank Fusion",
         "description": "Combine vector and BM25 search results using Reciprocal Rank Fusion (RRF)",
         "details": "Implement RRF algorithm (k=60), create multi-factor boosting system (+15%/+10%/+5%/+10%/+8% for vendor/doc_type/recency/entity/topic). Design query routing mechanism.",
@@ -336,7 +336,7 @@
         "dependencies": [
           "4"
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -385,10 +385,10 @@
               3
             ],
             "details": "Merge RRF scores with boost multipliers to generate final ranking. Implement result deduplication, score normalization, and result limiting. Create accuracy validation against test queries with expected results. Measure precision, recall, and NDCG metrics. Implement performance monitoring for end-to-end search latency.",
-            "status": "in-progress",
+            "status": "done",
             "testStrategy": "End-to-end testing with test query sets. Validate accuracy metrics meet 90%+ target. Test result deduplication and score consistency. Benchmark full pipeline latency against <300ms p50 target.",
             "parentId": "undefined",
-            "updatedAt": "2025-11-08T19:12:01.396Z"
+            "updatedAt": "2025-11-08T19:24:42.225Z"
           },
           {
             "id": 5,
@@ -397,7 +397,8 @@
             "dependencies": [],
             "details": "Implement RRF score calculation using formula: 1/(k + rank) where k=60. Create function that takes two ranked lists (vector and BM25 results) and produces combined scores. Handle edge cases like missing results in one list, duplicate documents, and score normalization. Ensure deterministic ranking for tied scores.",
             "status": "pending",
-            "testStrategy": "Unit tests for RRF calculation accuracy, validate against known test cases, ensure proper handling of edge cases and score distributions"
+            "testStrategy": "Unit tests for RRF calculation accuracy, validate against known test cases, ensure proper handling of edge cases and score distributions",
+            "parentId": "undefined"
           },
           {
             "id": 6,
@@ -408,7 +409,8 @@
             ],
             "details": "Implement boost calculation engine that applies vendor (+15%), doc_type (+10%), recency (+5%), entity (+10%), and topic (+8%) multipliers to base RRF scores. Create configuration system for adjustable boost weights. Handle boost factor detection from document metadata and query context. Ensure boost multiplication preserves relative ranking while enhancing relevance.",
             "status": "pending",
-            "testStrategy": "Validate boost calculations are applied correctly, test configuration changes take effect, measure impact on search relevance metrics"
+            "testStrategy": "Validate boost calculations are applied correctly, test configuration changes take effect, measure impact on search relevance metrics",
+            "parentId": "undefined"
           },
           {
             "id": 7,
@@ -419,7 +421,8 @@
             ],
             "details": "Implement query analysis to determine search strategy: pure vector for semantic queries, pure BM25 for exact matches, hybrid for complex queries. Create routing logic based on query length, keyword density, entity presence, and semantic complexity. Include fallback mechanisms and performance-based routing adjustments.",
             "status": "pending",
-            "testStrategy": "Test routing decisions match expected strategies, validate performance improvements, ensure fallback mechanisms work correctly"
+            "testStrategy": "Test routing decisions match expected strategies, validate performance improvements, ensure fallback mechanisms work correctly",
+            "parentId": "undefined"
           },
           {
             "id": 8,
@@ -432,16 +435,17 @@
             ],
             "details": "Merge RRF scores with boost multipliers to generate final ranking. Implement result deduplication, score normalization, and result limiting. Create accuracy validation against test queries with expected results. Measure precision, recall, and NDCG metrics. Implement performance monitoring for end-to-end search latency.",
             "status": "pending",
-            "testStrategy": "Validate final ranking accuracy against test dataset, measure precision/recall/NDCG metrics, ensure performance targets are met"
+            "testStrategy": "Validate final ranking accuracy against test dataset, measure precision/recall/NDCG metrics, ensure performance targets are met",
+            "parentId": "undefined"
           }
         ],
         "complexity": 7,
         "recommendedSubtasks": 4,
         "expansionPrompt": "Break into: 1) Reciprocal Rank Fusion algorithm implementation with k=60 parameter, 2) Multi-factor boosting system with configurable weights (+15%/+10%/+5%/+10%/+8%), 3) Query routing mechanism for choosing search strategies, 4) Results merging and final ranking with validation against expected accuracy metrics",
-        "updatedAt": "2025-11-08T19:12:01.396Z"
+        "updatedAt": "2025-11-08T19:24:43.181Z"
       },
       {
-        "id": 6,
+        "id": "6",
         "title": "Cross-Encoder Reranking System",
         "description": "Implement final reranking stage using ms-marco-MiniLM-L-6-v2 cross-encoder model",
         "details": "Load cross-encoder model, develop candidate selection strategy, implement scoring and final result selection. Add adaptive pool sizing based on query complexity.",
@@ -505,7 +509,7 @@
         "expansionPrompt": "Split into: 1) ms-marco-MiniLM-L-6-v2 model loading and inference, 2) Candidate selection strategy with adaptive pool sizing, 3) Query-document pair scoring and top-5 selection, 4) Performance optimization to meet <200ms latency targets"
       },
       {
-        "id": 7,
+        "id": "7",
         "title": "Entity Extraction and Knowledge Graph",
         "description": "Build entity recognition system and knowledge graph with relationship mapping",
         "details": "Implement NER using spaCy, create knowledge_entities and entity_relationships tables. Develop entity deduplication, canonicalization, and graph traversal queries.",
@@ -592,7 +596,7 @@
         "expansionPrompt": "Break down into: 1) spaCy NER setup and entity extraction, 2) Entity deduplication and canonicalization with Levenshtein similarity, 3) Knowledge graph schema design with JSONB relationships, 4) Relationship detection and bidirectional linking, 5) Graph traversal query implementation (1-hop and 2-hop), 6) Entity extraction accuracy validation with manual annotation comparison"
       },
       {
-        "id": 8,
+        "id": "8",
         "title": "Neon Production Validation System",
         "description": "Create cross-checking mechanism to validate local search against Neon production results",
         "details": "Implement read-only Neon database connection, develop A/B search comparison, create golden query set for accuracy testing. Build pre-commit accuracy validation hook.",
@@ -667,7 +671,7 @@
         "expansionPrompt": "Split into: 1) Read-only Neon database connection with credential management, 2) A/B search comparison system executing identical queries, 3) Golden query dataset creation with manual annotations, 4) Accuracy metrics calculation (overlap@5, rank correlation, precision/recall), 5) Pre-commit hook integration for automated validation"
       },
       {
-        "id": 9,
+        "id": "9",
         "title": "Search Optimization and Tuning",
         "description": "Fine-tune search parameters to achieve 90%+ accuracy and maintain performance targets",
         "details": "Experiment with HNSW parameters, chunking strategies, boost weights, candidate pool sizing. Profile and optimize each search stage for latency.",
@@ -754,7 +758,7 @@
         "expansionPrompt": "Break into: 1) HNSW parameter tuning (ef_search, m values) with performance testing, 2) Boost weight optimization across multiple factors, 3) Chunking strategy experimentation (token sizes, overlap percentages), 4) Candidate pool size optimization for cross-encoder, 5) Performance profiling and bottleneck identification, 6) A/B testing framework for validating improvements"
       },
       {
-        "id": 10,
+        "id": "10",
         "title": "FastMCP Server Integration",
         "description": "Package search system as FastMCP server with Claude Desktop integration",
         "details": "Implement MCP server with semantic_search and find_vendor_info tools. Create request handlers, implement authentication, comprehensive error handling.",
@@ -831,14 +835,12 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-08T19:12:01.400Z",
+      "lastModified": "2025-11-08T19:24:43.182Z",
       "taskCount": 10,
-      "completedCount": 4,
+      "completedCount": 5,
       "tags": [
         "master"
-      ],
-      "created": "2025-11-08T19:13:46.056Z",
-      "description": "Tasks for master context"
+      ]
     }
   }
 }
