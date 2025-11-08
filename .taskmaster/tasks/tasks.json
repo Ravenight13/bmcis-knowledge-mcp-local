@@ -85,7 +85,61 @@
           1
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Markdown File Reader with Metadata Extraction",
+            "description": "Create comprehensive markdown file reading system that extracts metadata from file paths, frontmatter, and document headers",
+            "dependencies": [],
+            "details": "Build file reader that processes markdown files and extracts vendor, category, and team_member metadata from multiple sources: file path patterns, YAML frontmatter, and document headers. Handle various markdown formats and ensure robust parsing with fallback mechanisms for missing metadata.",
+            "status": "pending",
+            "testStrategy": "Test with various markdown files containing different metadata formats. Validate >95% metadata extraction completeness across sample documents."
+          },
+          {
+            "id": 2,
+            "title": "Implement Tiktoken-based Tokenization System",
+            "description": "Develop accurate token counting system using tiktoken library for precise chunking calculations",
+            "dependencies": [
+              1
+            ],
+            "details": "Integrate tiktoken library to provide accurate token counting for GPT models. Create tokenization functions that can handle markdown content while preserving structure. Implement token counting utilities that account for different encoding models.",
+            "status": "pending",
+            "testStrategy": "Validate token counts match OpenAI's tokenization. Test with various text lengths and markdown formatting to ensure accuracy."
+          },
+          {
+            "id": 3,
+            "title": "Build 512-Token Chunking with 20% Overlap",
+            "description": "Create chunking algorithm that produces 512-token chunks with precisely calculated 20% overlap between consecutive chunks",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement chunking logic that creates 512-token segments with 102-token overlap (20%). Ensure chunks maintain semantic coherence by respecting paragraph and section boundaries when possible. Handle edge cases for documents shorter than chunk size.",
+            "status": "pending",
+            "testStrategy": "Verify chunk sizes are exactly 512 tokens with 20% overlap. Test with documents of varying lengths. Validate that 343 documents produce approximately 2,600 chunks as specified."
+          },
+          {
+            "id": 4,
+            "title": "Generate Context Headers from Document Structure",
+            "description": "Create context header generation system that adds document structure information to each chunk",
+            "dependencies": [
+              3
+            ],
+            "details": "Develop system to generate meaningful context headers that include document title, section hierarchy, and relevant metadata for each chunk. Headers should provide sufficient context for standalone understanding of chunk content.",
+            "status": "pending",
+            "testStrategy": "Validate context headers provide meaningful document structure context. Test header generation across different document types and structures."
+          },
+          {
+            "id": 5,
+            "title": "Implement Batch Processing Pipeline with Progress Tracking",
+            "description": "Build robust batch processing system with comprehensive progress tracking and error handling for large document collections",
+            "dependencies": [
+              4
+            ],
+            "details": "Create batch processing pipeline that can handle large document collections efficiently. Implement progress tracking, error handling, retry mechanisms, and logging. Support resumable processing for interrupted operations and provide detailed processing statistics.",
+            "status": "pending",
+            "testStrategy": "Test batch processing with full 343-document collection. Validate error handling, progress tracking accuracy, and performance metrics. Ensure system can handle interruptions and resume processing."
+          }
+        ]
       },
       {
         "id": 3,
@@ -98,7 +152,50 @@
           2
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Sentence-transformers model loading with caching strategy",
+            "description": "Load all-mpnet-base-v2 model from sentence-transformers library and implement efficient caching mechanism",
+            "dependencies": [],
+            "details": "Import sentence-transformers library, load all-mpnet-base-v2 model, implement model caching to disk and memory to avoid reloading on subsequent runs. Configure model device placement (CPU/GPU) and handle memory optimization.",
+            "status": "pending",
+            "testStrategy": "Verify model loads correctly, test caching mechanism saves/loads model properly, validate 768-dimensional output"
+          },
+          {
+            "id": 2,
+            "title": "Parallel embedding generation with batch processing",
+            "description": "Implement parallel embedding generation pipeline with optimized batch processing for document chunks",
+            "dependencies": [
+              1
+            ],
+            "details": "Create batch processing system to handle chunks efficiently, implement parallel processing using multiprocessing or threading, optimize batch sizes for memory usage and performance. Handle progress tracking and error recovery.",
+            "status": "pending",
+            "testStrategy": "Test batch processing with various batch sizes, verify parallel processing improves performance, validate all chunks get processed without errors"
+          },
+          {
+            "id": 3,
+            "title": "Database insertion with HNSW index creation",
+            "description": "Insert generated embeddings into knowledge_base table and create HNSW index for efficient vector similarity search",
+            "dependencies": [
+              2
+            ],
+            "details": "Insert chunk text, embeddings, and metadata into knowledge_base table using bulk insert operations. Create HNSW index on embedding column for fast cosine similarity search. Handle database connection pooling and error handling.",
+            "status": "pending",
+            "testStrategy": "Verify all embeddings inserted correctly, test HNSW index creation and performance, validate database schema compliance"
+          },
+          {
+            "id": 4,
+            "title": "Embedding validation and quality checks with dimension verification",
+            "description": "Implement comprehensive validation system to ensure embedding quality and dimensional consistency",
+            "dependencies": [
+              3
+            ],
+            "details": "Validate all embeddings are exactly 768 dimensions, check for null or invalid embeddings, implement quality metrics like embedding distribution analysis. Create validation reports and error logging for failed embeddings.",
+            "status": "pending",
+            "testStrategy": "Verify all embeddings have correct dimensions, test validation catches malformed embeddings, validate quality metrics are within expected ranges"
+          }
+        ]
       },
       {
         "id": 4,
@@ -111,7 +208,67 @@
           3
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement pgvector HNSW cosine similarity search",
+            "description": "Set up PostgreSQL pgvector extension and implement HNSW index with cosine similarity for vector search functionality",
+            "dependencies": [],
+            "details": "Install and configure pgvector extension, create vector columns with appropriate dimensions, implement HNSW indexing with optimal parameters (m=16, ef_construction=64), create cosine similarity search functions with distance thresholds and result limiting",
+            "status": "pending",
+            "testStrategy": "Test vector search performance <100ms, validate cosine similarity calculations, verify HNSW index creation and search accuracy"
+          },
+          {
+            "id": 2,
+            "title": "Implement PostgreSQL ts_vector BM25 search with GIN indexing",
+            "description": "Create full-text search using PostgreSQL ts_vector with BM25 scoring and GIN indexes for optimal performance",
+            "dependencies": [
+              1
+            ],
+            "details": "Set up ts_vector columns for searchable text content, create GIN indexes for full-text search, implement BM25 ranking function using PostgreSQL's built-in ranking with custom weights, create search functions supporting phrase queries and boolean operators",
+            "status": "pending",
+            "testStrategy": "Benchmark BM25 search <50ms, validate GIN index performance, test ranking accuracy against expected results"
+          },
+          {
+            "id": 3,
+            "title": "Develop metadata filtering system with JSONB containment",
+            "description": "Create flexible metadata filtering using JSONB columns with containment operators for efficient query filtering",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Design JSONB schema for metadata storage (vendor, category, team_member, document_type), implement GIN indexes on JSONB columns, create filter functions using @> containment operator, support multiple filter combinations with AND/OR logic",
+            "status": "pending",
+            "testStrategy": "Test JSONB filter performance, validate containment queries, ensure filter combinations work correctly with search results"
+          },
+          {
+            "id": 4,
+            "title": "Implement performance profiling and optimization",
+            "description": "Create comprehensive performance monitoring and optimization system for search operations",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Implement query timing and profiling infrastructure, create performance benchmarks for vector and text search, analyze query plans and index usage, optimize HNSW parameters (ef_search, m values), tune GIN index configurations, implement query result caching strategies",
+            "status": "pending",
+            "testStrategy": "Validate performance targets are met, benchmark before/after optimization, monitor query execution plans, ensure no performance regression"
+          },
+          {
+            "id": 5,
+            "title": "Create search result formatting and ranking validation",
+            "description": "Develop standardized result formatting and implement validation system for search ranking accuracy",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Create consistent result format with scores, metadata, and snippets, implement ranking validation against test queries, create result normalization functions, add result explanation features showing why documents matched, implement result deduplication and filtering",
+            "status": "pending",
+            "testStrategy": "Validate result format consistency, test ranking accuracy against golden dataset, ensure result explanations are meaningful and accurate"
+          }
+        ]
       },
       {
         "id": 5,
@@ -182,7 +339,51 @@
           5
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "ms-marco-MiniLM-L-6-v2 model loading and inference",
+            "description": "Load and initialize the ms-marco-MiniLM-L-6-v2 cross-encoder model for query-document pair scoring",
+            "dependencies": [],
+            "details": "Use transformers library to load the ms-marco-MiniLM-L-6-v2 model from HuggingFace. Initialize tokenizer and model, implement input preprocessing for query-document pairs, and create inference pipeline with proper tensor handling and device management.",
+            "status": "pending",
+            "testStrategy": "Test model loading speed, validate tokenizer output format, measure inference time for single query-document pairs"
+          },
+          {
+            "id": 2,
+            "title": "Candidate selection strategy with adaptive pool sizing",
+            "description": "Implement intelligent candidate selection with dynamic pool sizing based on query complexity",
+            "dependencies": [
+              1
+            ],
+            "details": "Develop algorithm to analyze query complexity using features like query length, entity count, and semantic density. Implement adaptive candidate pool sizing (10-50 candidates) based on complexity score. Create fallback mechanisms for edge cases and ensure consistent performance.",
+            "status": "pending",
+            "testStrategy": "Test pool sizing accuracy across different query types, validate complexity scoring consistency, measure selection time impact"
+          },
+          {
+            "id": 3,
+            "title": "Query-document pair scoring and top-5 selection",
+            "description": "Implement cross-encoder scoring pipeline and final result ranking to select top 5 documents",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create batch processing pipeline for query-document pairs, implement relevance scoring using cross-encoder model, develop ranking algorithm to select top 5 results with confidence scores. Handle edge cases like tied scores and insufficient candidates.",
+            "status": "pending",
+            "testStrategy": "Validate ranking accuracy against golden dataset, test batch processing efficiency, verify top-5 selection consistency"
+          },
+          {
+            "id": 4,
+            "title": "Performance optimization to meet <200ms latency targets",
+            "description": "Optimize cross-encoder pipeline to achieve sub-200ms response times while maintaining accuracy",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement model quantization, optimize batch processing, add caching for repeated queries, implement parallel processing where possible. Profile bottlenecks and optimize critical paths. Add performance monitoring and latency tracking.",
+            "status": "pending",
+            "testStrategy": "Benchmark end-to-end latency across query types, stress test with concurrent requests, validate accuracy preservation after optimizations"
+          }
+        ]
       },
       {
         "id": 7,
@@ -418,7 +619,61 @@
           9
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "FastMCP server setup with semantic_search and find_vendor_info tools",
+            "description": "Initialize FastMCP server framework and implement the core MCP tools for semantic search and vendor information retrieval",
+            "dependencies": [],
+            "details": "Set up FastMCP server project structure, configure dependencies, implement semantic_search tool that accepts query parameters and returns ranked results, implement find_vendor_info tool for vendor-specific searches. Ensure tools follow MCP protocol specifications and integrate with existing search infrastructure.",
+            "status": "pending",
+            "testStrategy": "Unit tests for tool implementations, validate MCP protocol compliance, test tool parameter validation and response formatting"
+          },
+          {
+            "id": 2,
+            "title": "Request handler implementation with proper error handling",
+            "description": "Develop robust request handling system with comprehensive error management and validation",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement request routing, input validation, parameter sanitization, and comprehensive error handling for various failure scenarios. Add request logging, timeout handling, and graceful degradation for downstream service failures. Include proper HTTP status codes and structured error responses.",
+            "status": "pending",
+            "testStrategy": "Test error scenarios, validate request timeouts, verify proper HTTP status codes, test malformed input handling"
+          },
+          {
+            "id": 3,
+            "title": "Authentication system integration",
+            "description": "Implement secure authentication mechanism for MCP server access control",
+            "dependencies": [
+              2
+            ],
+            "details": "Design and implement authentication system suitable for Claude Desktop integration. Include API key validation, rate limiting, and secure credential management. Ensure compatibility with MCP client authentication patterns and add audit logging for security monitoring.",
+            "status": "pending",
+            "testStrategy": "Security testing for authentication bypass attempts, validate rate limiting, test API key rotation, verify audit log integrity"
+          },
+          {
+            "id": 4,
+            "title": "Response formatting for Claude Desktop compatibility",
+            "description": "Ensure MCP server responses are properly formatted for optimal Claude Desktop integration and user experience",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement response formatting that optimizes search results for Claude Desktop display. Include result metadata, confidence scores, and structured data that enhances Claude's ability to provide contextual responses. Add response compression and caching strategies for improved performance.",
+            "status": "pending",
+            "testStrategy": "Test response parsing in Claude Desktop environment, validate metadata structure, verify response size limits and compression"
+          },
+          {
+            "id": 5,
+            "title": "End-to-end testing and performance validation",
+            "description": "Comprehensive testing suite covering full MCP server workflow and performance benchmarks",
+            "dependencies": [
+              4
+            ],
+            "details": "Develop end-to-end test suite that validates complete search workflow from Claude Desktop through MCP server to database. Include performance benchmarks, load testing, and integration tests. Validate response times meet targets and system handles concurrent requests appropriately.",
+            "status": "pending",
+            "testStrategy": "End-to-end workflow testing, performance benchmarking for latency targets, concurrent user load testing, integration test suite validation"
+          }
+        ]
       }
     ],
     "metadata": {
