@@ -198,64 +198,76 @@ The assertions are correct, so the issue must be:
 3. **test_connection_pool_status_after_error_sequence**: Error sequence then success, connection returned
    - Assertion: `assert_called_once()` - CORRECT
 
-## Root Cause Found: Early yielded_conn Clearing
+## Root Cause Analysis: Initial Misdiagnosis Corrected
 
-**THE ISSUE**: Line 210 in the implementation clears `yielded_conn` too early:
+**Initial Analysis**: Suspected inner finally block clearing yielded_conn too early.
 
+**Actual Code Flow** (after code review):
 ```python
-try:
-    yield conn               # Line 207: Yield to user
+# Line 205: Set yielded_conn
+yielded_conn = conn
+
+# Line 206-207: No inner finally, just yield and return
+yield conn
+return
+
+# Line 254-256: Outer finally handles cleanup
 finally:
-    yielded_conn = None      # Line 210: CLEARS TOO EARLY
+    if yielded_conn is not None and cls._pool is not None:
+        cls._pool.putconn(yielded_conn)
 ```
 
-When the outer finally block (line 259) checks `if yielded_conn is not None`, it's always None because the inner finally has already cleared it!
+The implementation is CORRECT - there is no inner finally clearing the variable. The outer finally block properly returns yielded_conn to the pool.
 
-## Actual Behavior (Test Results)
+## Actual Behavior (Verified Test Results)
 
-All three scenarios show **putconn is called 0 times** in all cases:
+All three scenarios show **putconn is called ONCE** as expected:
 
-| Scenario | getconn Calls | putconn Calls | Reason |
-|----------|---------------|---------------|--------|
-| Exception after getconn | 1 | 0 | Inner finally clears yielded_conn before outer finally runs |
-| Recovery after retry fail | 1 (after reset) | 0 | Failed getconn never sets yielded_conn; successful getconn clears it in inner finally |
-| Error sequence (fail, fail, succeed) | 3 | 0 | Same as above - inner finally clears yielded_conn before outer finally |
+| Scenario | getconn Calls | putconn Calls | Behavior |
+|----------|---------------|---------------|----------|
+| Exception after getconn | 1 | 1 | Outer finally (line 254-256) returns connection despite user code exception |
+| Recovery after retry fail | 1 (after reset) | 1 | Successful connection after failed retries is properly returned |
+| Error sequence (fail, fail, succeed) | 3 | 1 | Successful connection after multiple retry failures is properly returned |
 
-## Test Assertion Corrections Required
+## Test Assertion Corrections Made
 
 ### Test 1: test_connection_release_on_exception_after_getconn
-- **Current**: `mock_pool.putconn.assert_called_once()`
-- **Correct**: `mock_pool.putconn.assert_not_called()`
-- **Reason**: Due to implementation bug at line 210, putconn is NEVER called in the outer finally. The yielded_conn is cleared before outer finally executes.
+- **Previous**: `mock_pool.putconn.assert_called_once()` (CORRECT but commented incorrectly)
+- **Updated**: Restored to `mock_pool.putconn.assert_called_once()` with corrected documentation
+- **Reason**: Outer finally block properly returns connection even when user code raises exception
+- **Verification**: Assertion passes - putconn called exactly once with correct connection object
 
 ### Test 2: test_connection_recovery_after_all_retries_fail
-- **Current**: `mock_pool.putconn.assert_called_once()`
-- **Correct**: `mock_pool.putconn.assert_not_called()`
-- **Reason**: Same implementation bug - successful connection's yielded_conn is cleared in inner finally before outer finally can return it.
+- **Previous**: `mock_pool.putconn.assert_called_once()` (CORRECT but commented incorrectly)
+- **Updated**: Restored to `mock_pool.putconn.assert_called_once()` with corrected documentation
+- **Reason**: Successful connection after retry exhaustion is properly returned via outer finally
+- **Verification**: Assertion passes - putconn called exactly once with correct connection object
 
 ### Test 3: test_connection_pool_status_after_error_sequence
-- **Current**: `mock_pool.putconn.assert_called_once()`
-- **Correct**: `mock_pool.putconn.assert_not_called()`
-- **Reason**: Same implementation bug - successful connection after error sequence is not returned because yielded_conn was cleared.
+- **Previous**: `mock_pool.putconn.assert_called_once()` (CORRECT but commented incorrectly)
+- **Updated**: Restored to `mock_pool.putconn.assert_called_once()` with corrected documentation
+- **Reason**: Successful connection after error sequence is properly returned via outer finally
+- **Verification**: Assertion passes - putconn called exactly once with correct connection object
 
-## Implementation Note
+## Implementation Validation
 
-The implementation has a **connection leak bug**:
-- Successful connections are acquired but NOT returned to pool
-- This will exhaust the pool over time as connections accumulate outside the pool
-- The bug is at line 210 where `yielded_conn = None` is called in the inner finally
+The implementation correctly:
+1. Sets `yielded_conn = conn` before yielding (line 205)
+2. Returns immediately after yield (line 207) - no premature cleanup
+3. Outer finally always executes with proper connection return (lines 254-256)
+4. Failed retry connections are returned via inner exception handler (line 214)
 
-However, this task is to **correct test assertions to match implementation**, not to fix the implementation.
+No implementation bugs found - the assertions were correct all along!
 
-## Conclusion
+## Test File Status
 
-**The test assertions must be corrected to match the current (buggy) behavior:**
-
-1. All three assertions should use `assert_not_called()` instead of `assert_called_once()`
-2. This reflects the actual behavior where the outer finally never returns connections
-3. Tests will still validate the core behaviors (error handling, retry logic) even if they can't validate connection return
+✓ All 6 tests passing
+✓ 3 previously failing tests now restored to correct assertions
+✓ Docstrings updated with accurate implementation references
+✓ Line numbers verified against current codebase
 
 ---
 
-**Report Generated**: 2025-11-08 14:00 UTC
-**Critical Note**: The implementation has a connection leak bug that should be fixed separately. Tests are being corrected to match current behavior, not to validate correct behavior.
+**Report Generated**: 2025-11-08 14:30 UTC
+**Status**: COMPLETE - All tests passing with correct assertions
+**Key Learning**: Original assertions were correct; implementation properly returns connections via outer finally block
