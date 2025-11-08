@@ -1,0 +1,298 @@
+# Git Commit Message Templates - Masked vs Exposed
+
+This file provides examples of proper masked commit messages and PR titles,
+contrasted with exposed versions that should NEVER be used.
+
+## Commit Message Examples
+
+### Feature Implementation
+
+❌ WRONG (Exposed):
+git commit -m "feat: task 5.1 - implement RRF ranking algorithm"
+git commit -m "feat(search): task-5.1 - add reciprocal rank fusion"
+git commit -m "feat: implement RRF for task 5.1"
+
+✅ CORRECT (Masked):
+git commit -m "feat: session-001 - implement ranking algorithm"
+git commit -m "feat(search): session-001 - add rank fusion capability"
+git commit -m "feat: session-001 - enhance search ranking"
+
+
+### Bug Fixes
+
+❌ WRONG (Exposed):
+git commit -m "fix: task 5.2 - resolve query parsing issue"
+git commit -m "fix(parser): task-5.2 - handle edge cases"
+git commit -m "fix: correct bug in task 5.2 implementation"
+
+✅ CORRECT (Masked):
+git commit -m "fix: session-002 - resolve query parsing issue"
+git commit -m "fix(parser): session-002 - handle edge cases"
+git commit -m "fix: session-002 - correct parsing logic"
+
+
+### Documentation
+
+❌ WRONG (Exposed):
+git commit -m "docs: task 5.3 - add API documentation"
+git commit -m "docs: update README for task-5.3"
+git commit -m "docs(api): task-5.3 - document endpoints"
+
+✅ CORRECT (Masked):
+git commit -m "docs: session-003 - add API documentation"
+git commit -m "docs: session-003 - update README"
+git commit -m "docs(api): session-003 - document endpoints"
+
+
+### Tests
+
+❌ WRONG (Exposed):
+git commit -m "test: task 5.4 - add unit tests for RRF"
+git commit -m "test(search): task-5.4 - add ranking tests"
+git commit -m "test: add coverage for task 5.4"
+
+✅ CORRECT (Masked):
+git commit -m "test: session-004 - add unit tests"
+git commit -m "test(search): session-004 - add ranking tests"
+git commit -m "test: session-004 - improve coverage"
+
+
+### Refactoring
+
+❌ WRONG (Exposed):
+git commit -m "refactor: task 5.5 - extract query builder"
+git commit -m "refactor(search): task-5.5 - simplify logic"
+git commit -m "refactor: clean up task 5.5 code"
+
+✅ CORRECT (Masked):
+git commit -m "refactor: session-005 - extract query builder"
+git commit -m "refactor(search): session-005 - simplify logic"
+git commit -m "refactor: session-005 - improve code organization"
+
+
+### Performance Improvements
+
+❌ WRONG (Exposed):
+git commit -m "perf: task 5.6 - optimize database queries"
+git commit -m "perf(db): task-5.6 - add connection pooling"
+git commit -m "perf: improve performance for task 5.6"
+
+✅ CORRECT (Masked):
+git commit -m "perf: session-006 - optimize database queries"
+git commit -m "perf(db): session-006 - add connection pooling"
+git commit -m "perf: session-006 - improve query performance"
+
+
+### Build/CI Changes
+
+❌ WRONG (Exposed):
+git commit -m "build: task 5.7 - update dependencies"
+git commit -m "ci: task-5.7 - add deployment pipeline"
+git commit -m "build(deps): task-5.7 - upgrade packages"
+
+✅ CORRECT (Masked):
+git commit -m "build: session-007 - update dependencies"
+git commit -m "ci: session-007 - add deployment pipeline"
+git commit -m "build(deps): session-007 - upgrade packages"
+
+
+### Chore/Maintenance
+
+❌ WRONG (Exposed):
+git commit -m "chore: task 5.8 - update .gitignore"
+git commit -m "chore(config): task-5.8 - update settings"
+git commit -m "chore: cleanup task 5.8 artifacts"
+
+✅ CORRECT (Masked):
+git commit -m "chore: session-008 - update .gitignore"
+git commit -m "chore(config): session-008 - update settings"
+git commit -m "chore: session-008 - cleanup build artifacts"
+
+
+## Pull Request Title Examples
+
+### Feature PRs
+
+❌ WRONG (Exposed):
+gh pr create --title "feat: task 5.1 - RRF ranking algorithm implementation"
+gh pr create --title "Feature: Implement RRF for task-5.1"
+gh pr create --title "[Task 5.1] Add reciprocal rank fusion"
+
+✅ CORRECT (Masked):
+gh pr create --title "feat: session-001 - ranking algorithm implementation"
+gh pr create --title "feat: session-001 - enhance search capabilities"
+gh pr create --title "feat: session-001 - add advanced ranking"
+
+
+### Bug Fix PRs
+
+❌ WRONG (Exposed):
+gh pr create --title "fix: task 5.2 - resolve query parsing bug"
+gh pr create --title "Bugfix: Task-5.2 query parser improvements"
+gh pr create --title "[Task 5.2] Fix parser edge cases"
+
+✅ CORRECT (Masked):
+gh pr create --title "fix: session-002 - resolve query parsing bug"
+gh pr create --title "fix: session-002 - improve parser reliability"
+gh pr create --title "fix: session-002 - handle edge cases"
+
+
+### Refactoring PRs
+
+❌ WRONG (Exposed):
+gh pr create --title "refactor: task 5.5 - extract query builder module"
+gh pr create --title "Refactor: Task-5.5 code cleanup"
+gh pr create --title "[Task 5.5] Simplify search logic"
+
+✅ CORRECT (Masked):
+gh pr create --title "refactor: session-005 - extract query builder module"
+gh pr create --title "refactor: session-005 - improve code organization"
+gh pr create --title "refactor: session-005 - simplify search logic"
+
+
+## Pull Request Body Template
+
+❌ WRONG (Exposed):
+
+---
+## Summary
+Implements task 5.1 - Reciprocal Rank Fusion (RRF) algorithm for hybrid search.
+
+## Changes
+- Added RRF implementation for task-5.1
+- Updated search pipeline per task 5.1 requirements
+- Added tests for task-5.1
+
+## Related Tasks
+- Closes task-5.1
+- Depends on task-4.4
+---
+
+✅ CORRECT (Masked):
+
+---
+## Summary
+Implements advanced ranking algorithm for hybrid search capability.
+
+## Changes
+- Added rank fusion implementation
+- Updated search pipeline
+- Added comprehensive test coverage
+
+## Testing
+- Unit tests for ranking logic
+- Integration tests for search pipeline
+- Performance benchmarks included
+
+## Notes
+- Maintains backward compatibility
+- No breaking changes
+- Documentation updated
+---
+
+
+## Quick Reference
+
+### Commit Message Format
+
+```
+<type>: session-<NNN> - <description>
+
+Types: feat, fix, docs, test, refactor, perf, build, ci, chore
+
+Examples:
+feat: session-042 - add new feature
+fix: session-043 - resolve critical bug
+docs: session-044 - update API documentation
+```
+
+### Branch Naming Format
+
+```
+work/session-<NNN>
+
+Examples:
+work/session-001
+work/session-042
+work/session-137
+```
+
+### PR Title Format
+
+```
+<type>: session-<NNN> - <description>
+
+Examples:
+feat: session-042 - new feature implementation
+fix: session-043 - critical bug resolution
+refactor: session-044 - code organization improvements
+```
+
+## Common Mistakes to Avoid
+
+### Mistake 1: Mixing Task IDs and Session IDs
+
+❌ WRONG:
+git commit -m "feat: session-001 - implement task 5.1"
+                                    ^^^^^^^^ Exposed task ID!
+
+✅ CORRECT:
+git commit -m "feat: session-001 - implement ranking algorithm"
+
+
+### Mistake 2: Task ID in PR Body
+
+❌ WRONG:
+gh pr create --title "feat: session-001" --body "Implements task-5.1"
+                                                 ^^^^^^^^^ Exposed!
+
+✅ CORRECT:
+gh pr create --title "feat: session-001 - ranking implementation" \
+  --body "Implements advanced ranking algorithm"
+
+
+### Mistake 3: Task Description Leakage
+
+❌ WRONG:
+git commit -m "feat: session-001 - implement RRF with pgvector HNSW index"
+(Too specific - reveals internal architecture decisions)
+
+✅ CORRECT:
+git commit -m "feat: session-001 - implement ranking algorithm"
+(Generic - reveals nothing about internal implementation)
+
+
+### Mistake 4: Referencing Other Tasks
+
+❌ WRONG:
+git commit -m "feat: session-001 - depends on task-4.4 completion"
+                                    ^^^^^^^^^^^^^^ Exposed!
+
+✅ CORRECT:
+git commit -m "feat: session-001 - integrate with search pipeline"
+
+
+## Verification Commands
+
+```bash
+# Check recent commits for exposed task IDs
+git log --oneline -20 | grep -E "task-?[0-9]+"
+
+# Check current branch name
+git rev-parse --abbrev-ref HEAD
+
+# Verify you're on a masked branch
+git rev-parse --abbrev-ref HEAD | grep "work/session"
+
+# Check for task IDs in commit messages
+git log --all --grep="task-[0-9]" --oneline
+
+# View your current session info
+cd .git-masking && ./check-branch.sh
+```
+
+## Resources
+
+- Conventional Commits: https://www.conventionalcommits.org/
+- Branch Masking README: .git-masking/README.md
+- Helper Scripts: .git-masking/new-branch.sh, .git-masking/check-branch.sh

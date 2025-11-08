@@ -1,0 +1,11 @@
+# SECURITY: Never commit the branch mapping file
+# This file contains the mapping between opaque session IDs and real task information
+branch-mapping.json
+
+# Keep only the template and helper scripts in version control
+!.gitignore
+!new-branch.sh
+!check-branch.sh
+!README.md
+!template-commit-messages.txt
+!branch-mapping.template.json
