@@ -34,11 +34,8 @@ from src.core.logging import StructuredLogger
 from src.core.database import DatabasePool
 
 
-# Test Markers
-pytest.mark.unit = pytest.mark.unit
-pytest.mark.integration = pytest.mark.integration
-pytest.mark.performance = pytest.mark.performance
-pytest.mark.slow = pytest.mark.slow
+# Test Markers registered in pyproject.toml configuration
+# Note: Markers are automatically recognized by pytest
 
 
 # ============================================================================
@@ -118,7 +115,7 @@ def test_queries() -> dict[str, str]:
         "empty": "",
         "special_chars": "OAuth@2.0 with [PKCE] & special-chars",
         "unicode": "OAuth εξακρίβωση αυθεντικότητας",
-        "very_long": "OAuth 2.0 " * 100,  # Very long query
+        "very_long": "OAuth 2.0 authentication " * 50,  # Very long query
     }
 
 
