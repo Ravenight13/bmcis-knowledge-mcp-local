@@ -18,6 +18,9 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "psycopg[binary]>=3.1.0",
     "pgvector>=0.2.0",
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+    "tiktoken>=0.5.0",
 ]
 
 [project.optional-dependencies]
@@ -60,6 +63,9 @@ disallow_untyped_calls = true
 module = [
     "psycopg.*",
     "pgvector.*",
+    "torch.*",
+    "sentence_transformers.*",
+    "tiktoken.*",
 ]
 ignore_missing_imports = true
 
