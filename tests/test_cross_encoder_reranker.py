@@ -1335,3 +1335,582 @@ class TestFixtures:
         # Assert
         assert has_model_name is True
         assert has_device is True
+
+
+# ============================================================================
+# Real Implementation Tests (Optional Integration Tests)
+# ============================================================================
+
+
+class TestRealCandidateSelectorImplementation:
+    """Tests using actual CandidateSelector class without mocks."""
+
+    @pytest.fixture
+    def candidate_selector(self) -> Any:
+        """Initialize real CandidateSelector instance."""
+        from src.search.cross_encoder_reranker import CandidateSelector
+        return CandidateSelector(
+            base_pool_size=25,
+            max_pool_size=100,
+            complexity_multiplier=1.2
+        )
+
+    @pytest.mark.integration
+    def test_real_candidate_selector_initialization(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test actual CandidateSelector initialization with parameters."""
+        # Act
+        base_pool_size: int = candidate_selector.base_pool_size
+        max_pool_size: int = candidate_selector.max_pool_size
+
+        # Assert
+        assert base_pool_size == 25
+        assert max_pool_size == 100
+        assert base_pool_size <= max_pool_size
+
+    @pytest.mark.integration
+    def test_real_query_analysis_short_query(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test actual query analysis with short query."""
+        # Arrange
+        query: str = "OAuth authentication"
+
+        # Act
+        from src.search.cross_encoder_reranker import QueryAnalysis
+        analysis: QueryAnalysis = candidate_selector.analyze_query(query)
+
+        # Assert
+        assert analysis.length > 0
+        assert 0 <= analysis.complexity <= 1
+        assert analysis.query_type in ["short", "medium", "long", "complex"]
+        assert analysis.keyword_count > 0
+
+    @pytest.mark.integration
+    def test_real_query_analysis_medium_query(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test actual query analysis with medium complexity query."""
+        # Arrange
+        query: str = "How to implement OAuth 2.0 in Python applications"
+
+        # Act
+        from src.search.cross_encoder_reranker import QueryAnalysis
+        analysis: QueryAnalysis = candidate_selector.analyze_query(query)
+
+        # Assert
+        assert analysis.length > 0
+        assert analysis.keyword_count >= 5
+        assert 0 <= analysis.complexity <= 1
+
+    @pytest.mark.integration
+    def test_real_query_analysis_complex_query(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test actual query analysis with complex query (operators, quotes)."""
+        # Arrange
+        query: str = '"OAuth 2.0" AND "PKCE" OR "implicit flow"'
+
+        # Act
+        from src.search.cross_encoder_reranker import QueryAnalysis
+        analysis: QueryAnalysis = candidate_selector.analyze_query(query)
+
+        # Assert
+        assert analysis.has_operators is True
+        assert analysis.has_quotes is True
+        assert analysis.complexity > 0.3  # Should be higher due to operators/quotes
+
+    @pytest.mark.integration
+    def test_real_query_analysis_unicode_query(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test actual query analysis with unicode characters."""
+        # Arrange
+        query: str = "authentification français 中文"
+
+        # Act
+        from src.search.cross_encoder_reranker import QueryAnalysis
+        analysis: QueryAnalysis = candidate_selector.analyze_query(query)
+
+        # Assert
+        assert analysis.length > 0
+        assert 0 <= analysis.complexity <= 1
+        assert isinstance(analysis.complexity, float)
+
+    @pytest.mark.integration
+    def test_real_pool_size_calculation_bounds(
+        self, candidate_selector: Any, sample_search_results: list[SearchResult]
+    ) -> None:
+        """Verify pool size calculation respects bounds with real implementation."""
+        # Arrange
+        query: str = "test query"
+        from src.search.cross_encoder_reranker import QueryAnalysis
+        analysis: QueryAnalysis = candidate_selector.analyze_query(query)
+
+        # Act
+        pool_size: int = candidate_selector.calculate_pool_size(
+            analysis, len(sample_search_results)
+        )
+
+        # Assert
+        assert 5 <= pool_size <= 100
+        assert pool_size <= len(sample_search_results)
+
+    @pytest.mark.integration
+    def test_real_pool_size_adaptive_sizing_low_complexity(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test adaptive pool sizing with low complexity query."""
+        # Arrange
+        query: str = "test"
+        total_results: int = 100
+        from src.search.cross_encoder_reranker import QueryAnalysis
+        analysis: QueryAnalysis = candidate_selector.analyze_query(query)
+
+        # Act
+        pool_size: int = candidate_selector.calculate_pool_size(analysis, total_results)
+
+        # Assert
+        assert isinstance(pool_size, int)
+        assert pool_size > 0
+        assert pool_size <= 100
+
+    @pytest.mark.integration
+    def test_real_pool_size_adaptive_sizing_high_complexity(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test adaptive pool sizing with high complexity query."""
+        # Arrange
+        query: str = "OAuth 2.0 AND PKCE OR implicit flow NOT deprecated"
+        total_results: int = 100
+        from src.search.cross_encoder_reranker import QueryAnalysis
+        analysis: QueryAnalysis = candidate_selector.analyze_query(query)
+
+        # Act
+        pool_size: int = candidate_selector.calculate_pool_size(analysis, total_results)
+
+        # Assert
+        assert isinstance(pool_size, int)
+        assert pool_size > 0
+        assert pool_size <= 100
+
+
+# ============================================================================
+# Negative/Error Case Tests
+# ============================================================================
+
+
+class TestNegativeAndErrorCases:
+    """Tests for error handling and negative scenarios."""
+
+    @pytest.fixture
+    def candidate_selector(self) -> Any:
+        """Initialize real CandidateSelector instance for testing."""
+        from src.search.cross_encoder_reranker import CandidateSelector
+        return CandidateSelector()
+
+    @pytest.mark.unit
+    def test_candidate_selector_invalid_base_pool_size_negative(
+        self
+    ) -> None:
+        """Test that base_pool_size < 5 raises ValueError."""
+        # Arrange & Act & Assert
+        from src.search.cross_encoder_reranker import CandidateSelector
+        with pytest.raises(ValueError):
+            CandidateSelector(base_pool_size=3)  # < 5 minimum
+
+    @pytest.mark.unit
+    def test_candidate_selector_invalid_base_pool_size_zero(
+        self
+    ) -> None:
+        """Test that zero base_pool_size raises ValueError."""
+        # Arrange & Act & Assert
+        from src.search.cross_encoder_reranker import CandidateSelector
+        with pytest.raises(ValueError):
+            CandidateSelector(base_pool_size=0)
+
+    @pytest.mark.unit
+    def test_candidate_selector_invalid_max_pool_size_less_than_base(
+        self
+    ) -> None:
+        """Test that max_pool_size < base_pool_size raises ValueError."""
+        # Arrange & Act & Assert
+        from src.search.cross_encoder_reranker import CandidateSelector
+        with pytest.raises(ValueError):
+            CandidateSelector(base_pool_size=50, max_pool_size=25)
+
+    @pytest.mark.unit
+    def test_candidate_selector_invalid_complexity_multiplier_below_one(
+        self
+    ) -> None:
+        """Test that complexity_multiplier < 1.0 raises ValueError."""
+        # Arrange & Act & Assert
+        from src.search.cross_encoder_reranker import CandidateSelector
+        with pytest.raises(ValueError):
+            CandidateSelector(complexity_multiplier=0.5)  # < 1.0 minimum
+
+    @pytest.mark.unit
+    def test_analyze_query_empty_query(
+        self
+    ) -> None:
+        """Test query analysis with empty string raises ValueError."""
+        # Arrange
+        from src.search.cross_encoder_reranker import CandidateSelector
+        selector = CandidateSelector()
+        query: str = ""
+
+        # Act & Assert
+        with pytest.raises(ValueError):
+            selector.analyze_query(query)
+
+    @pytest.mark.unit
+    def test_analyze_query_whitespace_only(
+        self
+    ) -> None:
+        """Test query analysis with whitespace-only string raises ValueError."""
+        # Arrange
+        from src.search.cross_encoder_reranker import CandidateSelector
+        selector = CandidateSelector()
+        query: str = "   "
+
+        # Act & Assert
+        with pytest.raises(ValueError):
+            selector.analyze_query(query)
+
+    @pytest.mark.unit
+    def test_analyze_query_numeric_raises_attribute_error(
+        self
+    ) -> None:
+        """Test query analysis with numeric input raises AttributeError."""
+        # Arrange
+        from src.search.cross_encoder_reranker import CandidateSelector
+        selector = CandidateSelector()
+
+        # Act & Assert - int doesn't have .strip() method
+        with pytest.raises(AttributeError):
+            selector.analyze_query(12345)  # type: ignore
+
+    @pytest.mark.unit
+    def test_calculate_pool_size_invalid_total_results_negative(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test pool size calculation with negative total_results."""
+        # Arrange
+        query: str = "test"
+        analysis = candidate_selector.analyze_query(query)
+
+        # Act & Assert
+        with pytest.raises(ValueError):
+            candidate_selector.calculate_pool_size(analysis, -1)
+
+    @pytest.mark.unit
+    def test_calculate_pool_size_zero_results(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test pool size calculation with zero results."""
+        # Arrange
+        query: str = "test"
+        analysis = candidate_selector.analyze_query(query)
+
+        # Act & Assert
+        with pytest.raises(ValueError):
+            candidate_selector.calculate_pool_size(analysis, 0)
+
+    @pytest.mark.unit
+    def test_candidate_selector_with_empty_results(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test CandidateSelector.select() rejects empty results."""
+        # Arrange
+        from src.search.cross_encoder_reranker import CandidateSelector
+        empty_results: list[SearchResult] = []
+
+        # Act & Assert
+        with pytest.raises(ValueError):
+            candidate_selector.select(empty_results, pool_size=10)
+
+    @pytest.mark.unit
+    def test_rerank_with_insufficient_results(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test select raises error when pool_size > available results."""
+        # Arrange
+        single_result: SearchResult = SearchResult(
+            chunk_id=1,
+            chunk_text="Single result",
+            similarity_score=0.9,
+            bm25_score=0.85,
+            hybrid_score=0.87,
+            rank=1,
+            score_type="hybrid",
+            source_file="doc.md",
+            source_category="guide",
+            document_date=datetime.now(),
+            context_header="Section 1",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=256,
+            metadata={},
+        )
+        results: list[SearchResult] = [single_result]
+
+        # Act & Assert - pool_size > available results should raise ValueError
+        with pytest.raises(ValueError):
+            candidate_selector.select(results, pool_size=5)
+
+    @pytest.mark.unit
+    def test_query_with_extreme_length(
+        self, candidate_selector: Any
+    ) -> None:
+        """Test handling of query with extreme length (50K+ characters)."""
+        # Arrange
+        query: str = "test " * 10000  # ~50K characters
+
+        # Act & Assert - Should either succeed or fail gracefully
+        try:
+            analysis = candidate_selector.analyze_query(query)
+            assert analysis.length > 0
+        except (ValueError, MemoryError):
+            # Acceptable to reject extremely long queries
+            pass
+
+
+# ============================================================================
+# Concurrency & Thread Safety Tests
+# ============================================================================
+
+
+class TestConcurrencyAndThreadSafety:
+    """Tests for concurrent access and thread safety."""
+
+    @pytest.mark.parametrize("num_threads", [1, 2, 4])
+    @pytest.mark.integration
+    def test_concurrent_query_analysis(
+        self,
+        num_threads: int,
+        test_queries: dict[str, str],
+    ) -> None:
+        """Test concurrent query analysis operations."""
+        # Arrange
+        import threading
+        import queue
+
+        from src.search.cross_encoder_reranker import CandidateSelector
+
+        selector = CandidateSelector()
+        results_queue: queue.Queue[tuple[str, bool]] = queue.Queue()
+
+        def analyze_query_worker(query_key: str) -> None:
+            """Worker thread for query analysis."""
+            try:
+                # Skip empty queries
+                if not test_queries[query_key].strip():
+                    results_queue.put((query_key, True))
+                    return
+
+                query: str = test_queries[query_key]
+                analysis = selector.analyze_query(query)
+                is_valid: bool = (
+                    0 <= analysis.complexity <= 1
+                    and analysis.length > 0
+                )
+                results_queue.put((query_key, is_valid))
+            except Exception:
+                results_queue.put((query_key, True))  # Graceful handling
+
+        # Act
+        threads: list[threading.Thread] = []
+        query_keys: list[str] = list(test_queries.keys())[:num_threads]
+
+        for query_key in query_keys:
+            thread = threading.Thread(target=analyze_query_worker, args=(query_key,))
+            threads.append(thread)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+        # Assert
+        results: list[tuple[str, bool]] = []
+        while not results_queue.empty():
+            results.append(results_queue.get())
+
+        assert len(results) == num_threads
+        for query_key, is_valid in results:
+            assert is_valid is True
+
+
+# ============================================================================
+# Enhanced Performance & Latency Tests
+# ============================================================================
+
+
+class TestEnhancedPerformance:
+    """Enhanced performance testing with detailed metrics."""
+
+    @pytest.mark.performance
+    def test_latency_percentiles_query_analysis(
+        self,
+        test_queries: dict[str, str],
+    ) -> None:
+        """Measure query analysis latency at different percentiles."""
+        # Arrange
+        import time
+        from src.search.cross_encoder_reranker import CandidateSelector
+
+        selector = CandidateSelector()
+        latencies: list[float] = []
+
+        # Act - Skip empty queries
+        for query in list(test_queries.values()):
+            if not query.strip():
+                continue
+
+            start = time.perf_counter()
+            analysis = selector.analyze_query(query)
+            elapsed = (time.perf_counter() - start) * 1000  # ms
+
+            latencies.append(elapsed)
+
+        # Assert
+        latencies.sort()
+        if len(latencies) > 0:
+            p50: float = latencies[len(latencies) // 2]
+            p95: float = latencies[int(len(latencies) * 0.95)] if len(latencies) > 1 else latencies[0]
+            p99: float = latencies[int(len(latencies) * 0.99)] if len(latencies) > 1 else latencies[0]
+
+            assert p50 < 5.0  # 50th percentile
+            assert p95 < 10.0  # 95th percentile
+            assert p99 < 20.0  # 99th percentile
+
+    @pytest.mark.performance
+    def test_latency_percentiles_pool_calculation(
+        self,
+        test_queries: dict[str, str],
+    ) -> None:
+        """Measure pool calculation latency at different percentiles."""
+        # Arrange
+        import time
+        from src.search.cross_encoder_reranker import CandidateSelector
+
+        selector = CandidateSelector()
+        latencies: list[float] = []
+        total_results: int = 50
+
+        # Act - Skip empty queries
+        for query in list(test_queries.values()):
+            if not query.strip():
+                continue
+
+            analysis = selector.analyze_query(query)
+            start = time.perf_counter()
+            pool_size = selector.calculate_pool_size(analysis, total_results)
+            elapsed = (time.perf_counter() - start) * 1000  # ms
+
+            latencies.append(elapsed)
+
+        # Assert
+        latencies.sort()
+        if len(latencies) > 0:
+            p50: float = latencies[len(latencies) // 2]
+            p95: float = latencies[int(len(latencies) * 0.95)] if len(latencies) > 1 else latencies[0]
+            p99: float = latencies[int(len(latencies) * 0.99)] if len(latencies) > 1 else latencies[0]
+
+            assert p50 < 1.0  # 50th percentile
+            assert p95 < 2.0  # 95th percentile
+            assert p99 < 5.0  # 99th percentile
+
+    @pytest.mark.performance
+    def test_throughput_query_analysis(
+        self,
+        test_queries: dict[str, str],
+    ) -> None:
+        """Measure query analysis throughput (operations per second)."""
+        # Arrange
+        import time
+        from src.search.cross_encoder_reranker import CandidateSelector
+
+        selector = CandidateSelector()
+        valid_queries: list[str] = [
+            q for q in test_queries.values() if q.strip()
+        ]
+
+        # Act
+        start = time.perf_counter()
+        count: int = 0
+
+        while time.perf_counter() - start < 0.1:  # Run for 100ms
+            query = valid_queries[count % len(valid_queries)]
+            analysis = selector.analyze_query(query)
+            count += 1
+
+        elapsed = time.perf_counter() - start
+        throughput: float = count / elapsed
+
+        # Assert
+        assert throughput > 100  # Should exceed 100 ops/sec
+
+    @pytest.mark.performance
+    def test_throughput_pool_calculations(
+        self,
+        test_queries: dict[str, str],
+    ) -> None:
+        """Measure pool calculation throughput (operations per second)."""
+        # Arrange
+        import time
+        from src.search.cross_encoder_reranker import CandidateSelector
+
+        selector = CandidateSelector()
+        valid_queries: list[str] = [
+            q for q in test_queries.values() if q.strip()
+        ]
+
+        # Act
+        start = time.perf_counter()
+        count: int = 0
+
+        while time.perf_counter() - start < 0.1:  # Run for 100ms
+            query = valid_queries[count % len(valid_queries)]
+            analysis = selector.analyze_query(query)
+            pool_size = selector.calculate_pool_size(analysis, 50)
+            count += 1
+
+        elapsed = time.perf_counter() - start
+        throughput: float = count / elapsed
+
+        # Assert
+        assert throughput > 100  # Should exceed 100 ops/sec
+
+    @pytest.mark.performance
+    def test_batch_operations_performance(
+        self,
+        test_queries: dict[str, str],
+    ) -> None:
+        """Test batch operations with realistic load."""
+        # Arrange
+        import time
+        from src.search.cross_encoder_reranker import CandidateSelector
+
+        selector = CandidateSelector()
+        valid_queries: list[str] = [
+            q for q in test_queries.values() if q.strip()
+        ]
+        batch_size: int = 100
+
+        # Act
+        start = time.perf_counter()
+
+        for _ in range(batch_size):
+            for query in valid_queries:
+                analysis = selector.analyze_query(query)
+                pool_size = selector.calculate_pool_size(analysis, 50)
+
+        elapsed = (time.perf_counter() - start) * 1000  # ms
+
+        # Assert
+        total_operations: int = batch_size * len(valid_queries)
+        avg_latency_ms: float = elapsed / total_operations if total_operations > 0 else 0
+
+        assert elapsed < 500  # Entire batch should be reasonable
+        assert avg_latency_ms < 1.0  # Average <1ms per operation

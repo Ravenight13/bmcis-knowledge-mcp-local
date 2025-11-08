@@ -37,8 +37,8 @@ from __future__ import annotations
 import logging
 import re
 import warnings
-from dataclasses import dataclass
-from typing import Any, Literal
+from dataclasses import dataclass, field
+from typing import Any, Callable, Literal, Optional
 
 from src.core.logging import StructuredLogger
 from src.search.results import SearchResult
@@ -49,6 +49,118 @@ logger: logging.Logger = StructuredLogger.get_logger(__name__)
 # Type aliases
 RerankerDevice = Literal["auto", "cuda", "cpu"]
 QueryType = Literal["short", "medium", "long", "complex"]
+
+
+@dataclass
+class RerankerConfig:
+    """Configuration for cross-encoder reranker.
+
+    Provides centralized configuration management for CrossEncoderReranker,
+    enabling flexible initialization and testability through parameter tuning.
+
+    Attributes:
+        model_name: HuggingFace model identifier.
+            Default: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        device: Device for inference - "auto" (auto-detect), "cpu", or "cuda".
+            Default: "auto"
+        batch_size: Batch size for pair scoring.
+            Default: 32
+        min_confidence: Minimum confidence threshold for results (0-1).
+            Default: 0.0
+        top_k: Default number of results to return.
+            Default: 5
+        base_pool_size: Base number of candidates to select.
+            Default: 50
+        max_pool_size: Maximum pool size regardless of query.
+            Default: 100
+        adaptive_sizing: Whether to adapt pool size based on query complexity.
+            Default: True
+        complexity_constants: Tunable constants for complexity calculation.
+            Allows fine-tuning of query complexity scoring algorithm.
+            Default: Standard weights for keyword count, operators, quotes
+
+    Example:
+        >>> # Default configuration
+        >>> config = RerankerConfig()
+        >>>
+        >>> # Custom configuration
+        >>> config = RerankerConfig(
+        ...     model_name="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        ...     device="cuda",
+        ...     batch_size=64,
+        ...     max_pool_size=150,
+        ... )
+        >>> config.validate()  # Validate before use
+    """
+
+    # Model configuration
+    model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    device: Optional[str] = "auto"
+    batch_size: int = 32
+
+    # Ranking configuration
+    min_confidence: float = 0.0
+    top_k: int = 5
+
+    # Pool sizing configuration
+    base_pool_size: int = 50
+    max_pool_size: int = 100
+    adaptive_sizing: bool = True
+
+    # Complexity calculation (tuning)
+    complexity_constants: dict[str, float] = field(
+        default_factory=lambda: {
+            "keyword_normalization": 10.0,
+            "keyword_weight": 0.6,
+            "operator_bonus": 0.2,
+            "quote_bonus": 0.2,
+        }
+    )
+
+    def validate(self) -> None:
+        """Validate configuration values.
+
+        Checks that all configuration values are within valid ranges and
+        consistent with each other.
+
+        Raises:
+            ValueError: If any configuration value is invalid:
+                - batch_size < 1
+                - min_confidence not in [0, 1]
+                - top_k < 1
+                - base_pool_size < top_k
+                - max_pool_size < base_pool_size
+                - device not in ["auto", "cpu", "cuda", None]
+                - Any complexity_constant < 0
+        """
+        if self.batch_size < 1:
+            raise ValueError(f"batch_size must be >= 1, got {self.batch_size}")
+        if not (0.0 <= self.min_confidence <= 1.0):
+            raise ValueError(
+                f"min_confidence must be in [0, 1], got {self.min_confidence}"
+            )
+        if self.top_k < 1:
+            raise ValueError(f"top_k must be >= 1, got {self.top_k}")
+        if self.base_pool_size < self.top_k:
+            raise ValueError(
+                f"base_pool_size ({self.base_pool_size}) must be >= "
+                f"top_k ({self.top_k})"
+            )
+        if self.max_pool_size < self.base_pool_size:
+            raise ValueError(
+                f"max_pool_size ({self.max_pool_size}) must be >= "
+                f"base_pool_size ({self.base_pool_size})"
+            )
+        if self.device not in ("auto", "cpu", "cuda", None):
+            raise ValueError(
+                f"device must be 'auto', 'cpu', 'cuda', or None, "
+                f"got {self.device}"
+            )
+        for key, value in self.complexity_constants.items():
+            if value < 0:
+                raise ValueError(
+                    f"complexity_constants['{key}'] must be >= 0, got {value}"
+                )
 
 
 @dataclass
@@ -82,11 +194,31 @@ class CandidateSelector:
     based on query complexity and result set size. Uses heuristics to
     estimate optimal candidate count for scoring.
 
+    Complexity Calculation (Magic Numbers Extracted to Constants):
+    - Complexity formula: min(MAX_COMPLEXITY, (kw_count / KEYWORD_NORMALIZATION_FACTOR) *
+      KEYWORD_COMPLEXITY_WEIGHT + OPERATOR_COMPLEXITY_BONUS + QUOTE_COMPLEXITY_BONUS)
+    - These constants are extracted from literal values in analyze_query()
+    - Can be customized via RerankerConfig.complexity_constants
+
     Attributes:
         base_pool_size: Base number of candidates (default: 25).
         max_pool_size: Maximum pool size (default: 100).
         complexity_multiplier: Multiplier for complex queries (default: 1.2).
     """
+
+    # Complexity Calculation Constants
+    # These define how query complexity is scored (0-1 range)
+    KEYWORD_NORMALIZATION_FACTOR: float = 10.0  # Normalize keyword count
+    KEYWORD_COMPLEXITY_WEIGHT: float = 0.6      # Contribution of keywords to score
+    OPERATOR_COMPLEXITY_BONUS: float = 0.2      # Bonus for boolean operators
+    QUOTE_COMPLEXITY_BONUS: float = 0.2         # Bonus for quoted phrases
+    MAX_COMPLEXITY: float = 1.0                  # Clamp complexity to [0, 1]
+
+    # Length thresholds for query type classification
+    SHORT_QUERY_THRESHOLD: int = 15     # Queries < 15 chars = "short"
+    MEDIUM_QUERY_THRESHOLD: int = 50    # Queries < 50 chars = "medium"
+    LONG_QUERY_THRESHOLD: int = 100     # Queries < 100 chars = "long"
+    # Queries >= 100 chars = "complex"
 
     def __init__(
         self,
@@ -163,18 +295,21 @@ class CandidateSelector:
 
         # Complexity calculation: higher keyword count and operators = more complex
         # Range: 0.0-1.0
+        # Uses extracted constants for tunability and maintainability
         complexity: float = min(
-            1.0,
-            (keyword_count / 10.0) * 0.6 + (0.2 if has_operators else 0.0) +
-            (0.2 if has_quotes else 0.0)
+            self.MAX_COMPLEXITY,
+            (keyword_count / self.KEYWORD_NORMALIZATION_FACTOR)
+            * self.KEYWORD_COMPLEXITY_WEIGHT
+            + (self.OPERATOR_COMPLEXITY_BONUS if has_operators else 0.0)
+            + (self.QUOTE_COMPLEXITY_BONUS if has_quotes else 0.0),
         )
 
-        # Query type classification
-        if length < 15:
+        # Query type classification using extracted constants
+        if length < self.SHORT_QUERY_THRESHOLD:
             query_type: QueryType = "short"
-        elif length < 50:
+        elif length < self.MEDIUM_QUERY_THRESHOLD:
             query_type = "medium"
-        elif length < 100:
+        elif length < self.LONG_QUERY_THRESHOLD:
             query_type = "long"
         else:
             query_type = "complex"
@@ -293,72 +428,164 @@ class CandidateSelector:
 
 
 class CrossEncoderReranker:
-    """Cross-encoder reranking system using ms-marco-MiniLM-L-6-v2 model.
+    """Cross-encoder reranking system implementing Reranker protocol.
 
     Loads HuggingFace cross-encoder model for pair-wise relevance scoring,
-    implements batch inference for efficiency, and provides top-5 selection
+    implements batch inference for efficiency, and provides top-K selection
     from adaptive candidate pools.
+
+    Implements the Reranker protocol for composability with HybridSearch
+    and other search systems.
 
     The ms-marco-MiniLM-L-6-v2 model is a lightweight cross-encoder trained on
     the MS MARCO dataset with 6 layers and 384 hidden dimensions. It provides
     fast, accurate pair-wise relevance scoring suitable for reranking search results.
 
+    **Configuration**: Two initialization approaches:
+    1. **Recommended (New)**: Pass RerankerConfig for all settings
+    2. **Legacy (Backward Compatible)**: Pass individual parameters
+
+    **Extensibility**: Supports dependency injection of custom model factory
+    for testing with different models or custom loading logic.
+
+    **Thread Safety**: Model loading is not thread-safe. Call load_model()
+    before concurrent access in multi-threaded environments.
+
     Attributes:
-        model_name: HuggingFace model identifier.
-        device: Current device for inference (cuda or cpu).
-        batch_size: Batch size for pair scoring.
+        config: RerankerConfig with all settings.
         model: Loaded cross-encoder model instance.
         candidate_selector: CandidateSelector instance for adaptive pool sizing.
+        model_factory: Callable to load model (defaults to HuggingFace loader).
     """
 
     def __init__(
         self,
-        model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-        device: RerankerDevice = "auto",
-        batch_size: int = 32,
-        max_pool_size: int = 100,
+        config: Optional[RerankerConfig] = None,
+        model_factory: Optional[Callable[[str, str], Any]] = None,
+        # Backward compatibility parameters (deprecated)
+        model_name: Optional[str] = None,
+        device: Optional[RerankerDevice] = None,
+        batch_size: Optional[int] = None,
+        max_pool_size: Optional[int] = None,
     ) -> None:
         """Initialize cross-encoder reranker.
 
-        Validates parameters and creates candidate selector. Model loading
-        deferred to load_model() for explicit control.
+        Supports both new config-based initialization and legacy parameter-based
+        initialization for backward compatibility.
 
         Args:
-            model_name: HuggingFace model identifier
-                (default: cross-encoder/ms-marco-MiniLM-L-6-v2).
-            device: Device for inference - 'auto' uses GPU if available
-                (default: 'auto').
-            batch_size: Batch size for pair scoring (default: 32).
-            max_pool_size: Maximum candidates to rerank (default: 100).
+            config: RerankerConfig with all settings (recommended).
+                If provided, other parameters are ignored.
+            model_factory: Optional callable to load model.
+                Signature: (model_name: str, device: str) -> model_instance
+                Default: Uses HuggingFace CrossEncoder.
+                Useful for testing with mock models.
+            model_name: HuggingFace model identifier (legacy, use config.model_name).
+                Ignored if config provided.
+            device: Device for inference (legacy, use config.device).
+                Ignored if config provided.
+            batch_size: Batch size for pair scoring (legacy, use config.batch_size).
+                Ignored if config provided.
+            max_pool_size: Maximum candidates (legacy, use config.max_pool_size).
+                Ignored if config provided.
 
         Raises:
-            ValueError: If batch_size or max_pool_size invalid.
+            ValueError: If configuration invalid.
+
+        Example:
+            >>> # New approach (recommended)
+            >>> config = RerankerConfig(
+            ...     model_name="cross-encoder/ms-marco-MiniLM-L-6-v2",
+            ...     device="auto",
+            ...     batch_size=32,
+            ... )
+            >>> reranker = CrossEncoderReranker(config=config)
+            >>>
+            >>> # Old approach (backward compatible)
+            >>> reranker = CrossEncoderReranker(
+            ...     model_name="cross-encoder/ms-marco-MiniLM-L-6-v2",
+            ...     device="auto",
+            ... )
+            >>>
+            >>> # With dependency injection for testing
+            >>> def mock_factory(name: str, device: str) -> Any:
+            ...     return MockCrossEncoder()
+            >>> reranker = CrossEncoderReranker(
+            ...     config=config,
+            ...     model_factory=mock_factory,
+            ... )
         """
-        if batch_size < 1:
-            raise ValueError(f"batch_size must be >= 1, got {batch_size}")
-        if max_pool_size < 5:
-            raise ValueError(f"max_pool_size must be >= 5, got {max_pool_size}")
+        # Build config from provided config or legacy parameters
+        if config is None:
+            # Check if any legacy parameters provided
+            if any(p is not None for p in [model_name, device, batch_size, max_pool_size]):
+                # Build config from legacy parameters
+                config = RerankerConfig(
+                    model_name=model_name or "cross-encoder/ms-marco-MiniLM-L-6-v2",
+                    device=device or "auto",
+                    batch_size=batch_size or 32,
+                    max_pool_size=max_pool_size or 100,
+                )
+            else:
+                # Use default config
+                config = RerankerConfig()
 
-        self.model_name = model_name
-        self.batch_size = batch_size
+        # Validate configuration
+        config.validate()
+        self.config = config
+
+        # Store model factory (dependency injection)
+        self.model_factory = model_factory or self._default_model_factory
+
+        # Initialize model as None (lazy loading)
         self.model: Any = None
-        self.device_name: str = device
+
+        # Initialize device resolution
         self._actual_device: str = ""
+        device_to_resolve: RerankerDevice = config.device or "auto"  # type: ignore
+        if device_to_resolve not in ("auto", "cuda", "cpu"):
+            device_to_resolve = "auto"
+        self._resolve_device(device_to_resolve)
 
-        # Initialize device
-        self._resolve_device(device)
-
-        # Create candidate selector
+        # Create candidate selector from config
         self.candidate_selector = CandidateSelector(
-            base_pool_size=25,
-            max_pool_size=max_pool_size,
+            base_pool_size=config.base_pool_size,
+            max_pool_size=config.max_pool_size,
             complexity_multiplier=1.2,
         )
 
         logger.info(
-            f"CrossEncoderReranker initialized: model={model_name}, "
-            f"device={self._actual_device}, batch_size={batch_size}"
+            f"CrossEncoderReranker initialized: model={config.model_name}, "
+            f"device={self._actual_device}, batch_size={config.batch_size}"
         )
+
+    @staticmethod
+    def _default_model_factory(model_name: str, device: str) -> Any:
+        """Default model loading using HuggingFace CrossEncoder.
+
+        Args:
+            model_name: HuggingFace model identifier.
+            device: Device for inference ("cuda" or "cpu").
+
+        Returns:
+            Loaded CrossEncoder model instance.
+
+        Raises:
+            ImportError: If sentence-transformers not installed.
+            RuntimeError: If model loading fails.
+        """
+        try:
+            from sentence_transformers import CrossEncoder
+        except ImportError as e:
+            logger.error(
+                "Failed to import sentence_transformers. "
+                "Install with: pip install sentence-transformers"
+            )
+            raise ImportError(
+                "sentence-transformers required for cross-encoder reranking"
+            ) from e
+
+        return CrossEncoder(model_name, device=device)
 
     def _resolve_device(self, device: RerankerDevice) -> None:
         """Resolve device specification to actual device.
@@ -387,30 +614,36 @@ class CrossEncoderReranker:
         logger.debug(f"Device resolved: {device} -> {self._actual_device}")
 
     def load_model(self) -> None:
-        """Load and initialize cross-encoder model from HuggingFace.
+        """Load and initialize cross-encoder model using configured factory.
 
-        Sets device to GPU if available and CUDA-enabled, otherwise CPU.
+        Uses the configured model_factory to load the model (default: HuggingFace).
         Performs warmup inference to optimize GPU caching.
 
+        **Lazy Loading Pattern**: Model is not loaded in __init__(). Call this
+        method explicitly when ready to perform inference. This allows creation
+        of reranker instances without GPU memory overhead until first use.
+
+        **Dependency Injection**: Custom model factories can be provided for:
+        - Testing with mock models
+        - Loading from alternative sources
+        - Custom model configuration
+
         Raises:
-            ImportError: If transformers not installed.
-            RuntimeError: If model download/loading fails.
+            ImportError: If dependencies not installed.
+            RuntimeError: If model loading fails.
+
+        Example:
+            >>> reranker = CrossEncoderReranker()  # No model loaded yet
+            >>> # Later, when ready to rerank:
+            >>> reranker.load_model()  # Load model into GPU/CPU
+            >>> results = reranker.rerank(query, candidates)
         """
         try:
-            from sentence_transformers import CrossEncoder
-        except ImportError as e:
-            logger.error(
-                "Failed to import sentence_transformers. "
-                "Install with: pip install sentence-transformers"
+            # Load model using configured factory
+            logger.info(f"Loading cross-encoder model: {self.config.model_name}")
+            self.model = self.model_factory(
+                self.config.model_name, self._actual_device
             )
-            raise ImportError(
-                "sentence-transformers required for cross-encoder reranking"
-            ) from e
-
-        try:
-            # Load model
-            logger.info(f"Loading cross-encoder model: {self.model_name}")
-            self.model = CrossEncoder(self.model_name, device=self._actual_device)
             logger.info(f"Model loaded successfully on device: {self._actual_device}")
 
             # Warmup inference for GPU optimization
@@ -427,7 +660,9 @@ class CrossEncoderReranker:
 
         except Exception as e:
             logger.error(f"Failed to load cross-encoder model: {e}")
-            raise RuntimeError(f"Failed to load model {self.model_name}: {e}") from e
+            raise RuntimeError(
+                f"Failed to load model {self.config.model_name}: {e}"
+            ) from e
 
     def score_pairs(
         self,
@@ -464,10 +699,12 @@ class CrossEncoderReranker:
             ]
 
             # Perform batch scoring
-            logger.debug(f"Scoring {len(pairs)} pairs with batch_size={self.batch_size}")
+            logger.debug(
+                f"Scoring {len(pairs)} pairs with batch_size={self.config.batch_size}"
+            )
             raw_scores: list[float] = self.model.predict(
                 pairs,
-                batch_size=self.batch_size,
+                batch_size=self.config.batch_size,
                 show_progress_bar=False,
             )
 

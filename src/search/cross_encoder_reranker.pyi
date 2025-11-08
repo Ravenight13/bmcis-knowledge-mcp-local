@@ -7,13 +7,50 @@ selection, pair scoring, and result reranking with strict type safety.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Callable, Literal, Optional
 
 from src.search.results import SearchResult
+from src.search.reranker_protocol import Reranker
 
 # Type aliases
 RerankerDevice = Literal["auto", "cuda", "cpu"]
 QueryType = Literal["short", "medium", "long", "complex"]
+
+
+@dataclass
+class RerankerConfig:
+    """Configuration for cross-encoder reranker.
+
+    Attributes:
+        model_name: HuggingFace model identifier.
+        device: Device for inference ("auto", "cpu", or "cuda").
+        batch_size: Batch size for pair scoring.
+        min_confidence: Minimum confidence threshold for results.
+        top_k: Default number of results to return.
+        base_pool_size: Base number of candidates to select.
+        max_pool_size: Maximum pool size regardless of query.
+        adaptive_sizing: Whether to adapt pool size based on query.
+        complexity_constants: Tunable constants for complexity calculation.
+    """
+
+    model_name: str
+    device: Optional[str]
+    batch_size: int
+    min_confidence: float
+    top_k: int
+    base_pool_size: int
+    max_pool_size: int
+    adaptive_sizing: bool
+    complexity_constants: dict[str, float]
+
+    def validate(self) -> None:
+        """Validate configuration values.
+
+        Raises:
+            ValueError: If any configuration value is invalid.
+        """
+        ...
+
 
 @dataclass
 class QueryAnalysis:
@@ -118,31 +155,65 @@ class CandidateSelector:
         ...
 
 class CrossEncoderReranker:
-    """Cross-encoder reranking system using ms-marco-MiniLM-L-6-v2 model.
+    """Cross-encoder reranking system implementing Reranker protocol.
 
     Loads HuggingFace cross-encoder model for pair-wise relevance scoring,
-    implements batch inference for efficiency, and provides top-5 selection
+    implements batch inference for efficiency, and provides top-K selection
     from adaptive candidate pools.
+
+    Implements the Reranker protocol for composability with HybridSearch
+    and other search systems.
+
+    Attributes:
+        config: RerankerConfig with all settings.
+        model: Loaded cross-encoder model instance.
+        candidate_selector: CandidateSelector for adaptive pool sizing.
     """
 
     def __init__(
         self,
-        model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-        device: RerankerDevice = "auto",
-        batch_size: int = 32,
-        max_pool_size: int = 100,
+        config: Optional[RerankerConfig] = None,
+        model_factory: Optional[Callable[[str, str], Any]] = None,
+        # Backward compatibility parameters (deprecated, use config instead)
+        model_name: Optional[str] = None,
+        device: Optional[RerankerDevice] = None,
+        batch_size: Optional[int] = None,
+        max_pool_size: Optional[int] = None,
     ) -> None:
         """Initialize cross-encoder reranker.
 
+        Supports both new config-based initialization and legacy parameter-based
+        initialization for backward compatibility.
+
         Args:
-            model_name: HuggingFace model identifier (default: ms-marco-MiniLM-L-6-v2).
-            device: Device for inference - 'auto' uses GPU if available (default: 'auto').
-            batch_size: Batch size for pair scoring (default: 32).
-            max_pool_size: Maximum candidates to rerank (default: 100).
+            config: RerankerConfig with all settings (recommended).
+                If provided, model_name/device/batch_size ignored.
+            model_factory: Optional callable to load model (for testing).
+                Signature: (model_name: str, device: str) -> model_instance
+                Default: Uses HuggingFace CrossEncoder.
+            model_name: HuggingFace model identifier (legacy, use config.model_name).
+            device: Device for inference (legacy, use config.device).
+            batch_size: Batch size for pair scoring (legacy, use config.batch_size).
+            max_pool_size: Maximum candidates (legacy, use config.max_pool_size).
 
         Raises:
-            ImportError: If required transformers dependencies missing.
-            RuntimeError: If model loading fails.
+            ValueError: If configuration invalid.
+            ImportError: If required dependencies missing.
+
+        Example:
+            >>> # New approach (recommended)
+            >>> config = RerankerConfig(
+            ...     model_name="cross-encoder/ms-marco-MiniLM-L-6-v2",
+            ...     device="auto",
+            ...     batch_size=32,
+            ... )
+            >>> reranker = CrossEncoderReranker(config=config)
+            >>>
+            >>> # Old approach (backward compatible)
+            >>> reranker = CrossEncoderReranker(
+            ...     model_name="cross-encoder/ms-marco-MiniLM-L-6-v2",
+            ...     device="auto",
+            ... )
         """
         ...
 
