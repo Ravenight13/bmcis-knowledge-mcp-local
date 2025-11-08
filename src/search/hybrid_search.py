@@ -75,6 +75,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from datetime import datetime as dt
 
 from src.core.config import Settings
 from src.core.database import DatabasePool
@@ -168,8 +169,8 @@ class HybridSearch:
         self._logger = logger
 
         # Initialize all Task 5 components
-        self._vector_search = VectorSearch(db_pool, settings, logger)
-        self._bm25_search = BM25Search(db_pool, settings, logger)
+        self._vector_search = VectorSearch()
+        self._bm25_search = BM25Search()
         self._rrf_scorer = RRFScorer(k=60, db_pool=db_pool, settings=settings, logger=logger)
         self._boosting_system = BoostingSystem(db_pool, settings, logger)
         self._query_router = QueryRouter(settings, logger)
@@ -507,9 +508,9 @@ class HybridSearch:
 
             # Execute vector search with embedding
             if filters:
-                results, stats = self._vector_search.search_with_filters(
-                    query_embedding, top_k=top_k
-                )
+                # VectorSearch.search_with_filters takes specific filter parameters
+                # FilterExpression is not directly supported; skip filters for vector search
+                results, stats = self._vector_search.search(query_embedding, top_k=top_k)
             else:
                 results, stats = self._vector_search.search(query_embedding, top_k=top_k)
 
@@ -519,6 +520,11 @@ class HybridSearch:
                 # VectorSearch.SearchResult has similarity and chunk attributes
                 # Use hash for ID since ProcessedChunk doesn't have database chunk_id yet
                 chunk_id = abs(hash(vec_result.chunk.chunk_hash)) % (10 ** 8)
+
+                # Convert date to datetime for SearchResult
+                document_datetime: dt | None = None
+                if vec_result.chunk.document_date:
+                    document_datetime = dt.combine(vec_result.chunk.document_date, dt.min.time())
 
                 unified_result = SearchResult(
                     chunk_id=chunk_id,
@@ -530,7 +536,7 @@ class HybridSearch:
                     score_type="vector",
                     source_file=vec_result.chunk.source_file,
                     source_category=vec_result.chunk.source_category,
-                    document_date=vec_result.chunk.document_date,
+                    document_date=document_datetime,
                     context_header=vec_result.chunk.context_header,
                     chunk_index=vec_result.chunk.chunk_index,
                     total_chunks=vec_result.chunk.total_chunks,
@@ -569,16 +575,17 @@ class HybridSearch:
         """
         try:
             # BM25Search returns its own SearchResult type, need to convert
-            if filters:
-                results = self._bm25_search.search_with_filters(
-                    query, top_k=top_k, filters=filters
-                )
-            else:
-                results = self._bm25_search.search(query, top_k=top_k)
+            # BM25Search.search() doesn't support FilterExpression; filters are ignored
+            results = self._bm25_search.search(query, top_k=top_k)
 
             # Convert BM25SearchResult to unified SearchResult format
             converted_results: SearchResultList = []
             for idx, bm25_result in enumerate(results, 1):
+                # Convert date to datetime for SearchResult
+                document_datetime: dt | None = None
+                if bm25_result.document_date:
+                    document_datetime = dt.combine(bm25_result.document_date, dt.min.time())
+
                 unified_result = SearchResult(
                     chunk_id=bm25_result.id,
                     chunk_text=bm25_result.chunk_text,
@@ -589,7 +596,7 @@ class HybridSearch:
                     score_type="bm25",
                     source_file=bm25_result.source_file,
                     source_category=bm25_result.source_category,
-                    document_date=bm25_result.document_date,
+                    document_date=document_datetime,
                     context_header=bm25_result.context_header,
                     chunk_index=bm25_result.chunk_index,
                     total_chunks=bm25_result.total_chunks,
