@@ -180,12 +180,11 @@ class HybridSearch:
         try:
             self._model_loader = ModelLoader.get_instance()
         except Exception as e:
-            logger.error(f"Failed to initialize ModelLoader: {e}")
+            logging.warning(f"Failed to initialize ModelLoader: {e}")
             raise ValueError(f"Failed to initialize embedding model: {e}") from e
 
-        logger.info(
-            "HybridSearch initialized with all Task 5 components",
-            extra={"components": ["VectorSearch", "BM25Search", "RRFScorer", "BoostingSystem", "QueryRouter"]},
+        logging.debug(
+            "HybridSearch initialized with all Task 5 components"
         )
 
     def search(
@@ -254,7 +253,13 @@ class HybridSearch:
 
         # Use default boosts if not provided
         if boosts is None:
-            boosts = BoostWeights()
+            boosts = BoostWeights(
+                vendor=0.15,
+                doc_type=0.10,
+                recency=0.05,
+                entity=0.10,
+                topic=0.08
+            )
 
         # Execute search based on strategy
         if strategy == "vector":
@@ -314,7 +319,13 @@ class HybridSearch:
 
         # Use default boosts if not provided
         if boosts is None:
-            boosts = BoostWeights()
+            boosts = BoostWeights(
+                vendor=0.15,
+                doc_type=0.10,
+                recency=0.05,
+                entity=0.10,
+                topic=0.08
+            )
 
         # Route query for explanation
         routing_decision = self._query_router.select_strategy(query)
@@ -403,7 +414,13 @@ class HybridSearch:
 
         # Use default boosts if not provided
         if boosts is None:
-            boosts = BoostWeights()
+            boosts = BoostWeights(
+                vendor=0.15,
+                doc_type=0.10,
+                recency=0.05,
+                entity=0.10,
+                topic=0.08
+            )
 
         total_start = time.time()
 
