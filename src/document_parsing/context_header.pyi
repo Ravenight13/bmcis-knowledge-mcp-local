@@ -207,3 +207,110 @@ class ContextHeaderGenerator:
             >>> len(summary) > 0
             True
         """
+
+    def _build_hierarchy_path(self, metadata: dict) -> str:
+        """Extract document structure hierarchy from metadata.
+
+        Parses metadata for section/heading information and formats
+        as a breadcrumb-style path for context preservation.
+
+        Args:
+            metadata: Document metadata dictionary with hierarchy info.
+
+        Returns:
+            Formatted hierarchy path or empty string if no hierarchy found.
+
+        Reason: Hierarchy information aids semantic understanding by
+        providing document structure context for retrieval systems.
+        """
+
+    def _include_metadata_in_header(self, metadata: dict) -> str:
+        """Add relevant metadata to header string.
+
+        Extracts key metadata fields (source, date, author if available)
+        and formats for header inclusion with proper separators.
+
+        Args:
+            metadata: Document metadata dictionary.
+
+        Returns:
+            Formatted metadata string for header inclusion.
+
+        Reason: Metadata in headers helps with filtering, attribution,
+        and temporal context in knowledge base queries.
+        """
+
+    def validate_header_format(self, header: str) -> bool:
+        """Ensure headers meet quality standards.
+
+        Validates header is not empty, has reasonable length (<200 chars),
+        and contains required separators.
+
+        Args:
+            header: Header string to validate.
+
+        Returns:
+            True if header is valid.
+
+        Raises:
+            ValueError: If header does not meet quality standards.
+
+        Reason: Format validation ensures headers are consumable by
+        language models and retrieval systems without anomalies.
+        """
+
+    def format_header_for_display(self, header: str) -> str:
+        """Ensure consistent, clean header formatting.
+
+        Normalizes whitespace, ensures proper separator placement,
+        and handles unicode properly for display and indexing.
+
+        Args:
+            header: Header string to format.
+
+        Returns:
+            Formatted header string with normalized spacing and encoding.
+
+        Reason: Consistent formatting prevents whitespace artifacts
+        and ensures proper parsing by downstream components.
+        """
+
+    def extract_context_from_previous_chunk(self, prev_chunk_text: str) -> str:
+        """Maintain reading continuity from previous chunk.
+
+        Extracts relevant context (last sentence) from previous chunk
+        to provide reading continuity for semantic understanding.
+
+        Args:
+            prev_chunk_text: Text from the previous chunk in document.
+
+        Returns:
+            Context snippet from previous chunk (last sentence or relevant text).
+
+        Reason: Previous context aids comprehension by maintaining
+        narrative continuity across chunk boundaries in RAG systems.
+        """
+
+    def calculate_chunk_position(
+        self,
+        chunk_index: int,
+        total_chunks: int,
+    ) -> str:
+        """Indicate chunk's position in document.
+
+        Calculates and formats chunk position information including
+        absolute position and percentage through document.
+
+        Args:
+            chunk_index: Zero-based index of chunk in document (0-indexed).
+            total_chunks: Total number of chunks in document.
+
+        Returns:
+            String describing position: "Chunk X of Y (Z%)"
+
+        Raises:
+            ValueError: If chunk_index >= total_chunks or indices are negative.
+
+        Reason: Position awareness helps language models understand
+        where they are in documents, improving context awareness.
+        """

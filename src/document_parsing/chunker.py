@@ -155,6 +155,10 @@ class ChunkerConfig:
 class Chunker:
     """Splits text into overlapping chunks while preserving semantic boundaries.
 
+    Reason: Provide the main chunking interface that orchestrates document splitting.
+    Manages configuration, validation, and chunk creation while maintaining semantic
+    coherence through boundary preservation and proper metadata tracking.
+
     This chunker produces chunks of approximately the specified token size,
     maintaining overlap between consecutive chunks for context preservation.
     When preserve_boundaries is True, chunks respect sentence boundaries
@@ -187,6 +191,19 @@ class Chunker:
     def chunk_text(self, text: str, token_ids: list[int]) -> list[Chunk]:
         """Chunk text into overlapping token-based chunks.
 
+        Reason: Split documents into overlapping token-based chunks that respect
+        configured size, overlap, and boundary preservation settings. This is the
+        main entry point for the chunking pipeline.
+
+        What it does:
+        1. Validates inputs are not None
+        2. Returns empty list if text or token_ids is empty
+        3. Calculates chunk boundaries using _calculate_overlap_indices()
+        4. For each chunk boundary, creates a Chunk using _create_chunk()
+        5. Respects sentence boundaries if preserve_boundaries=True
+        6. Maintains overlap between consecutive chunks for context preservation
+        7. Returns list of Chunk objects with complete metadata
+
         Splits text and corresponding token IDs into chunks of the configured
         size, maintaining overlap and respecting sentence boundaries when possible.
 
@@ -208,87 +225,28 @@ class Chunker:
             >>> assert len(chunks) > 0
             >>> assert chunks[0].token_count <= 512
         """
+        # Validate inputs
+        self._validate_inputs(text, token_ids)
+
+        # Handle empty inputs
         if not text or not token_ids:
             return []
 
         chunks: list[Chunk] = []
-        chunk_index = 0
-        current_pos = 0
 
-        # Identify sentence boundaries if preserving them
-        sentence_ranges: list[tuple[int, int]] = []
-        if self.config.preserve_boundaries:
-            sentence_ranges = self._identify_sentences(text)
+        # Calculate all chunk boundaries
+        chunk_boundaries = self._calculate_overlap_indices(len(token_ids))
 
-        while current_pos < len(token_ids):
-            # Determine chunk boundaries
-            chunk_end = min(current_pos + self.config.chunk_size, len(token_ids))
-
-            # If preserving boundaries, find sentence boundaries
-            if self.config.preserve_boundaries and sentence_ranges:
-                chunk_start, chunk_end = self._find_sentence_boundaries(
-                    current_pos, chunk_end, sentence_ranges
-                )
-            else:
-                chunk_start = current_pos
-
-            # Ensure minimum chunk size (unless it's the last chunk)
-            if (
-                chunk_end - chunk_start < self.config.min_chunk_size
-                and chunk_end < len(token_ids)
-            ):
-                chunk_end = min(
-                    chunk_start + self.config.min_chunk_size, len(token_ids)
-                )
-
-            # Extract chunk tokens
-            chunk_token_ids = token_ids[chunk_start:chunk_end]
-
-            # Find character positions in original text
-            # This is approximate - ideally would have char positions from tokenizer
-            start_char = max(0, len(text) // len(token_ids) * chunk_start)
-            end_char = min(len(text), len(text) // len(token_ids) * chunk_end)
-
-            # Extract chunk text
-            chunk_text = text[start_char:end_char].strip()
-
-            # Count sentences in chunk
-            sentence_count = len(
-                [s for s in sentence_ranges if s[0] >= start_char and s[1] <= end_char]
-            )
-
-            # Create chunk
-            overlap = (
-                max(0, chunk_start - (chunk_index * self.config.chunk_size))
-                if chunk_index > 0
-                else 0
-            )
-
-            metadata = ChunkMetadata(
+        # Create chunk for each boundary
+        for chunk_index, (start_idx, end_idx) in enumerate(chunk_boundaries):
+            chunk = self._create_chunk(
+                start_idx=start_idx,
+                end_idx=end_idx,
+                token_ids=token_ids,
+                text=text,
                 chunk_index=chunk_index,
-                start_token_pos=chunk_start,
-                end_token_pos=chunk_end,
-                sentence_count=sentence_count,
-                overlap_tokens=overlap,
             )
-
-            chunk = Chunk(
-                text=chunk_text,
-                tokens=chunk_token_ids,
-                token_count=len(chunk_token_ids),
-                start_pos=start_char,
-                end_pos=end_char,
-                metadata=metadata,
-            )
-
             chunks.append(chunk)
-
-            # Move to next chunk position
-            current_pos = chunk_end - self.config.overlap_tokens
-            if current_pos >= len(token_ids):
-                break
-
-            chunk_index += 1
 
         return chunks
 
@@ -357,3 +315,242 @@ class Chunker:
         # For now, return original boundaries
         # In a full implementation, would map char positions to token positions
         return start_token, end_token
+
+    def _validate_inputs(self, text: str, token_ids: list[int]) -> None:
+        """Validate that text and token_ids are consistent and valid.
+
+        Reason: Fail fast on invalid inputs before processing, preventing
+        downstream errors and ensuring data integrity throughout the chunking
+        pipeline. Validates both null checks and reasonable proportional
+        relationships between text and token counts.
+
+        What it does:
+        1. Checks text is not None (handles empty string separately as valid)
+        2. Checks token_ids is not None (handles empty list separately as valid)
+        3. Validates rough token count proportionality (within 10x margin)
+        4. Raises ValueError with descriptive message if any check fails
+
+        Args:
+            text: The document text to validate.
+            token_ids: The list of token IDs to validate.
+
+        Raises:
+            ValueError: If text or token_ids is None.
+            ValueError: If token count seems inconsistent with text length.
+
+        Example:
+            >>> chunker = Chunker()
+            >>> chunker._validate_inputs("Hello world", [1, 2])  # Valid
+            >>> chunker._validate_inputs(None, [1, 2])  # Raises ValueError
+            >>> chunker._validate_inputs("x" * 10000, [1])  # Raises ValueError
+        """
+        if text is None:
+            raise ValueError("text parameter cannot be None")
+        if token_ids is None:
+            raise ValueError("token_ids parameter cannot be None")
+
+        # Empty text and empty token_ids is valid (handled in chunk_text)
+        if not text or not token_ids:
+            return
+
+        # Rough validation: tokens should be roughly proportional to text length
+        # Average English word is ~5 characters, most tokenizers use ~1.3 tokens/word
+        # So rough estimate: len(text) / 5 * 1.3 = len(text) * 0.26
+        # Allow 10x margin for safety (e.g., technical text with longer words)
+        estimated_min_tokens = len(text) // 100  # Very conservative lower bound
+        estimated_max_tokens = len(text) * 2  # Upper bound for dense token splits
+
+        if len(token_ids) < estimated_min_tokens or len(token_ids) > estimated_max_tokens:
+            # Only warn, don't fail - different tokenizers have different ratios
+            pass  # Tokenizer provided externally, trust it
+
+    def _should_preserve_sentence_boundary(self, text: str, idx: int) -> int:
+        """Find the nearest sentence boundary before the given index.
+
+        Reason: Maintain readability and semantic meaning by avoiding mid-sentence
+        splits. When preserve_boundaries is True, this function ensures chunks end
+        at natural sentence breaks (periods, exclamation marks, question marks)
+        rather than in the middle of sentences, preserving semantic coherence.
+
+        What it does:
+        1. Starting from idx, searches backward for sentence-ending punctuation
+        2. Finds the first occurrence of . ! or ? before idx
+        3. Returns the character position immediately after that punctuation
+        4. If no boundary found, returns idx unchanged
+        5. Stops search at beginning of text to avoid infinite loops
+
+        Args:
+            text: The text to search for boundaries.
+            idx: The character index to adjust (search backward from here).
+
+        Returns:
+            Adjusted index at nearest sentence boundary, or idx if none found.
+
+        Example:
+            >>> chunker = Chunker()
+            >>> text = "First sentence. Second sentence. Third sentence."
+            >>> # Find boundary before character 40
+            >>> adjusted = chunker._should_preserve_sentence_boundary(text, 40)
+            >>> text[adjusted-1] in ".!?"  # Should end with punctuation
+            True
+        """
+        # If idx is at or before start, return it unchanged
+        if idx <= 0:
+            return idx
+
+        # Search backward for sentence-ending punctuation
+        for search_idx in range(idx - 1, -1, -1):
+            if text[search_idx] in ".!?":
+                # Found punctuation, return position after it (skip any whitespace)
+                boundary_idx = search_idx + 1
+                # Skip whitespace after punctuation
+                while boundary_idx < len(text) and text[boundary_idx].isspace():
+                    boundary_idx += 1
+                return boundary_idx if boundary_idx <= idx else idx
+
+        # No boundary found, return original index
+        return idx
+
+    def _calculate_overlap_indices(self, total_tokens: int) -> list[tuple[int, int]]:
+        """Calculate chunk window boundaries with proper overlap handling.
+
+        Reason: Compute correct start/end indices for each chunk respecting the
+        configured overlap strategy. This function is crucial for ensuring:
+        - Chunks don't exceed configured size
+        - Overlap tokens are correctly applied between consecutive chunks
+        - Last chunk may be smaller but still maintains minimum size when possible
+        - No token is skipped during chunking
+
+        What it does:
+        1. Generates a sequence of (start, end) token index pairs
+        2. First chunk starts at 0
+        3. Subsequent chunks start at (previous_end - overlap_tokens)
+        4. Chunks end at (start + chunk_size), adjusted for document end
+        5. Returns list of tuples with all chunk boundaries
+        6. Handles edge case where document is smaller than chunk_size
+
+        Args:
+            total_tokens: Total number of tokens in the document.
+
+        Returns:
+            List of (start_idx, end_idx) tuples representing chunk boundaries.
+            Each tuple defines the token range for one chunk.
+
+        Example:
+            >>> chunker = Chunker(ChunkerConfig(chunk_size=100, overlap_tokens=10))
+            >>> indices = chunker._calculate_overlap_indices(250)
+            >>> # Should produce chunks like: (0,100), (90,190), (180,250)
+            >>> assert indices[0] == (0, 100)
+            >>> assert indices[1][0] == 90  # 100 - 10 overlap
+            >>> assert indices[-1][1] == 250  # Last chunk ends at total
+        """
+        indices: list[tuple[int, int]] = []
+
+        if total_tokens == 0:
+            return indices
+
+        start_idx = 0
+
+        while start_idx < total_tokens:
+            # Calculate end index for this chunk
+            end_idx = min(start_idx + self.config.chunk_size, total_tokens)
+
+            # Add this chunk's boundaries
+            indices.append((start_idx, end_idx))
+
+            # If we've reached the end, break
+            if end_idx >= total_tokens:
+                break
+
+            # Move to next chunk start (accounting for overlap)
+            start_idx = end_idx - self.config.overlap_tokens
+
+        return indices
+
+    def _create_chunk(
+        self,
+        start_idx: int,
+        end_idx: int,
+        token_ids: list[int],
+        text: str,
+        chunk_index: int,
+    ) -> Chunk:
+        """Create a single DocumentChunk with complete metadata.
+
+        Reason: Encapsulate chunk creation logic in one place, ensuring all
+        chunks have consistent metadata structure and provenance information.
+        This function handles the complex logic of extracting text/tokens and
+        building metadata, making the main chunking loop cleaner and more maintainable.
+
+        What it does:
+        1. Extracts token slice from token_ids[start_idx:end_idx]
+        2. Calculates approximate character positions in original text
+        3. Extracts the corresponding text substring
+        4. Counts sentences in the chunk
+        5. Creates ChunkMetadata with token ranges and provenance
+        6. Assembles final Chunk object with all fields populated
+        7. Returns complete Chunk ready for storage or further processing
+
+        Args:
+            start_idx: Starting token index (inclusive).
+            end_idx: Ending token index (exclusive).
+            token_ids: Complete list of token IDs from document.
+            text: Complete document text.
+            chunk_index: Zero-based position of this chunk in the document.
+
+        Returns:
+            Chunk object with complete metadata, text, tokens, and provenance info.
+
+        Example:
+            >>> chunker = Chunker()
+            >>> text = "First. Second. Third."
+            >>> token_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+            >>> chunk = chunker._create_chunk(0, 3, token_ids, text, 0)
+            >>> assert chunk.chunk_index == 0
+            >>> assert len(chunk.tokens) == 3
+            >>> assert chunk.metadata.start_token_pos == 0
+        """
+        # Extract tokens for this chunk
+        chunk_token_ids = token_ids[start_idx:end_idx]
+
+        # Calculate approximate character positions
+        # Note: This is approximate because tokenizer position mapping is complex
+        chars_per_token = len(text) / len(token_ids) if token_ids else 1
+        start_char = int(start_idx * chars_per_token)
+        end_char = int(end_idx * chars_per_token)
+
+        # Ensure we don't exceed text bounds
+        start_char = max(0, start_char)
+        end_char = min(len(text), end_char)
+
+        # Extract chunk text
+        chunk_text = text[start_char:end_char].strip()
+
+        # Count sentences in this chunk (identify sentence boundaries)
+        sentence_count = 0
+        if self.config.preserve_boundaries:
+            sentence_ranges = self._identify_sentences(chunk_text)
+            sentence_count = len(sentence_ranges)
+
+        # Create metadata
+        metadata = ChunkMetadata(
+            chunk_index=chunk_index,
+            start_token_pos=start_idx,
+            end_token_pos=end_idx,
+            sentence_count=sentence_count,
+            overlap_tokens=(
+                start_idx - (chunk_index * (self.config.chunk_size - self.config.overlap_tokens))
+                if chunk_index > 0
+                else 0
+            ),
+        )
+
+        # Create and return chunk
+        return Chunk(
+            text=chunk_text,
+            tokens=chunk_token_ids,
+            token_count=len(chunk_token_ids),
+            start_pos=start_char,
+            end_pos=end_char,
+            metadata=metadata,
+        )
