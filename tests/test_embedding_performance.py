@@ -212,7 +212,9 @@ class TestEmbeddingPerformance:
         - Vector format compatibility
         - Serialization throughput
         """
-        inserter = ChunkInserter()
+        from src.embedding.database import VectorSerializer
+
+        serializer = VectorSerializer()
 
         # Create 100 random embeddings (typical batch)
         embeddings: list[list[float]] = [
@@ -223,7 +225,7 @@ class TestEmbeddingPerformance:
         times: list[float] = []
         for _ in range(3):
             start: float = time.time()
-            _ = [inserter._serialize_vector(emb) for emb in embeddings]
+            _ = serializer.serialize_vectors_batch(embeddings)
             elapsed: float = time.time() - start
             times.append(elapsed)
 
