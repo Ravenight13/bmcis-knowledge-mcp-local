@@ -14,8 +14,9 @@ Key components:
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 import numpy as np
 

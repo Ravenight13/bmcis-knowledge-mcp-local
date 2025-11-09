@@ -15,17 +15,21 @@ The module handles:
 
 import logging
 import time
-from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import psycopg2
-from psycopg2.extensions import connection as Connection
+from psycopg2.extensions import connection as connection_type
 from psycopg2.extras import execute_values
 
 from src.core.database import DatabasePool
 from src.core.logging import StructuredLogger
 from src.document_parsing.models import ProcessedChunk
+
+if TYPE_CHECKING:
+    from psycopg2.extensions import connection as Connection
+else:
+    Connection = connection_type
 
 # Module logger
 logger: logging.Logger = StructuredLogger.get_logger(__name__)
@@ -496,18 +500,26 @@ class ChunkInserter:
             raise ValueError("Batch cannot be empty")
 
         # Serialize vectors using batch operation for maximum efficiency
-        embeddings = [chunk.embedding for chunk in batch]
+        # Type filter: ensure all embeddings are lists (should be guaranteed by validation)
+        embeddings: list[list[float]] = []
+        for chunk in batch:
+            if chunk.embedding is None:
+                raise ValueError(f"Chunk {chunk.chunk_hash} has no embedding")
+            embeddings.append(chunk.embedding)
+
         serialized_vectors = VectorSerializer.serialize_vectors_batch(embeddings)
 
         # Prepare arrays for UNNEST (one array per column)
+        from datetime import date as date_type
+
         chunk_texts: list[str] = [c.chunk_text for c in batch]
         chunk_hashes: list[str] = [c.chunk_hash for c in batch]
         source_files: list[str] = [c.source_file for c in batch]
-        source_categories: list[str] = [c.source_category for c in batch]
-        document_dates: list[str | None] = [c.document_date for c in batch]
+        source_categories: list[str | None] = [c.source_category for c in batch]
+        document_dates: list[date_type | None] = [c.document_date for c in batch]
         chunk_indices: list[int] = [c.chunk_index for c in batch]
         total_chunks_list: list[int] = [c.total_chunks for c in batch]
-        context_headers: list[str | None] = [c.context_header for c in batch]
+        context_headers: list[str] = [c.context_header for c in batch]
         chunk_token_counts: list[int] = [c.chunk_token_count for c in batch]
         metadata_list: list[dict[str, Any]] = [c.metadata for c in batch]
 
