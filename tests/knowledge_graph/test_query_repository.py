@@ -414,7 +414,6 @@ class TestPerformance:
 # ============================================================================
 
 @pytest.fixture(scope="module")
-@pytest.mark.skip(reason="Requires real PostgreSQL database")
 def test_database():
     """Create test database with schema and sample data."""
     # This fixture would:
@@ -427,7 +426,6 @@ def test_database():
 
 
 @pytest.fixture
-@pytest.mark.skip(reason="Requires real database")
 def sample_graph_data(test_database):
     """Insert sample graph data for integration tests."""
     # This fixture would insert:
