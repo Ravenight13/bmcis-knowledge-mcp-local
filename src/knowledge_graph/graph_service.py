@@ -8,56 +8,91 @@ import logging
 
 from src.knowledge_graph.cache import KnowledgeGraphCache, Entity
 from src.knowledge_graph.cache_config import CacheConfig
+from src.knowledge_graph.cache_protocol import CacheProtocol
 from src.knowledge_graph.query_repository import KnowledgeGraphQueryRepository
 
 logger = logging.getLogger(__name__)
 
 
 class KnowledgeGraphService:
-    """Graph query service with integrated LRU cache.
+    """Graph query service with dependency injection for cache and repository.
 
     Provides high-level interface for entity and relationship queries:
     - Checks cache first for hot path optimization
     - Falls back to database for cache misses
     - Manages cache invalidation on writes
 
+    Dependency Injection Benefits:
+    - Swap cache implementations (LRU → Redis) without code changes
+    - Inject mock cache/repository for testing
+    - Follow Dependency Inversion Principle
+    - Enable configuration-based deployment
+
     Expected performance:
     - Cache hit: 1-2 microseconds (in-memory OrderedDict lookup)
     - Cache miss + DB query: 5-20ms (normalized schema with indexes)
     - Overall with >80% hit rate: P95 <10ms for 1-hop queries
+
+    Example:
+        # Default configuration (LRU cache)
+        service = KnowledgeGraphService(db_pool)
+
+        # Custom cache implementation
+        redis_cache = RedisCache(redis_client)
+        service = KnowledgeGraphService(db_pool, cache=redis_cache)
+
+        # Testing with mocks
+        mock_cache = MockCache()
+        mock_repo = MockRepository()
+        service = KnowledgeGraphService(db_pool, cache=mock_cache, query_repo=mock_repo)
     """
 
     def __init__(
         self,
         db_pool: Any,
-        cache: Optional[KnowledgeGraphCache] = None,
+        cache: Optional[CacheProtocol] = None,
         cache_config: Optional[CacheConfig] = None,
+        query_repo: Optional[KnowledgeGraphQueryRepository] = None,
     ) -> None:
-        """Initialize graph service with database pool and optional cache.
+        """Initialize graph service with injectable dependencies.
 
         Args:
             db_pool: PostgreSQL connection pool (from core.database.pool)
-            cache: KnowledgeGraphCache instance (optional, will create if not provided)
-            cache_config: CacheConfig instance (optional, uses defaults if not provided)
-        """
-        # Initialize repository with connection pool
-        self._repo: KnowledgeGraphQueryRepository = KnowledgeGraphQueryRepository(db_pool)  # type: ignore[no-untyped-call]
+            cache: Cache implementation (defaults to KnowledgeGraphCache if None)
+            cache_config: Cache configuration (used only if cache=None, defaults to CacheConfig())
+            query_repo: Query repository (defaults to KnowledgeGraphQueryRepository if None)
 
-        # Initialize cache if not provided
+        Dependency Injection:
+            - cache: Any implementation of CacheProtocol (LRU, Redis, Mock)
+            - query_repo: Any implementation with traverse/query methods
+            - Backward compatible: defaults to KnowledgeGraphCache + KnowledgeGraphQueryRepository
+
+        Benefits:
+            - Can swap to RedisCache in future without code changes
+            - Can inject MockCache for unit testing
+            - Can inject custom repository for specialized queries
+            - Follows Dependency Inversion Principle
+        """
+        # Initialize repository (injected or default)
+        self._repo: KnowledgeGraphQueryRepository = (
+            query_repo if query_repo is not None
+            else KnowledgeGraphQueryRepository(db_pool)  # type: ignore[no-untyped-call]
+        )
+
+        # Initialize cache (injected or default)
         if cache is None:
             config = cache_config if cache_config is not None else CacheConfig()
-            self._cache = KnowledgeGraphCache(
+            self._cache: CacheProtocol = KnowledgeGraphCache(
                 max_entities=config.max_entities,
                 max_relationship_caches=config.max_relationship_caches,
             )
         else:
             self._cache = cache
 
-        logger.info(
-            f"Initialized KnowledgeGraphService with repository + cache "
-            f"(max_entities={self._cache.max_entities}, "
-            f"max_relationships={self._cache.max_relationship_caches})"
-        )
+        # Log initialization (handle Protocol types gracefully)
+        cache_info = "custom cache" if cache is not None else "KnowledgeGraphCache"
+        repo_info = "custom repository" if query_repo is not None else "KnowledgeGraphQueryRepository"
+        logger.info(f"Initialized KnowledgeGraphService with {repo_info} + {cache_info}")
 
     def get_entity(self, entity_id: UUID) -> Optional[Entity]:
         """Get entity by ID (checks cache first).
