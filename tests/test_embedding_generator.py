@@ -419,5 +419,6 @@ class TestEmbeddingGenerationError:
     def test_error_with_cause(self) -> None:
         """Test error can wrap another exception."""
         original = RuntimeError("Original error")
-        error = EmbeddingGenerationError("Wrapper") from original
+        error = EmbeddingGenerationError("Wrapper")
+        error.__cause__ = original
         assert error.__cause__ is original
