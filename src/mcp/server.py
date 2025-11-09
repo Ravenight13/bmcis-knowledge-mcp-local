@@ -41,6 +41,7 @@ except ImportError:
 from src.core.config import get_settings
 from src.core.database import DatabasePool
 from src.core.logging import StructuredLogger
+from src.mcp.auth import rate_limiter, validate_api_key
 from src.search.hybrid_search import HybridSearch
 
 # Initialize logger
@@ -55,11 +56,12 @@ _hybrid_search: HybridSearch | None = None
 
 
 def initialize_server() -> None:
-    """Initialize server dependencies (database, search).
+    """Initialize server dependencies (database, search, authentication).
 
     Called on server startup. Initializes:
     - DatabasePool (PostgreSQL connection pool)
     - HybridSearch (vector + BM25 search with RRF merging)
+    - Authentication (API key validation and rate limiting)
 
     Raises:
         RuntimeError: If initialization fails
@@ -75,6 +77,24 @@ def initialize_server() -> None:
     try:
         # Load settings
         settings = get_settings()
+
+        # Verify API key is configured (optional - log warning if missing)
+        try:
+            # Test if BMCIS_API_KEY is set (will raise ValueError if not)
+            validate_api_key("test_key_for_config_check")
+        except ValueError as e:
+            if "environment variable not set" in str(e):
+                logger.warning(
+                    "BMCIS_API_KEY not configured. Authentication disabled. "
+                    "Set BMCIS_API_KEY environment variable to enable authentication."
+                )
+            # Other errors are fine (we're just testing config)
+
+        # Log rate limiter configuration
+        logger.info(
+            f"Rate limiter configured: {rate_limiter.rpm_limit}/min, "
+            f"{rate_limiter.rph_limit}/hr, {rate_limiter.rpd_limit}/day"
+        )
 
         # Initialize database pool
         _db_pool = DatabasePool()
