@@ -24,18 +24,7 @@ from typing import Any
 
 # SQL statements for migration
 UP_SQL: list[str] = [
-    # Index 1: Optimize 1-hop traversal with confidence-based sorting
-    # Query pattern: WHERE source_entity_id = ? ORDER BY confidence DESC
-    """
-    CREATE INDEX IF NOT EXISTS idx_relationships_source_confidence
-    ON entity_relationships(source_entity_id, confidence DESC);
-    """,
-    """
-    COMMENT ON INDEX idx_relationships_source_confidence IS
-    'Optimizes 1-hop graph traversal with confidence sorting (8-12ms → 3-5ms, 60-70% improvement)';
-    """,
-
-    # Index 2: Optimize type-filtered entity queries
+    # Index 1: Optimize type-filtered entity queries
     # Query pattern: WHERE entity_type = ? ORDER BY id
     """
     CREATE INDEX IF NOT EXISTS idx_entities_type_id
@@ -46,7 +35,7 @@ UP_SQL: list[str] = [
     'Optimizes entity queries filtered by type with ID ordering (18.5ms → 2.5ms, 86% improvement)';
     """,
 
-    # Index 3: Optimize incremental sync queries
+    # Index 2: Optimize incremental sync queries
     # Query pattern: WHERE updated_at > ? ORDER BY updated_at DESC
     """
     CREATE INDEX IF NOT EXISTS idx_entities_updated_at
@@ -57,7 +46,7 @@ UP_SQL: list[str] = [
     'Optimizes incremental sync and recent entity queries (5-10ms → 1-2ms, 70-80% improvement)';
     """,
 
-    # Index 4: Optimize reverse 1-hop queries with relationship type filtering
+    # Index 3: Optimize reverse 1-hop queries with relationship type filtering
     # Query pattern: WHERE target_entity_id = ? AND relationship_type = ?
     """
     CREATE INDEX IF NOT EXISTS idx_relationships_target_type
@@ -68,6 +57,19 @@ UP_SQL: list[str] = [
     'Optimizes inbound relationship queries with type filter (6-10ms → 2-4ms, 50-60% improvement)';
     """,
 
+    # Index 4: Optimize 1-hop traversal with type filtering
+    # Query pattern: WHERE source_entity_id = ? AND relationship_type = ?
+    # Note: idx_relationship_graph already exists for (source, type, target)
+    # This index optimizes queries that only need (source, type)
+    """
+    CREATE INDEX IF NOT EXISTS idx_relationships_source_type
+    ON entity_relationships(source_entity_id, relationship_type);
+    """,
+    """
+    COMMENT ON INDEX idx_relationships_source_type IS
+    'Optimizes 1-hop traversal with type filter (complements idx_relationship_graph)';
+    """,
+
     # Analyze tables after index creation for accurate query planning
     """ANALYZE knowledge_entities;""",
     """ANALYZE entity_relationships;""",
@@ -75,10 +77,10 @@ UP_SQL: list[str] = [
 
 DOWN_SQL: list[str] = [
     # Drop indexes in reverse order
+    """DROP INDEX IF EXISTS idx_relationships_source_type;""",
     """DROP INDEX IF EXISTS idx_relationships_target_type;""",
     """DROP INDEX IF EXISTS idx_entities_updated_at;""",
     """DROP INDEX IF EXISTS idx_entities_type_id;""",
-    """DROP INDEX IF EXISTS idx_relationships_source_confidence;""",
 
     # Re-analyze tables
     """ANALYZE knowledge_entities;""",
