@@ -952,8 +952,8 @@ class TestValidateHeaderFormat:
         self, generator: ContextHeaderGenerator
     ) -> None:
         """Test header with exactly 200 characters."""
-        # Create header that's exactly 200 chars
-        header = "[" + "a" * 196 + "]"
+        # Create header that's exactly 200 chars (including brackets and content)
+        header = "[" + "a" * 198 + "]"
         assert len(header) == 200
         assert generator.validate_header_format(header) is True
 
@@ -970,10 +970,13 @@ class TestFormatHeaderForDisplay:
         self, generator: ContextHeaderGenerator
     ) -> None:
         """Test that multiple spaces are normalized to single space."""
-        messy = "[Document:  Test  ]  with   spaces"
+        messy = "[Document:  Test]  [Extra:  Value]"
         clean = generator.format_header_for_display(messy)
         assert "  " not in clean  # No double spaces
+        # Verify both parts are present and separated correctly
         assert "[Document: Test]" in clean
+        assert "[Extra: Value]" in clean
+        assert "] [" in clean  # Proper spacing between brackets
 
     def test_format_header_strips_edges(
         self, generator: ContextHeaderGenerator
@@ -1163,10 +1166,10 @@ class TestCalculateChunkPosition:
         self, generator: ContextHeaderGenerator
     ) -> None:
         """Test that percentage is calculated correctly."""
-        # 1/3 = 33.33% should round down to 33%
-        result = generator.calculate_chunk_position(1, 3)
+        # Chunk index 0 = chunk 1: 1/3 = 33.33% should round down to 33%
+        result = generator.calculate_chunk_position(0, 3)
         assert "(33%)" in result
 
-        # 2/3 = 66.66% should round down to 66%
-        result = generator.calculate_chunk_position(2, 3)
+        # Chunk index 1 = chunk 2: 2/3 = 66.66% should round down to 66%
+        result = generator.calculate_chunk_position(1, 3)
         assert "(66%)" in result
