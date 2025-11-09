@@ -192,14 +192,14 @@ class TestConfidenceRangeValidation:
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="test-min",
+            relationship_type="hierarchical",
             confidence=0.0,
         )
         rel_max: EntityRelationship = EntityRelationship(
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="test-max",
+            relationship_type="mentions-in-document",
             confidence=1.0,
         )
 
@@ -220,7 +220,7 @@ class TestConfidenceRangeValidation:
                 id=uuid4(),
                 source_entity_id=entity1.id,
                 target_entity_id=entity2.id,
-                relationship_type="bad-rel",
+                relationship_type="hierarchical",
                 confidence=1.5,
             )
             session.add(rel)
@@ -237,7 +237,7 @@ class TestConfidenceRangeValidation:
                 id=uuid4(),
                 source_entity_id=entity1.id,
                 target_entity_id=entity2.id,
-                relationship_type="bad-rel",
+                relationship_type="hierarchical",
                 confidence=-0.5,
             )
             session.add(rel)
@@ -266,7 +266,7 @@ class TestNoSelfLoopValidation:
                 id=uuid4(),
                 source_entity_id=valid_entity.id,
                 target_entity_id=valid_entity.id,  # Self-loop!
-                relationship_type="self-reference",
+                relationship_type="hierarchical",
                 confidence=0.8,
             )
             session.add(bad_rel)
@@ -286,7 +286,7 @@ class TestNoSelfLoopValidation:
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="works-for",
+            relationship_type="hierarchical",
             confidence=0.9,
         )
         session.add(rel)
@@ -295,7 +295,7 @@ class TestNoSelfLoopValidation:
         # Verify relationship was persisted
         assert rel.source_entity_id == entity1.id
         assert rel.target_entity_id == entity2.id
-        assert rel.relationship_type == "works-for"
+        assert rel.relationship_type == "hierarchical"
         assert rel.confidence == 0.9
 
 
@@ -318,13 +318,13 @@ class TestUniqueConstraints:
         entity1: KnowledgeEntity = KnowledgeEntity(
             id=uuid4(),
             text="Lutron",
-            entity_type="VENDOR",
+            entity_type="PRODUCT",
             confidence=0.95,
         )
         entity2: KnowledgeEntity = KnowledgeEntity(
             id=uuid4(),
             text="Lutron",
-            entity_type="VENDOR",
+            entity_type="PRODUCT",
             confidence=0.90,
         )
 
@@ -346,7 +346,7 @@ class TestUniqueConstraints:
         entity1: KnowledgeEntity = KnowledgeEntity(
             id=uuid4(),
             text="Apple",
-            entity_type="COMPANY",
+            entity_type="ORG",
             confidence=0.95,
         )
         entity2: KnowledgeEntity = KnowledgeEntity(
@@ -377,14 +377,14 @@ class TestUniqueConstraints:
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="works-for",
+            relationship_type="hierarchical",
             confidence=0.85,
         )
         rel2: EntityRelationship = EntityRelationship(
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="works-for",  # Duplicate!
+            relationship_type="hierarchical",  # Duplicate!
             confidence=0.80,
         )
 
@@ -408,14 +408,14 @@ class TestUniqueConstraints:
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="works-for",
+            relationship_type="hierarchical",
             confidence=0.9,
         )
         rel2: EntityRelationship = EntityRelationship(
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="reports-to",  # Different type
+            relationship_type="mentions-in-document",  # Different type
             confidence=0.85,
         )
 
@@ -493,7 +493,7 @@ class TestRequiredFieldValidation:
             rel: EntityRelationship = EntityRelationship(  # type: ignore
                 id=uuid4(),
                 target_entity_id=valid_entity.id,
-                relationship_type="test",
+                relationship_type="hierarchical",
                 confidence=0.8,
             )
             session.add(rel)
@@ -507,7 +507,7 @@ class TestRequiredFieldValidation:
             rel: EntityRelationship = EntityRelationship(  # type: ignore
                 id=uuid4(),
                 source_entity_id=valid_entity.id,
-                relationship_type="test",
+                relationship_type="hierarchical",
                 confidence=0.8,
             )
             session.add(rel)
@@ -542,7 +542,7 @@ class TestRequiredFieldValidation:
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="test-default",
+            relationship_type="hierarchical",
         )
         session.add(rel)
         session.commit()
@@ -588,17 +588,17 @@ class TestTypeValidation:
     def test_entity_type_string_accepted(
         self, session: Session
     ) -> None:
-        """Test entity_type accepts string values.
+        """Test entity_type accepts string values from EntityTypeEnum.
 
-        entity_type is stored as VARCHAR(50) and accepts various string values.
+        entity_type is stored as VARCHAR(50) and accepts valid enum values.
         """
         valid_types: list[str] = [
             "PERSON",
             "ORG",
             "PRODUCT",
-            "LOCATION",
-            "TECHNOLOGY",
-            "VENDOR",
+            "FACILITY",
+            "EVENT",
+            "GPE",
         ]
 
         for entity_type in valid_types:
@@ -642,7 +642,7 @@ class TestRelationshipWeightValidation:
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="test-weight",
+            relationship_type="hierarchical",
             confidence=0.8,
         )
         session.add(rel)
@@ -660,7 +660,7 @@ class TestRelationshipWeightValidation:
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="test-custom-weight",
+            relationship_type="mentions-in-document",
             confidence=0.8,
             relationship_weight=2.5,
         )
@@ -801,7 +801,7 @@ class TestModelInstantiation:
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="works-for",
+            relationship_type="hierarchical",
             confidence=0.85,
             relationship_weight=1.5,
             is_bidirectional=False,
@@ -811,7 +811,7 @@ class TestModelInstantiation:
 
         assert rel.source_entity_id == entity1.id
         assert rel.target_entity_id == entity2.id
-        assert rel.relationship_type == "works-for"
+        assert rel.relationship_type == "hierarchical"
         assert rel.confidence == 0.85
         assert rel.relationship_weight == 1.5
         assert rel.is_bidirectional is False
@@ -864,7 +864,7 @@ class TestBidirectionalFlag:
             id=uuid4(),
             source_entity_id=entity1.id,
             target_entity_id=entity2.id,
-            relationship_type="test",
+            relationship_type="hierarchical",
             confidence=0.9,
         )
         session.add(rel)
@@ -890,3 +890,189 @@ class TestBidirectionalFlag:
         session.commit()
 
         assert rel.is_bidirectional is True
+
+
+# ============================================================================
+# Foreign Key Cascade Tests (3 tests)
+# ============================================================================
+
+
+class TestForeignKeyCascade:
+    """Test foreign key cascade behavior on delete operations."""
+
+    def test_delete_entity_cascades_to_relationships_from(
+        self, valid_entities: tuple[KnowledgeEntity, KnowledgeEntity], session: Session
+    ) -> None:
+        """Test deleting entity cascades delete to relationships where it's source.
+
+        When an entity is deleted, all relationships where it is the source
+        should be deleted via CASCADE constraint.
+        """
+        entity1, entity2 = valid_entities
+
+        # Create relationship with entity1 as source
+        rel: EntityRelationship = EntityRelationship(
+            id=uuid4(),
+            source_entity_id=entity1.id,
+            target_entity_id=entity2.id,
+            relationship_type="hierarchical",
+            confidence=0.9,
+        )
+        session.add(rel)
+        session.commit()
+
+        # Verify relationship exists
+        rel_id: UUID = rel.id
+        found_rel: EntityRelationship | None = session.query(EntityRelationship).filter_by(
+            id=rel_id
+        ).first()
+        assert found_rel is not None
+
+        # Delete entity1 (source)
+        session.delete(entity1)
+        session.commit()
+
+        # Verify relationship was cascade deleted
+        orphaned_rel: EntityRelationship | None = session.query(EntityRelationship).filter_by(
+            id=rel_id
+        ).first()
+        assert orphaned_rel is None
+
+    def test_delete_entity_cascades_to_relationships_to(
+        self, valid_entities: tuple[KnowledgeEntity, KnowledgeEntity], session: Session
+    ) -> None:
+        """Test deleting entity cascades delete to relationships where it's target.
+
+        When an entity is deleted, all relationships where it is the target
+        should be deleted via CASCADE constraint.
+        """
+        entity1, entity2 = valid_entities
+
+        # Create relationship with entity2 as target
+        rel: EntityRelationship = EntityRelationship(
+            id=uuid4(),
+            source_entity_id=entity1.id,
+            target_entity_id=entity2.id,
+            relationship_type="mentions-in-document",
+            confidence=0.8,
+        )
+        session.add(rel)
+        session.commit()
+
+        # Verify relationship exists
+        rel_id: UUID = rel.id
+        found_rel: EntityRelationship | None = session.query(EntityRelationship).filter_by(
+            id=rel_id
+        ).first()
+        assert found_rel is not None
+
+        # Delete entity2 (target)
+        session.delete(entity2)
+        session.commit()
+
+        # Verify relationship was cascade deleted
+        orphaned_rel: EntityRelationship | None = session.query(EntityRelationship).filter_by(
+            id=rel_id
+        ).first()
+        assert orphaned_rel is None
+
+    def test_delete_entity_cascades_to_mentions(
+        self, valid_entity: KnowledgeEntity, session: Session
+    ) -> None:
+        """Test deleting entity cascades delete to its mentions.
+
+        When an entity is deleted, all mentions referencing that entity
+        should be deleted via CASCADE constraint.
+        """
+        # Create mentions for the entity
+        mention1: EntityMention = EntityMention(
+            id=uuid4(),
+            entity_id=valid_entity.id,
+            document_id="docs/file1.md",
+            chunk_id=1,
+            mention_text="First mention",
+        )
+        mention2: EntityMention = EntityMention(
+            id=uuid4(),
+            entity_id=valid_entity.id,
+            document_id="docs/file2.md",
+            chunk_id=2,
+            mention_text="Second mention",
+        )
+        session.add_all([mention1, mention2])
+        session.commit()
+
+        # Verify mentions exist
+        mention_ids: tuple[UUID, UUID] = (mention1.id, mention2.id)
+        found_mentions: list[EntityMention] = session.query(EntityMention).filter(
+            EntityMention.id.in_(mention_ids)
+        ).all()
+        assert len(found_mentions) == 2
+
+        # Delete the entity
+        session.delete(valid_entity)
+        session.commit()
+
+        # Verify mentions were cascade deleted
+        orphaned_mentions: list[EntityMention] = session.query(EntityMention).filter(
+            EntityMention.id.in_(mention_ids)
+        ).all()
+        assert len(orphaned_mentions) == 0
+
+    def test_entity_relationships_deleted_independently_of_mentions(
+        self, valid_entities: tuple[KnowledgeEntity, KnowledgeEntity], session: Session
+    ) -> None:
+        """Test that cascade delete of relationships doesn't affect mentions.
+
+        Relationships and mentions are independent trees. Deleting a
+        relationship should not affect mentions of the related entities.
+        """
+        entity1, entity2 = valid_entities
+
+        # Create relationship
+        rel: EntityRelationship = EntityRelationship(
+            id=uuid4(),
+            source_entity_id=entity1.id,
+            target_entity_id=entity2.id,
+            relationship_type="hierarchical",
+            confidence=0.9,
+        )
+        # Create mention for entity1
+        mention: EntityMention = EntityMention(
+            id=uuid4(),
+            entity_id=entity1.id,
+            document_id="docs/test.md",
+            chunk_id=1,
+            mention_text="Test mention",
+        )
+        session.add_all([rel, mention])
+        session.commit()
+
+        # Verify both exist
+        rel_id: UUID = rel.id
+        mention_id: UUID = mention.id
+        found_rel: EntityRelationship | None = session.query(EntityRelationship).filter_by(
+            id=rel_id
+        ).first()
+        found_mention: EntityMention | None = session.query(EntityMention).filter_by(
+            id=mention_id
+        ).first()
+        assert found_rel is not None
+        assert found_mention is not None
+
+        # Delete the relationship
+        session.delete(rel)
+        session.commit()
+
+        # Verify relationship was deleted but mention still exists
+        orphaned_rel: EntityRelationship | None = session.query(EntityRelationship).filter_by(
+            id=rel_id
+        ).first()
+        assert orphaned_rel is None
+
+        # Mention should still exist (not cascade deleted)
+        persisted_mention: EntityMention | None = session.query(EntityMention).filter_by(
+            id=mention_id
+        ).first()
+        assert persisted_mention is not None
+        assert persisted_mention.mention_text == "Test mention"

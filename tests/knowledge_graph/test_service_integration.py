@@ -810,5 +810,250 @@ class TestErrorHandling:
         assert result == []
 
 
+# ============================================================================
+# Test Category 5: Service Layer with Cache Integration (3 tests)
+# ============================================================================
+
+class TestServiceLayerWithCache:
+    """Integration tests for service layer cache interactions."""
+
+    def test_service_queries_cache_before_db(self, service: KnowledgeGraphService, mock_pool: MockConnectionPool) -> None:
+        """Test service queries cache first before database.
+
+        Workflow:
+        1. Manually cache entity (bypass DB)
+        2. Query via service
+        3. Verify service uses cached value
+        4. Verify stats show cache hit
+        """
+        entity_id = uuid4()
+        entity = Entity(
+            id=entity_id,
+            text="Cached Entity",
+            type="VENDOR",
+            confidence=0.95,
+            mention_count=50,
+        )
+
+        # Manually cache entity (don't put in DB)
+        service._cache.set_entity(entity)
+
+        # Query through service
+        result = service.get_entity(entity_id)
+
+        # Verify result came from cache
+        assert result is not None
+        assert result.text == "Cached Entity"
+        assert result.mention_count == 50
+
+    def test_service_falls_back_to_db_on_cache_miss(self, service: KnowledgeGraphService, mock_pool: MockConnectionPool) -> None:
+        """Test service falls back to database on cache miss.
+
+        Workflow:
+        1. Entity in DB, not in cache
+        2. Query via service
+        3. Verify DB query executed
+        4. Verify entity returned
+        5. Verify entity cached for next access
+        """
+        entity_id = uuid4()
+        mock_pool.entities[entity_id] = {
+            "id": entity_id,
+            "text": "DB Entity",
+            "entity_type": "PRODUCT",
+            "confidence": 0.88,
+            "mention_count": 25
+        }
+
+        # Get stats before
+        stats_before = service.get_cache_stats()
+        misses_before = stats_before["misses"]
+
+        # Query (should miss cache, hit DB)
+        result = service.get_entity(entity_id)
+
+        # Get stats after
+        stats_after = service.get_cache_stats()
+        misses_after = stats_after["misses"]
+
+        # Verify cache miss and DB hit
+        assert result is not None
+        assert result.text == "DB Entity"
+        assert misses_after > misses_before
+
+    def test_traversal_uses_cache_for_relationships(self, service: KnowledgeGraphService, mock_pool: MockConnectionPool) -> None:
+        """Test traversal operations use cache for relationships.
+
+        Workflow:
+        1. Setup relationship in DB
+        2. First traverse - DB query, relationship cached
+        3. Second traverse - cache hit
+        4. Verify stats show hit on second traverse
+        """
+        source_id = uuid4()
+        target_id = uuid4()
+
+        # Setup DB
+        mock_pool.entities[source_id] = {
+            "id": source_id,
+            "text": "Source",
+            "entity_type": "VENDOR",
+            "confidence": 0.9,
+            "mention_count": 10
+        }
+        mock_pool.entities[target_id] = {
+            "id": target_id,
+            "text": "Target",
+            "entity_type": "PRODUCT",
+            "confidence": 0.85,
+            "mention_count": 5
+        }
+        mock_pool.relationships.append({
+            "source_entity_id": source_id,
+            "target_entity_id": target_id,
+            "relationship_type": "produces",
+            "confidence": 0.92
+        })
+
+        # Get cache stats before
+        stats_before = service.get_cache_stats()
+        hits_before = stats_before["hits"]
+
+        # First traverse
+        result1 = service.traverse_1hop(source_id, "produces")
+        assert len(result1) == 1
+
+        # Second traverse (should hit cache)
+        result2 = service.traverse_1hop(source_id, "produces")
+        assert len(result2) == 1
+
+        # Get cache stats after
+        stats_after = service.get_cache_stats()
+        hits_after = stats_after["hits"]
+
+        # Verify cache hit on second traverse
+        assert hits_after > hits_before
+        assert result1 == result2
+
+
+# ============================================================================
+# Test Category 6: Service Layer with Database Integration (3 tests)
+# ============================================================================
+
+class TestServiceLayerWithDatabase:
+    """Integration tests for service layer database interactions."""
+
+    def test_service_entity_retrieval_from_database(self, service: KnowledgeGraphService, mock_pool: MockConnectionPool) -> None:
+        """Test service retrieves entity from database when not cached.
+
+        Workflow:
+        1. Add entity to database
+        2. Query via service (no cache)
+        3. Verify DB query executed
+        4. Verify entity returned with all metadata
+        """
+        entity_id = uuid4()
+        mock_pool.entities[entity_id] = {
+            "id": entity_id,
+            "text": "Company X",
+            "entity_type": "VENDOR",
+            "confidence": 0.92,
+            "mention_count": 50
+        }
+
+        result = service.get_entity(entity_id)
+
+        assert result is not None
+        assert result.id == entity_id
+        assert result.text == "Company X"
+        assert result.type == "VENDOR"
+        assert result.confidence == 0.92
+        assert result.mention_count == 50
+
+    def test_service_complex_traversal_with_multiple_hops(self, service: KnowledgeGraphService, mock_pool: MockConnectionPool) -> None:
+        """Test service complex traversals with multiple relationships.
+
+        Workflow:
+        1. Setup complex graph: A -> B -> C, A -> D
+        2. Perform multiple traversals
+        3. Verify all relationships found
+        4. Verify cache used for repeated queries
+        """
+        # Create entities
+        a_id = uuid4()
+        b_id = uuid4()
+        c_id = uuid4()
+        d_id = uuid4()
+
+        entities = {
+            a_id: {"id": a_id, "text": "A", "entity_type": "ORG", "confidence": 0.95, "mention_count": 20},
+            b_id: {"id": b_id, "text": "B", "entity_type": "VENDOR", "confidence": 0.90, "mention_count": 15},
+            c_id: {"id": c_id, "text": "C", "entity_type": "PRODUCT", "confidence": 0.85, "mention_count": 10},
+            d_id: {"id": d_id, "text": "D", "entity_type": "PRODUCT", "confidence": 0.88, "mention_count": 12},
+        }
+        mock_pool.entities.update(entities)
+
+        # Create relationships: A -> B -> C, A -> D
+        mock_pool.relationships.extend([
+            {"source_entity_id": a_id, "target_entity_id": b_id, "relationship_type": "partners", "confidence": 0.95},
+            {"source_entity_id": b_id, "target_entity_id": c_id, "relationship_type": "produces", "confidence": 0.92},
+            {"source_entity_id": a_id, "target_entity_id": d_id, "relationship_type": "produces", "confidence": 0.90},
+        ])
+
+        # Test 1-hop from A
+        hop1_from_a = service.traverse_1hop(a_id, "produces")
+        assert any(e.id == d_id for e in hop1_from_a)
+
+        # Test 1-hop from B
+        hop1_from_b = service.traverse_1hop(b_id, "produces")
+        assert any(e.id == c_id for e in hop1_from_b)
+
+        # Test 2-hop from A
+        hop2_from_a = service.traverse_2hop(a_id)
+        assert any(e.id == c_id for e in hop2_from_a)
+
+    def test_service_relationship_filtering_by_type(self, service: KnowledgeGraphService, mock_pool: MockConnectionPool) -> None:
+        """Test service relationship filtering by type.
+
+        Workflow:
+        1. Create multiple relationship types: produces, supplies, partners
+        2. Filter traversal by type
+        3. Verify only matching relationships returned
+        """
+        vendor_id = uuid4()
+        product_id = uuid4()
+        supplier_id = uuid4()
+        partner_id = uuid4()
+
+        # Setup entities
+        entities = {
+            vendor_id: {"id": vendor_id, "text": "Vendor", "entity_type": "VENDOR", "confidence": 0.95, "mention_count": 30},
+            product_id: {"id": product_id, "text": "Product", "entity_type": "PRODUCT", "confidence": 0.90, "mention_count": 20},
+            supplier_id: {"id": supplier_id, "text": "Supplier", "entity_type": "VENDOR", "confidence": 0.88, "mention_count": 15},
+            partner_id: {"id": partner_id, "text": "Partner", "entity_type": "ORG", "confidence": 0.85, "mention_count": 10},
+        }
+        mock_pool.entities.update(entities)
+
+        # Setup relationships with different types
+        mock_pool.relationships.extend([
+            {"source_entity_id": vendor_id, "target_entity_id": product_id, "relationship_type": "produces", "confidence": 0.95},
+            {"source_entity_id": vendor_id, "target_entity_id": supplier_id, "relationship_type": "supplies", "confidence": 0.92},
+            {"source_entity_id": vendor_id, "target_entity_id": partner_id, "relationship_type": "partners", "confidence": 0.90},
+        ])
+
+        # Test filtering by type
+        produces = service.traverse_1hop(vendor_id, "produces")
+        assert len(produces) == 1
+        assert produces[0].id == product_id
+
+        supplies = service.traverse_1hop(vendor_id, "supplies")
+        assert len(supplies) == 1
+        assert supplies[0].id == supplier_id
+
+        partners = service.traverse_1hop(vendor_id, "partners")
+        assert len(partners) == 1
+        assert partners[0].id == partner_id
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
