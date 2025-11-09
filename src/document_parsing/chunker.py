@@ -19,9 +19,7 @@ Example:
 """
 
 import re
-from dataclasses import dataclass, field
-
-from pydantic import BaseModel, Field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -64,31 +62,83 @@ class Chunk:
     metadata: ChunkMetadata
 
 
-class ChunkerConfig(BaseModel):
-    """Configuration for the chunking algorithm.
+@dataclass
+class ChunkerConfig:
+    """Manages and validates chunking configuration to ensure consistent, valid parameters across the pipeline.
+
+    This dataclass centralizes all chunking configuration parameters and provides
+    validation to enforce configuration constraints before the chunker is used.
+    Invalid configurations are rejected early, preventing runtime errors during
+    text chunking operations.
 
     Attributes:
-        chunk_size: Target number of tokens per chunk (default: 512).
-        overlap_tokens: Number of tokens to overlap between chunks (default: 50).
-        preserve_boundaries: Whether to preserve sentence boundaries (default: True).
-        min_chunk_size: Minimum tokens allowed in a chunk (default: 100).
+        chunk_size: Target number of tokens per chunk. Reason: Controls the primary
+            dimension of chunks produced by the chunker. Default is 512 tokens,
+            balancing context window constraints with semantic coherence.
+        overlap_tokens: Number of tokens to overlap between consecutive chunks.
+            Reason: Preserves context at chunk boundaries to maintain semantic
+            continuity between chunks. Default is 50 tokens. Must be less than
+            chunk_size to avoid circular overlaps.
+        preserve_boundaries: Whether to respect sentence boundaries when chunking.
+            Reason: Prevents semantic fragmentation by ensuring chunks don't split
+            mid-sentence, keeping semantic units intact. Default is True for
+            better semantic coherence.
+        min_chunk_size: Minimum number of tokens allowed in a chunk. Reason:
+            Prevents creation of extremely small chunks (except for the final chunk)
+            which would reduce context density. Default is 100 tokens.
     """
 
-    chunk_size: int = Field(default=512, gt=0)
-    overlap_tokens: int = Field(default=50, ge=0)
-    preserve_boundaries: bool = Field(default=True)
-    min_chunk_size: int = Field(default=100, gt=0)
+    chunk_size: int = 512
+    overlap_tokens: int = 50
+    preserve_boundaries: bool = True
+    min_chunk_size: int = 100
 
-    class Config:
-        """Pydantic configuration."""
+    def __post_init__(self) -> None:
+        """Validate configuration immediately after initialization.
 
-        extra = "forbid"
-
-    def validate_config(self) -> None:
-        """Validate configuration consistency.
+        Enforces configuration constraints to catch invalid configurations early.
+        This prevents silent failures during chunking operations.
 
         Raises:
-            ValueError: If configuration is invalid.
+            ValueError: If chunk_size or min_chunk_size are not positive.
+            ValueError: If overlap_tokens is negative.
+        """
+        if self.chunk_size <= 0:
+            raise ValueError(
+                f"chunk_size must be positive (got {self.chunk_size})"
+            )
+        if self.min_chunk_size <= 0:
+            raise ValueError(
+                f"min_chunk_size must be positive (got {self.min_chunk_size})"
+            )
+        if self.overlap_tokens < 0:
+            raise ValueError(
+                f"overlap_tokens must be non-negative (got {self.overlap_tokens})"
+            )
+        self.validate_config()
+
+    def validate_config(self) -> None:
+        """Validate configuration consistency and constraint relationships.
+
+        Enforces cross-field constraints that must be satisfied for the configuration
+        to be usable. These constraints prevent logical inconsistencies such as
+        overlap larger than chunk size or minimum size exceeding chunk size.
+
+        Raises:
+            ValueError: If overlap_tokens >= chunk_size (overlap cannot exceed target).
+            ValueError: If min_chunk_size > chunk_size (minimum cannot exceed target).
+
+        Example:
+            >>> config = ChunkerConfig(chunk_size=256, overlap_tokens=50)
+            >>> config.validate_config()  # No error if valid
+            >>> invalid = ChunkerConfig.__new__(ChunkerConfig)
+            >>> invalid.chunk_size = 100
+            >>> invalid.overlap_tokens = 150
+            >>> invalid.min_chunk_size = 100
+            >>> invalid.validate_config()  # Raises ValueError
+            Traceback (most recent call last):
+                ...
+            ValueError: overlap_tokens (150) must be less than chunk_size (100)
         """
         if self.overlap_tokens >= self.chunk_size:
             raise ValueError(
