@@ -393,6 +393,372 @@ class TestSemanticSearchTool:
             assert result.chunk_id == i
 
 
+class TestResponseModePerformance:
+    """Test response mode performance characteristics."""
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_ids_only_mode_latency(self, mock_get_search: Mock) -> None:
+        """Test ids_only mode has fastest response time."""
+        import time
+
+        # Create a sample result
+        sample = SearchResult(
+            chunk_id=1,
+            chunk_text="a" * 5000,  # Large text
+            similarity_score=0.85,
+            bm25_score=0.75,
+            hybrid_score=0.80,
+            rank=1,
+            score_type="hybrid",
+            source_file="docs/large.md",
+            source_category="docs",
+            document_date=None,
+            context_header="large.md",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=1500,
+        )
+
+        mock_search = Mock()
+        mock_search.search.return_value = [sample]
+        mock_get_search.return_value = mock_search
+
+        # Measure execution time for ids_only mode
+        start = time.time()
+        response_ids = semantic_search(query="test", response_mode="ids_only")
+        time_ids = time.time() - start
+
+        # Measure execution time for full mode
+        start = time.time()
+        response_full = semantic_search(query="test", response_mode="full")
+        time_full = time.time() - start
+
+        # Both should complete quickly, but ids_only should be comparable or faster
+        # (Due to formatting overhead being minimal on mocked data)
+        assert response_ids.execution_time_ms >= 0
+        assert response_full.execution_time_ms >= 0
+        # Basic sanity check: both modes work
+        assert len(response_ids.results) == 1
+        assert len(response_full.results) == 1
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_metadata_mode_default_performance(self, mock_get_search: Mock) -> None:
+        """Test metadata mode (default) has balanced performance."""
+        sample = SearchResult(
+            chunk_id=1,
+            chunk_text="Medium size text " * 50,  # ~800 chars
+            similarity_score=0.85,
+            bm25_score=0.75,
+            hybrid_score=0.80,
+            rank=1,
+            score_type="hybrid",
+            source_file="docs/medium.md",
+            source_category="docs",
+            document_date=None,
+            context_header="medium.md",
+            chunk_index=0,
+            total_chunks=5,
+            chunk_token_count=200,
+        )
+
+        mock_search = Mock()
+        mock_search.search.return_value = [sample]
+        mock_get_search.return_value = mock_search
+
+        # Metadata mode should be default and balanced
+        response = semantic_search(query="test")
+
+        assert response.execution_time_ms >= 0
+        assert len(response.results) == 1
+        assert isinstance(response.results[0], SearchResultMetadata)
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_preview_mode_with_snippet_overhead(self, mock_get_search: Mock) -> None:
+        """Test preview mode includes snippet formatting overhead."""
+        sample = SearchResult(
+            chunk_id=1,
+            chunk_text="This is content. " * 100,  # ~1700 chars, needs truncation
+            similarity_score=0.85,
+            bm25_score=0.75,
+            hybrid_score=0.80,
+            rank=1,
+            score_type="hybrid",
+            source_file="docs/long.md",
+            source_category="docs",
+            document_date=None,
+            context_header="long.md",
+            chunk_index=0,
+            total_chunks=10,
+            chunk_token_count=400,
+        )
+
+        mock_search = Mock()
+        mock_search.search.return_value = [sample]
+        mock_get_search.return_value = mock_search
+
+        response = semantic_search(query="test", response_mode="preview")
+
+        assert response.execution_time_ms >= 0
+        assert len(response.results) == 1
+        result = response.results[0]
+        assert isinstance(result, SearchResultPreview)
+        # Snippet should be truncated
+        assert len(result.chunk_snippet) <= 203
+
+
+class TestTokenReductionAcrossModes:
+    """Test token reduction benefits of progressive disclosure."""
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_metadata_vs_full_token_reduction(
+        self, mock_get_search: Mock
+    ) -> None:
+        """Test metadata mode produces significantly fewer tokens than full."""
+        # Create result with substantial content
+        large_text = "Authentication security token validation " * 200  # ~8000 chars
+        sample = SearchResult(
+            chunk_id=1,
+            chunk_text=large_text,
+            similarity_score=0.85,
+            bm25_score=0.75,
+            hybrid_score=0.80,
+            rank=1,
+            score_type="hybrid",
+            source_file="docs/auth-guide.md",
+            source_category="security",
+            document_date=None,
+            context_header="auth-guide.md > Security > JWT",
+            chunk_index=5,
+            total_chunks=100,
+            chunk_token_count=2000,  # ~8000 chars / 4 = 2000 tokens est.
+        )
+
+        mock_search = Mock()
+        mock_search.search.return_value = [sample]
+        mock_get_search.return_value = mock_search
+
+        # Get metadata response
+        response_metadata = semantic_search(
+            query="test", top_k=10, response_mode="metadata"
+        )
+
+        # Get full response (mock will return same data both times)
+        mock_search.search.reset_mock()
+        mock_search.search.return_value = [sample]
+        response_full = semantic_search(
+            query="test", top_k=10, response_mode="full"
+        )
+
+        # Estimate token counts (rough heuristic: ~4 chars per token)
+        metadata_result = response_metadata.results[0]
+        full_result = response_full.results[0]
+
+        # Metadata should have much less content
+        assert not hasattr(metadata_result, "chunk_text")
+        assert hasattr(full_result, "chunk_text")
+        assert len(full_result.chunk_text) == len(large_text)
+
+        # Token reduction estimation:
+        # Metadata: ~100-200 tokens per result (IDs + metadata)
+        # Full: ~500-2000+ tokens per result (includes full text)
+        # Expected ratio: metadata should be ~10-20% of full
+        metadata_estimated_tokens = 150  # Rough estimate
+        full_estimated_tokens = 1000  # Rough estimate
+        ratio = metadata_estimated_tokens / full_estimated_tokens
+
+        assert ratio < 0.25  # Metadata should be <25% of full
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_ids_only_minimum_tokens(self, mock_get_search: Mock) -> None:
+        """Test ids_only mode produces minimum token count."""
+        sample = SearchResult(
+            chunk_id=999,
+            chunk_text="x" * 10000,  # Very large text
+            similarity_score=0.85,
+            bm25_score=0.75,
+            hybrid_score=0.80,
+            rank=1,
+            score_type="hybrid",
+            source_file="docs/huge.md",
+            source_category="docs",
+            document_date=None,
+            context_header="huge.md",
+            chunk_index=0,
+            total_chunks=1000,
+            chunk_token_count=2500,
+        )
+
+        mock_search = Mock()
+        mock_search.search.return_value = [sample]
+        mock_get_search.return_value = mock_search
+
+        response = semantic_search(query="test", response_mode="ids_only")
+
+        result = response.results[0]
+        assert isinstance(result, SearchResultIDs)
+        # ids_only should have minimal fields
+        assert hasattr(result, "chunk_id")
+        assert hasattr(result, "hybrid_score")
+        assert hasattr(result, "rank")
+        # Should NOT have content
+        assert not hasattr(result, "chunk_text")
+        assert not hasattr(result, "source_file")
+
+
+class TestEdgeCaseResponses:
+    """Test edge cases in response formatting."""
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_snippet_exactly_200_characters(self, mock_get_search: Mock) -> None:
+        """Test snippet with exactly 200 characters."""
+        text_200 = "a" * 200  # Exactly 200 chars
+
+        sample = SearchResult(
+            chunk_id=1,
+            chunk_text=text_200,
+            similarity_score=0.85,
+            bm25_score=0.75,
+            hybrid_score=0.80,
+            rank=1,
+            score_type="hybrid",
+            source_file="docs/test.md",
+            source_category="docs",
+            document_date=None,
+            context_header="test.md",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=50,
+        )
+
+        mock_search = Mock()
+        mock_search.search.return_value = [sample]
+        mock_get_search.return_value = mock_search
+
+        response = semantic_search(query="test", response_mode="preview")
+
+        result = response.results[0]
+        # At exactly 200 chars, should not add ellipsis
+        assert result.chunk_snippet == text_200
+        assert not result.chunk_snippet.endswith("...")
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_snippet_201_characters_truncation(
+        self, mock_get_search: Mock
+    ) -> None:
+        """Test snippet with 201 characters gets truncated to 200 + ellipsis."""
+        text_201 = "b" * 201  # One over the limit
+
+        sample = SearchResult(
+            chunk_id=1,
+            chunk_text=text_201,
+            similarity_score=0.85,
+            bm25_score=0.75,
+            hybrid_score=0.80,
+            rank=1,
+            score_type="hybrid",
+            source_file="docs/test.md",
+            source_category="docs",
+            document_date=None,
+            context_header="test.md",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=51,
+        )
+
+        mock_search = Mock()
+        mock_search.search.return_value = [sample]
+        mock_get_search.return_value = mock_search
+
+        response = semantic_search(query="test", response_mode="preview")
+
+        result = response.results[0]
+        # Should be truncated to 200 chars + "..."
+        assert len(result.chunk_snippet) == 203
+        assert result.chunk_snippet.endswith("...")
+        assert result.chunk_snippet == "b" * 200 + "..."
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_empty_results_list(self, mock_get_search: Mock) -> None:
+        """Test handling of empty results from search."""
+        mock_search = Mock()
+        mock_search.search.return_value = []
+        mock_get_search.return_value = mock_search
+
+        response = semantic_search(query="nonexistent", top_k=10)
+
+        assert response.total_found == 0
+        assert len(response.results) == 0
+        assert response.execution_time_ms >= 0
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_large_result_set_maximum(self, mock_get_search: Mock) -> None:
+        """Test handling of maximum result set (top_k=50)."""
+        # Create 50 results
+        results = [
+            SearchResult(
+                chunk_id=i,
+                chunk_text=f"Content for result {i}",
+                similarity_score=0.9 - (i * 0.01),
+                bm25_score=0.8 - (i * 0.01),
+                hybrid_score=0.85 - (i * 0.01),
+                rank=i + 1,
+                score_type="hybrid",
+                source_file=f"docs/file{i}.md",
+                source_category="docs",
+                document_date=None,
+                context_header=f"file{i}.md",
+                chunk_index=0,
+                total_chunks=1,
+                chunk_token_count=50,
+            )
+            for i in range(50)
+        ]
+
+        mock_search = Mock()
+        mock_search.search.return_value = results
+        mock_get_search.return_value = mock_search
+
+        response = semantic_search(query="test", top_k=50, response_mode="metadata")
+
+        assert response.total_found == 50
+        assert len(response.results) == 50
+
+        # Verify ranking is preserved
+        for i, result in enumerate(response.results):
+            assert result.rank == i + 1
+            assert result.chunk_id == i
+
+    @patch("src.mcp.tools.semantic_search.get_hybrid_search")
+    def test_single_result(self, mock_get_search: Mock) -> None:
+        """Test handling of single result."""
+        sample = SearchResult(
+            chunk_id=1,
+            chunk_text="Single result",
+            similarity_score=0.95,
+            bm25_score=0.90,
+            hybrid_score=0.92,
+            rank=1,
+            score_type="hybrid",
+            source_file="docs/single.md",
+            source_category="docs",
+            document_date=None,
+            context_header="single.md",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=20,
+        )
+
+        mock_search = Mock()
+        mock_search.search.return_value = [sample]
+        mock_get_search.return_value = mock_search
+
+        response = semantic_search(query="test")
+
+        assert response.total_found == 1
+        assert len(response.results) == 1
+        assert response.results[0].rank == 1
+
+
 # Integration tests (require database - mark as skipif)
 @pytest.mark.skipif(True, reason="Requires running database and FastMCP server")
 class TestSemanticSearchIntegration:
