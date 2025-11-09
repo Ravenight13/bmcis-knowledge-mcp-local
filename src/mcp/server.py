@@ -135,6 +135,7 @@ def get_database_pool() -> DatabasePool:
 
 # Tool imports (register tools with FastMCP)
 # Import after function definitions to avoid circular imports
+from src.mcp.tools.find_vendor_info import find_vendor_info  # noqa: E402, F401
 from src.mcp.tools.semantic_search import semantic_search  # noqa: E402, F401
 
 # Initialize on module load (automatic startup)
