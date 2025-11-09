@@ -27,6 +27,8 @@ Example:
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
 import time
 from datetime import datetime
@@ -35,8 +37,10 @@ from uuid import UUID
 
 from src.core.logging import StructuredLogger
 from src.knowledge_graph.query_repository import KnowledgeGraphQueryRepository
+from src.mcp.cache import hash_query
 from src.mcp.models import (
     FindVendorInfoRequest,
+    PaginationMetadata,
     VendorEntity,
     VendorInfoFull,
     VendorInfoIDs,
@@ -44,8 +48,9 @@ from src.mcp.models import (
     VendorInfoPreview,
     VendorRelationship,
     VendorStatistics,
+    WhitelistedVendorInfoFields,
 )
-from src.mcp.server import get_database_pool, mcp
+from src.mcp.server import get_cache_layer, get_database_pool, mcp
 
 logger: logging.Logger = StructuredLogger.get_logger(__name__)
 
@@ -54,6 +59,91 @@ MAX_ENTITIES_PREVIEW = 5
 MAX_RELATIONSHIPS_PREVIEW = 5
 MAX_ENTITIES_FULL = 100
 MAX_RELATIONSHIPS_FULL = 500
+
+
+def compute_vendor_cache_key(vendor_name: str, response_mode: str) -> str:
+    """Compute cache key for vendor info query.
+
+    Args:
+        vendor_name: Vendor name to search
+        response_mode: Response detail level
+
+    Returns:
+        Cache key string (format: "vendor:hash")
+
+    Example:
+        >>> key = compute_vendor_cache_key("Acme Corp", "metadata")
+        >>> assert key.startswith("vendor:")
+    """
+    params = {"vendor_name": vendor_name.lower().strip(), "response_mode": response_mode}
+    return f"vendor:{hash_query(params)}"
+
+
+def generate_vendor_cursor(
+    vendor_name: str, response_mode: str, offset: int
+) -> str:
+    """Generate cursor for next page of vendor results.
+
+    Args:
+        vendor_name: Vendor name
+        response_mode: Response detail level
+        offset: Offset for next page
+
+    Returns:
+        Base64-encoded cursor string
+
+    Example:
+        >>> cursor = generate_vendor_cursor("Acme", "preview", 5)
+        >>> data = json.loads(base64.b64decode(cursor))
+        >>> assert data["offset"] == 5
+    """
+    params = {"vendor_name": vendor_name.lower().strip(), "response_mode": response_mode}
+    query_hash = hash_query(params)
+
+    cursor_data = {
+        "query_hash": query_hash,
+        "offset": offset,
+        "response_mode": response_mode,
+    }
+
+    cursor_json = json.dumps(cursor_data)
+    cursor_bytes = base64.b64encode(cursor_json.encode("utf-8"))
+    return cursor_bytes.decode("utf-8")
+
+
+def parse_vendor_cursor(cursor: str) -> dict[str, Any]:
+    """Parse vendor cursor to extract pagination state.
+
+    Args:
+        cursor: Base64-encoded cursor string
+
+    Returns:
+        Dictionary with query_hash, offset, response_mode
+
+    Raises:
+        ValueError: If cursor is invalid
+    """
+    try:
+        cursor_bytes = base64.b64decode(cursor.encode("utf-8"))
+        cursor_json = cursor_bytes.decode("utf-8")
+        return json.loads(cursor_json)
+    except (ValueError, json.JSONDecodeError) as e:
+        raise ValueError(f"Invalid cursor format: {e}") from e
+
+
+def filter_vendor_fields(
+    result: dict[str, Any], fields: list[str]
+) -> dict[str, Any]:
+    """Filter vendor result to only include specified fields.
+
+    Args:
+        result: Result dictionary
+        fields: List of field names to include
+
+    Returns:
+        Filtered dictionary
+    """
+    return {k: v for k, v in result.items() if k in fields}
 
 
 def normalize_vendor_name(vendor_name: str) -> str:
@@ -378,50 +468,54 @@ def find_vendor_info(
     vendor_name: str,
     response_mode: str = "metadata",
     include_relationships: bool = True,
-) -> VendorInfoIDs | VendorInfoMetadata | VendorInfoPreview | VendorInfoFull:
-    """Find comprehensive information about a vendor.
+    page_size: int = 10,
+    cursor: str | None = None,
+    fields: list[str] | None = None,
+) -> dict[str, Any]:
+    """Find comprehensive vendor information with caching, pagination, and field filtering.
 
     Search the knowledge graph for a vendor and return their entity graph
-    with configurable response modes for token efficiency.
+    with configurable response modes, caching (300s TTL), and pagination support.
 
     Args:
         vendor_name: Name of vendor to search (1-200 chars)
         response_mode: Response detail level (ids_only, metadata, preview, full)
         include_relationships: Include relationship data (default: True)
+        page_size: Number of entities per page (1-50, default: 10)
+        cursor: Pagination cursor from previous response
+        fields: Optional list of fields to include in response
 
     Returns:
-        Vendor information at requested detail level:
-        - ids_only: VendorInfoIDs (~100-500 tokens)
-        - metadata: VendorInfoMetadata (~2-4K tokens) - DEFAULT
-        - preview: VendorInfoPreview (~5-10K tokens, max 5 entities/relationships)
-        - full: VendorInfoFull (~10-50K+ tokens, max 100 entities, 500 relationships)
+        Dictionary with vendor information including:
+        - vendor_name: Normalized vendor name
+        - results: Vendor data (type depends on response_mode)
+        - pagination: Pagination metadata (cursor, has_more, etc.)
+        - execution_time_ms: Query execution time
 
     Raises:
         ValueError: If vendor not found, ambiguous name, or invalid parameters
         RuntimeError: If search execution fails
 
     Performance:
-        - Metadata mode: <200ms P50, <500ms P95
-        - Full mode: <500ms P50, <1500ms P95
-        - Uses existing query cache for performance
+        - Cached results: <100ms P95
+        - Fresh metadata query: <200ms P50, <500ms P95
+        - Fresh full query: <500ms P50, <1500ms P95
 
     Examples:
-        # Metadata-only (default - fast, token-efficient)
+        # Basic search (cached for 300s)
         >>> response = find_vendor_info("Acme Corp")
-        >>> assert response.statistics.entity_count >= 0
 
-        # Full content for deep analysis
-        >>> response = find_vendor_info("Acme Corp", response_mode="full")
-        >>> for entity in response.entities:
-        ...     print(entity.name)
+        # Pagination through large entity sets
+        >>> page1 = find_vendor_info("Acme Corp", page_size=5, response_mode="preview")
+        >>> if page1["pagination"]["has_more"]:
+        ...     page2 = find_vendor_info("Acme Corp", cursor=page1["pagination"]["cursor"])
 
-        # IDs only for quick check
-        >>> response = find_vendor_info("Acme Corp", response_mode="ids_only")
-        >>> vendor_ids = response.entity_ids
-
-        # Preview with top entities
-        >>> response = find_vendor_info("Acme Corp", response_mode="preview")
-        >>> assert len(response.entities) <= 5
+        # Field filtering
+        >>> response = find_vendor_info(
+        ...     "Acme Corp",
+        ...     fields=["vendor_name", "entity_count"],
+        ...     response_mode="metadata"
+        ... )
     """
     # Validate request using Pydantic
     try:

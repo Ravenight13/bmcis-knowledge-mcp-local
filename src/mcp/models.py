@@ -12,23 +12,234 @@ All models use Pydantic v2 for validation and are mypy-strict compatible.
 
 from __future__ import annotations
 
+import base64
+import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+# ==============================================================================
+# PHASE B: Pagination & Filtering Models (Task 10.3)
+# ==============================================================================
+# Field whitelists and pagination support for response filtering
+# ==============================================================================
+
+
+class WhitelistedSemanticSearchFields:
+    """Whitelisted fields for semantic_search response filtering.
+
+    Each response mode has specific allowed fields that can be filtered:
+    - ids_only: chunk_id, hybrid_score, rank
+    - metadata: chunk_id, source_file, source_category, hybrid_score, rank, chunk_index, total_chunks
+    - preview: all metadata fields + chunk_snippet, context_header
+    - full: all fields
+
+    Example:
+        >>> fields = WhitelistedSemanticSearchFields.IDS_ONLY
+        >>> # fields = ["chunk_id", "hybrid_score", "rank"]
+    """
+
+    IDS_ONLY = frozenset(["chunk_id", "hybrid_score", "rank"])
+    METADATA = frozenset([
+        "chunk_id", "source_file", "source_category", "hybrid_score",
+        "rank", "chunk_index", "total_chunks"
+    ])
+    PREVIEW = frozenset([
+        "chunk_id", "source_file", "source_category", "hybrid_score",
+        "rank", "chunk_index", "total_chunks", "chunk_snippet", "context_header"
+    ])
+    FULL = frozenset([
+        "chunk_id", "chunk_text", "similarity_score", "bm25_score",
+        "hybrid_score", "rank", "score_type", "source_file", "source_category",
+        "context_header", "chunk_index", "total_chunks", "chunk_token_count"
+    ])
+
+    @classmethod
+    def get_allowed_fields(cls, response_mode: str) -> frozenset[str]:
+        """Get allowed fields for a specific response mode.
+
+        Args:
+            response_mode: One of ids_only, metadata, preview, full
+
+        Returns:
+            Frozenset of allowed field names
+
+        Example:
+            >>> WhitelistedSemanticSearchFields.get_allowed_fields("metadata")
+            frozenset(['chunk_id', 'source_file', ...])
+        """
+        mapping = {
+            "ids_only": cls.IDS_ONLY,
+            "metadata": cls.METADATA,
+            "preview": cls.PREVIEW,
+            "full": cls.FULL,
+        }
+        return mapping.get(response_mode, cls.FULL)
+
+
+class WhitelistedVendorInfoFields:
+    """Whitelisted fields for find_vendor_info response filtering.
+
+    Each response mode has specific allowed fields:
+    - ids_only: vendor_name, entity_ids, relationship_ids
+    - metadata: vendor_name, statistics, top_entities, last_updated
+    - preview: vendor_name, entities, relationships, statistics
+    - full: vendor_name, entities, relationships, statistics
+
+    Example:
+        >>> fields = WhitelistedVendorInfoFields.IDS_ONLY
+        >>> # fields = ["vendor_name", "entity_ids", "relationship_ids"]
+    """
+
+    IDS_ONLY = frozenset(["vendor_name", "entity_ids", "relationship_ids"])
+    METADATA = frozenset(["vendor_name", "statistics", "top_entities", "last_updated"])
+    PREVIEW = frozenset(["vendor_name", "entities", "relationships", "statistics"])
+    FULL = frozenset(["vendor_name", "entities", "relationships", "statistics"])
+
+    @classmethod
+    def get_allowed_fields(cls, response_mode: str) -> frozenset[str]:
+        """Get allowed fields for a specific response mode.
+
+        Args:
+            response_mode: One of ids_only, metadata, preview, full
+
+        Returns:
+            Frozenset of allowed field names
+
+        Example:
+            >>> WhitelistedVendorInfoFields.get_allowed_fields("metadata")
+            frozenset(['vendor_name', 'statistics', ...])
+        """
+        mapping = {
+            "ids_only": cls.IDS_ONLY,
+            "metadata": cls.METADATA,
+            "preview": cls.PREVIEW,
+            "full": cls.FULL,
+        }
+        return mapping.get(response_mode, cls.FULL)
+
+
+class PaginationMetadata(BaseModel):
+    """Pagination metadata for cursor-based pagination.
+
+    Provides information about current page and navigation to next page.
+    Cursor is null when no more results are available.
+
+    Token Budget: ~50-100 tokens
+
+    Example:
+        >>> pagination = PaginationMetadata(
+        ...     cursor="eyJxdWVyeV9oYXNoIjogImFiYzEyMyIsICJvZmZzZXQiOiAxMH0=",
+        ...     page_size=10,
+        ...     has_more=True,
+        ...     total_available=42
+        ... )
+        >>> # User can use cursor for next page request
+    """
+
+    cursor: str | None = Field(
+        default=None,
+        description="Opaque cursor for next page (null if last page, base64-encoded JSON)",
+    )
+    page_size: int = Field(
+        ...,
+        description="Number of results returned in this page",
+        ge=1,
+        le=50,
+    )
+    has_more: bool = Field(
+        ...,
+        description="True if more results available beyond this page",
+    )
+    total_available: int = Field(
+        ...,
+        description="Total matching results (all pages)",
+        ge=0,
+    )
+
+    @field_validator("cursor", mode="after")
+    @classmethod
+    def validate_cursor_format(cls, v: str | None) -> str | None:
+        """Validate cursor is valid base64-encoded JSON.
+
+        Cursor format: base64(json.dumps({"query_hash": str, "offset": int, "response_mode": str}))
+
+        Args:
+            v: Cursor string or None
+
+        Returns:
+            Validated cursor or None
+
+        Raises:
+            ValueError: If cursor is not valid base64 JSON
+
+        Example:
+            >>> cursor = base64.b64encode(b'{"query_hash": "abc", "offset": 10, "response_mode": "metadata"}')
+            >>> PaginationMetadata.validate_cursor_format(cursor.decode())
+        """
+        if v is None:
+            return v
+
+        try:
+            decoded = base64.b64decode(v)
+            data = json.loads(decoded)
+
+            # Validate required fields
+            if not isinstance(data, dict):
+                raise ValueError("Cursor must decode to a JSON object")
+
+            required_keys = {"query_hash", "offset", "response_mode"}
+            if not required_keys.issubset(data.keys()):
+                raise ValueError(
+                    f"Cursor must contain fields: {required_keys}, got: {set(data.keys())}"
+                )
+
+            # Validate types
+            if not isinstance(data["query_hash"], str):
+                raise ValueError("query_hash must be a string")
+            if not isinstance(data["offset"], int) or data["offset"] < 0:
+                raise ValueError("offset must be a non-negative integer")
+            if data["response_mode"] not in ["ids_only", "metadata", "preview", "full"]:
+                raise ValueError("response_mode must be one of: ids_only, metadata, preview, full")
+
+            return v
+        except (ValueError, json.JSONDecodeError) as e:
+            raise ValueError(f"Invalid cursor format: {e}") from e
 
 
 class SemanticSearchRequest(BaseModel):
-    """Request schema for semantic_search tool.
+    """Request schema for semantic_search tool with pagination and filtering.
 
     MCP Tool Parameters:
     - query: Search query string (required)
-    - top_k: Number of results (default: 10, max: 50)
+    - top_k: Number of results (default: 10, max: 50) - DEPRECATED, use page_size
+    - page_size: Number of results per page (default: 10, max: 50)
+    - cursor: Pagination cursor for next page (base64-encoded JSON)
+    - fields: Optional field filtering (whitelist of field names)
     - response_mode: Progressive disclosure level (ids_only/metadata/preview/full)
 
-    Example:
+    Backward Compatibility:
+    - If top_k is provided, it takes precedence over page_size (legacy support)
+    - If neither top_k nor page_size is provided, defaults to page_size=10
+
+    Example (basic):
         >>> request = SemanticSearchRequest(
         ...     query="JWT authentication best practices",
-        ...     top_k=5,
+        ...     page_size=5,
+        ...     response_mode="metadata"
+        ... )
+
+    Example (pagination):
+        >>> request = SemanticSearchRequest(
+        ...     query="JWT authentication",
+        ...     page_size=10,
+        ...     cursor="eyJxdWVyeV9oYXNoIjogImFiYzEyMyIsICJvZmZzZXQiOiAxMH0="
+        ... )
+
+    Example (field filtering):
+        >>> request = SemanticSearchRequest(
+        ...     query="JWT authentication",
+        ...     fields=["chunk_id", "hybrid_score", "source_file"],
         ...     response_mode="metadata"
         ... )
     """
@@ -39,9 +250,6 @@ class SemanticSearchRequest(BaseModel):
         min_length=1,
         max_length=500,
     )
-    top_k: int = Field(
-        default=10, description="Number of results to return", ge=1, le=50
-    )
     response_mode: Literal["ids_only", "metadata", "preview", "full"] = Field(
         default="metadata",
         description=(
@@ -51,6 +259,26 @@ class SemanticSearchRequest(BaseModel):
             "preview (~5-10K tokens), "
             "full (~10-50K+ tokens)"
         ),
+    )
+    top_k: int | None = Field(
+        default=None,
+        description="DEPRECATED: Use page_size instead. If provided, takes precedence for backward compatibility.",
+        ge=1,
+        le=50,
+    )
+    page_size: int = Field(
+        default=10,
+        description="Number of results per page (1-50)",
+        ge=1,
+        le=50,
+    )
+    cursor: str | None = Field(
+        default=None,
+        description="Pagination cursor for next page (base64-encoded JSON, from previous response)",
+    )
+    fields: list[str] | None = Field(
+        default=None,
+        description="Optional field filtering (whitelist of field names to return)",
     )
 
     @field_validator('query', mode='before')
@@ -72,6 +300,116 @@ class SemanticSearchRequest(BaseModel):
         if not v:
             raise ValueError('Query cannot be empty or whitespace-only')
         return v
+
+    @field_validator('cursor', mode='after')
+    @classmethod
+    def validate_cursor(cls, v: str | None) -> str | None:
+        """Validate cursor format (must be valid base64 JSON).
+
+        Args:
+            v: Cursor string or None
+
+        Returns:
+            Validated cursor or None
+
+        Raises:
+            ValueError: If cursor is invalid base64 JSON
+
+        Example:
+            >>> cursor = base64.b64encode(b'{"query_hash": "abc", "offset": 10, "response_mode": "metadata"}')
+            >>> SemanticSearchRequest.validate_cursor(cursor.decode())
+        """
+        if v is None:
+            return v
+
+        try:
+            decoded = base64.b64decode(v)
+            data = json.loads(decoded)
+
+            # Validate required fields
+            if not isinstance(data, dict):
+                raise ValueError("Cursor must decode to a JSON object")
+
+            required_keys = {"query_hash", "offset", "response_mode"}
+            if not required_keys.issubset(data.keys()):
+                raise ValueError(
+                    f"Cursor must contain fields: {required_keys}, got: {set(data.keys())}"
+                )
+
+            # Validate types
+            if not isinstance(data["query_hash"], str):
+                raise ValueError("query_hash must be a string")
+            if not isinstance(data["offset"], int) or data["offset"] < 0:
+                raise ValueError("offset must be a non-negative integer")
+            if data["response_mode"] not in ["ids_only", "metadata", "preview", "full"]:
+                raise ValueError("response_mode must be one of: ids_only, metadata, preview, full")
+
+            return v
+        except (ValueError, json.JSONDecodeError) as e:
+            raise ValueError(f"Invalid cursor format: {e}") from e
+
+    @field_validator('fields', mode='after')
+    @classmethod
+    def validate_fields(cls, v: list[str] | None, info: Any) -> list[str] | None:
+        """Validate that fields are in the whitelist for the response_mode.
+
+        Args:
+            v: List of field names or None
+            info: Validation context with response_mode
+
+        Returns:
+            Validated field list or None
+
+        Raises:
+            ValueError: If any field is not in the whitelist
+
+        Example:
+            >>> SemanticSearchRequest(
+            ...     query="test",
+            ...     response_mode="metadata",
+            ...     fields=["chunk_id", "source_file"]
+            ... )
+        """
+        if v is None:
+            return v
+
+        if len(v) == 0:
+            raise ValueError("fields list cannot be empty (use None to return all fields)")
+
+        # Get response_mode from the model being validated
+        response_mode = info.data.get("response_mode", "metadata")
+        allowed_fields = WhitelistedSemanticSearchFields.get_allowed_fields(response_mode)
+
+        # Validate each field
+        invalid_fields = [f for f in v if f not in allowed_fields]
+        if invalid_fields:
+            raise ValueError(
+                f"Invalid fields for response_mode '{response_mode}': {invalid_fields}. "
+                f"Allowed fields: {sorted(allowed_fields)}"
+            )
+
+        return v
+
+    @model_validator(mode='after')
+    def validate_top_k_precedence(self) -> SemanticSearchRequest:
+        """Handle top_k/page_size precedence for backward compatibility.
+
+        If top_k is provided, it overrides page_size (legacy behavior).
+        This ensures old code using top_k continues to work.
+
+        Returns:
+            Self with page_size set to top_k if provided
+
+        Example:
+            >>> req = SemanticSearchRequest(query="test", top_k=5)
+            >>> req.page_size  # Will be 5
+            5
+        """
+        if self.top_k is not None:
+            # Legacy top_k takes precedence
+            self.page_size = self.top_k
+
+        return self
 
 
 class SearchResultIDs(BaseModel):
@@ -187,7 +525,7 @@ class SearchResultFull(BaseModel):
 
 
 class SemanticSearchResponse(BaseModel):
-    """Response schema for semantic_search tool.
+    """Response schema for semantic_search tool with pagination support.
 
     Supports 4 progressive disclosure levels via response_mode parameter:
     - ids_only: List[SearchResultIDs] (~100 tokens for 10 results)
@@ -200,12 +538,31 @@ class SemanticSearchResponse(BaseModel):
     - Progressive (metadata, 10 results): ~2,500 tokens (83% reduction)
     - Selective (metadata 10 + full 3): ~6,500 tokens (57% reduction)
 
-    Example:
+    Pagination Support:
+    - pagination field is None for non-paginated responses (backward compatible)
+    - pagination field contains cursor for next page when pagination is enabled
+    - has_more=True indicates more results available
+
+    Example (basic):
         >>> response = SemanticSearchResponse(
         ...     results=[SearchResultMetadata(...)],
         ...     total_found=42,
         ...     strategy_used="hybrid",
         ...     execution_time_ms=245.3
+        ... )
+
+    Example (with pagination):
+        >>> response = SemanticSearchResponse(
+        ...     results=[SearchResultMetadata(...)],
+        ...     total_found=42,
+        ...     strategy_used="hybrid",
+        ...     execution_time_ms=245.3,
+        ...     pagination=PaginationMetadata(
+        ...         cursor="eyJxdWVyeV9oYXNoIjogImFiYzEyMyIsICJvZmZzZXQiOiAxMH0=",
+        ...         page_size=10,
+        ...         has_more=True,
+        ...         total_available=42
+        ...     )
         ... )
     """
 
@@ -213,6 +570,10 @@ class SemanticSearchResponse(BaseModel):
     total_found: int = Field(..., description="Total matching results before top_k limit", ge=0)
     strategy_used: str = Field(..., description="Search strategy used (vector/bm25/hybrid)")
     execution_time_ms: float = Field(..., description="Execution time in milliseconds", ge=0.0)
+    pagination: PaginationMetadata | None = Field(
+        default=None,
+        description="Pagination metadata (null for non-paginated responses)",
+    )
 
 
 # ==============================================================================
@@ -223,16 +584,30 @@ class SemanticSearchResponse(BaseModel):
 
 
 class FindVendorInfoRequest(BaseModel):
-    """Request schema for find_vendor_info tool.
+    """Request schema for find_vendor_info tool with pagination and filtering.
 
     Validates vendor info search requests with vendor name, response mode,
-    and relationship inclusion preferences.
+    pagination, and relationship inclusion preferences.
 
-    Example:
+    Example (basic):
         >>> request = FindVendorInfoRequest(
         ...     vendor_name="Acme Corp",
         ...     response_mode="metadata",
         ...     include_relationships=True
+        ... )
+
+    Example (pagination):
+        >>> request = FindVendorInfoRequest(
+        ...     vendor_name="Acme Corp",
+        ...     page_size=20,
+        ...     cursor="eyJxdWVyeV9oYXNoIjogImFiYzEyMyIsICJvZmZzZXQiOiAyMH0="
+        ... )
+
+    Example (field filtering):
+        >>> request = FindVendorInfoRequest(
+        ...     vendor_name="Acme Corp",
+        ...     fields=["vendor_name", "statistics"],
+        ...     response_mode="metadata"
         ... )
     """
 
@@ -251,6 +626,20 @@ class FindVendorInfoRequest(BaseModel):
             "preview (~5-10K tokens), "
             "full (~10-50K+ tokens)"
         ),
+    )
+    page_size: int = Field(
+        default=10,
+        description="Number of results per page (1-50)",
+        ge=1,
+        le=50,
+    )
+    cursor: str | None = Field(
+        default=None,
+        description="Pagination cursor for next page (base64-encoded JSON, from previous response)",
+    )
+    fields: list[str] | None = Field(
+        default=None,
+        description="Optional field filtering (whitelist of field names to return)",
     )
     include_relationships: bool = Field(
         default=False,
@@ -275,6 +664,84 @@ class FindVendorInfoRequest(BaseModel):
             v = v.strip()
         if not v:
             raise ValueError("Vendor name cannot be empty or whitespace-only")
+        return v
+
+    @field_validator('cursor', mode='after')
+    @classmethod
+    def validate_cursor(cls, v: str | None) -> str | None:
+        """Validate cursor format (must be valid base64 JSON).
+
+        Args:
+            v: Cursor string or None
+
+        Returns:
+            Validated cursor or None
+
+        Raises:
+            ValueError: If cursor is invalid base64 JSON
+        """
+        if v is None:
+            return v
+
+        try:
+            decoded = base64.b64decode(v)
+            data = json.loads(decoded)
+
+            # Validate required fields
+            if not isinstance(data, dict):
+                raise ValueError("Cursor must decode to a JSON object")
+
+            required_keys = {"query_hash", "offset", "response_mode"}
+            if not required_keys.issubset(data.keys()):
+                raise ValueError(
+                    f"Cursor must contain fields: {required_keys}, got: {set(data.keys())}"
+                )
+
+            # Validate types
+            if not isinstance(data["query_hash"], str):
+                raise ValueError("query_hash must be a string")
+            if not isinstance(data["offset"], int) or data["offset"] < 0:
+                raise ValueError("offset must be a non-negative integer")
+            if data["response_mode"] not in ["ids_only", "metadata", "preview", "full"]:
+                raise ValueError("response_mode must be one of: ids_only, metadata, preview, full")
+
+            return v
+        except (ValueError, json.JSONDecodeError) as e:
+            raise ValueError(f"Invalid cursor format: {e}") from e
+
+    @field_validator('fields', mode='after')
+    @classmethod
+    def validate_fields(cls, v: list[str] | None, info: Any) -> list[str] | None:
+        """Validate that fields are in the whitelist for the response_mode.
+
+        Args:
+            v: List of field names or None
+            info: Validation context with response_mode
+
+        Returns:
+            Validated field list or None
+
+        Raises:
+            ValueError: If any field is not in the whitelist
+        """
+        if v is None:
+            return v
+
+        if len(v) == 0:
+            raise ValueError("fields list cannot be empty (use None to return all fields)")
+
+        # Get response_mode from the model being validated
+        response_mode = info.data.get("response_mode", "metadata")
+        allowed_fields = WhitelistedVendorInfoFields.get_allowed_fields(response_mode)
+
+        # Validate each field
+        invalid_fields = [f for f in v if f not in allowed_fields]
+        if invalid_fields:
+            raise ValueError(
+                f"Invalid fields for response_mode '{response_mode}': {invalid_fields}. "
+                f"Allowed fields: {sorted(allowed_fields)}"
+            )
+
         return v
 
 

@@ -53,15 +53,17 @@ mcp = FastMCP("bmcis-knowledge-mcp")
 # Global state (initialized on startup)
 _db_pool: DatabasePool | None = None
 _hybrid_search: HybridSearch | None = None
+_cache_layer: Any | None = None  # CacheLayer from src.mcp.cache (imported below)
 
 
 def initialize_server() -> None:
-    """Initialize server dependencies (database, search, authentication).
+    """Initialize server dependencies (database, search, authentication, cache).
 
     Called on server startup. Initializes:
     - DatabasePool (PostgreSQL connection pool)
     - HybridSearch (vector + BM25 search with RRF merging)
     - Authentication (API key validation and rate limiting)
+    - CacheLayer (in-memory cache with TTL and LRU eviction)
 
     Raises:
         RuntimeError: If initialization fails
@@ -70,7 +72,7 @@ def initialize_server() -> None:
         >>> initialize_server()
         >>> # Server components ready for use
     """
-    global _db_pool, _hybrid_search
+    global _db_pool, _hybrid_search, _cache_layer
 
     logger.info("Initializing BMCIS Knowledge MCP server...")
 
@@ -108,6 +110,16 @@ def initialize_server() -> None:
             logger=structured_logger,  # type: ignore[arg-type]
         )
         logger.info("HybridSearch initialized")
+
+        # Initialize cache layer
+        from src.mcp.cache import CacheLayer
+
+        _cache_layer = CacheLayer(
+            max_entries=1000,  # Max 1000 cached queries
+            default_ttl=300,  # 5 minute default TTL
+            enable_metrics=True,  # Track hit/miss rates
+        )
+        logger.info("CacheLayer initialized (max_entries=1000, default_ttl=300s)")
 
         logger.info("BMCIS Knowledge MCP server ready")
 
@@ -151,6 +163,25 @@ def get_database_pool() -> DatabasePool:
     if _db_pool is None:
         raise RuntimeError("Server not initialized. Call initialize_server() first.")
     return _db_pool
+
+
+def get_cache_layer() -> Any:
+    """Get initialized CacheLayer instance.
+
+    Returns:
+        CacheLayer: Initialized cache layer for MCP tools
+
+    Raises:
+        RuntimeError: If server not initialized
+
+    Example:
+        >>> cache = get_cache_layer()
+        >>> cache.set("key", "value", ttl_seconds=60)
+        >>> value = cache.get("key")
+    """
+    if _cache_layer is None:
+        raise RuntimeError("Server not initialized. Call initialize_server() first.")
+    return _cache_layer
 
 
 # Tool imports (register tools with FastMCP)
