@@ -67,12 +67,25 @@ echo "📁 Directory: $WORKING_DIR"
 **Then analyze branch/directory:**
 **Detect context based on branch name:**
 ```bash
-# Analyze branch name for context
+# Analyze branch name for context (POSIX-compliant)
 CONTEXT="GENERAL"
-[[ "$CURRENT_BRANCH" =~ ^feat/ ]] && CONTEXT="DEVELOPMENT"
-[[ "$CURRENT_BRANCH" =~ ^test/ ]] && CONTEXT="TESTING"
-[[ "$CURRENT_BRANCH" =~ ^docs/ ]] && CONTEXT="DOCUMENTATION"
-[[ "$CURRENT_BRANCH" =~ ^fix/ ]] && CONTEXT="BUGFIX"
+case "$CURRENT_BRANCH" in
+    feat/*)
+        CONTEXT="DEVELOPMENT"
+        ;;
+    test/*)
+        CONTEXT="TESTING"
+        ;;
+    docs/*)
+        CONTEXT="DOCUMENTATION"
+        ;;
+    fix/*)
+        CONTEXT="BUGFIX"
+        ;;
+    *)
+        CONTEXT="GENERAL"
+        ;;
+esac
 
 echo "📍 Detected Context: $CONTEXT"
 ```
@@ -81,7 +94,7 @@ echo "📍 Detected Context: $CONTEXT"
 
 ## STEP 4: System Health Validation
 
-**Run health checks (token-optimized):**
+**Run health checks (POSIX-compliant):**
 
 ```bash
 echo "🔍 System Health Checks"
@@ -95,14 +108,34 @@ else
     echo "⚠️ Git: $UNCOMMITTED_COUNT uncommitted files"
 fi
 
-# 4.2 Branch Sync (capture, summarize)
+# 4.2 Branch Sync (POSIX-compliant with validation)
 SYNC_STATUS=$(git rev-list --left-right --count @{u}...HEAD 2>/dev/null || echo "")
+
 if [ -n "$SYNC_STATUS" ]; then
+    # Extract values with defaults
     BEHIND=$(echo "$SYNC_STATUS" | awk '{print $1}')
     AHEAD=$(echo "$SYNC_STATUS" | awk '{print $2}')
-    [ "$BEHIND" -gt 0 ] && echo "   ⚠️ Behind remote by $BEHIND commits"
-    [ "$AHEAD" -gt 0 ] && echo "   📤 Ahead of remote by $AHEAD commits"
-    [ "$BEHIND" -eq 0 ] && [ "$AHEAD" -eq 0 ] && echo "   ✅ Synced with remote"
+
+    # Validate extracted values are numbers
+    case "$BEHIND" in
+        ''|*[!0-9]*) BEHIND=0 ;;
+    esac
+    case "$AHEAD" in
+        ''|*[!0-9]*) AHEAD=0 ;;
+    esac
+
+    # Separate conditionals
+    if [ "$BEHIND" -gt 0 ]; then
+        echo "   ⚠️ Behind remote by $BEHIND commits"
+    fi
+
+    if [ "$AHEAD" -gt 0 ]; then
+        echo "   📤 Ahead of remote by $AHEAD commits"
+    fi
+
+    if [ "$BEHIND" -eq 0 ] && [ "$AHEAD" -eq 0 ]; then
+        echo "   ✅ Synced with remote"
+    fi
 else
     echo "   ℹ️ No remote tracking"
 fi
@@ -115,19 +148,50 @@ PROJECT_TYPE="Unknown"
 [ -f "go.mod" ] && PROJECT_TYPE="Go"
 echo "✅ Project type: $PROJECT_TYPE"
 
-# 4.4 Check Quality Tools (condensed)
+# 4.4 Check Quality Tools (POSIX-compliant)
 TOOLS=""
-command -v ruff &>/dev/null && TOOLS="$TOOLS ruff"
-command -v mypy &>/dev/null && TOOLS="$TOOLS mypy"
-command -v pytest &>/dev/null && TOOLS="$TOOLS pytest"
-command -v npm &>/dev/null && TOOLS="$TOOLS npm"
-[ -n "$TOOLS" ] && echo "   Quality tools:$TOOLS" || echo "   ⚠️ No quality tools detected"
+for tool in ruff mypy pytest npm; do
+    if command -v "$tool" >/dev/null 2>&1; then
+        if [ -z "$TOOLS" ]; then
+            TOOLS="$tool"
+        else
+            TOOLS="$TOOLS $tool"
+        fi
+    fi
+done
 
-# 4.5 Count Session Handoffs
-HANDOFF_COUNT=$(ls -1 session-handoffs/*.md 2>/dev/null | wc -l | tr -d ' ')
-LATEST_HANDOFF=$(ls -t session-handoffs/*.md 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "none")
+if [ -n "$TOOLS" ]; then
+    echo "   Quality tools: $TOOLS"
+else
+    echo "   ⚠️ No quality tools detected"
+fi
+
+# 4.5 Count Session Handoffs (POSIX-compliant with null-safety)
+set -- session-handoffs/*.md 2>/dev/null
+
+if [ -e "$1" ]; then
+    HANDOFF_COUNT=$#
+    # Get latest file by modification time
+    LATEST_HANDOFF=""
+    LATEST_TIME=0
+    for file in session-handoffs/*.md; do
+        if [ -f "$file" ]; then
+            FILE_TIME=$(stat -f "%m" "$file" 2>/dev/null || stat -c "%Y" "$file" 2>/dev/null || echo "0")
+            if [ "$FILE_TIME" -gt "$LATEST_TIME" ]; then
+                LATEST_TIME=$FILE_TIME
+                LATEST_HANDOFF=$(basename "$file")
+            fi
+        fi
+    done
+else
+    HANDOFF_COUNT=0
+    LATEST_HANDOFF="none"
+fi
+
 echo "📋 Session handoffs: $HANDOFF_COUNT total"
-[ "$HANDOFF_COUNT" -gt 0 ] && echo "   Latest: $LATEST_HANDOFF"
+if [ "$HANDOFF_COUNT" -gt 0 ]; then
+    echo "   Latest: $LATEST_HANDOFF"
+fi
 
 # 4.6 Count Subagent Reports
 REPORT_COUNT=$(find docs/subagent-reports -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
