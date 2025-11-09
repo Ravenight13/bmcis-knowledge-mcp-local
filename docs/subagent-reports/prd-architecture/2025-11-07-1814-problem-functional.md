@@ -692,10 +692,10 @@ Feature: Search Enhancement
 ## 11. Appendix: Reference Materials
 
 ### Source Analysis Documents
-- `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local/ANALYSIS_INDEX.md` - Complete analysis overview
-- `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local/DATA_MODELS_QUICK_REFERENCE.md` - Schema and metrics
-- `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local/DATA_MODELS_ANALYSIS.md` - Deep technical analysis
-- `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local/DATA_FLOW_DIAGRAM.md` - Pipeline visualizations
+- `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local/docs/reference/ANALYSIS_INDEX.md` - Complete analysis overview
+- `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local/docs/architecture/DATA_MODELS_QUICK_REFERENCE.md` - Schema and metrics
+- `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local/docs/architecture/DATA_MODELS_ANALYSIS.md` - Deep technical analysis
+- `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local/docs/architecture/DATA_FLOW_DIAGRAM.md` - Pipeline visualizations
 
 ### Production System (bmcis-knowledge-mcp)
 - Location: `/Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp`

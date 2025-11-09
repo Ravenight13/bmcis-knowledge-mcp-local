@@ -422,9 +422,9 @@ This simple change reduces tokens by 98% and speeds up execution by 4x.
 - [E2B Sandbox](https://e2b.dev/) - For cloud deployment
 
 ### Your Project
-- [DEVELOPMENT.md](./DEVELOPMENT.md) - Your dev setup
+- [DEVELOPMENT.md](../guides/DEVELOPMENT.md) - Your dev setup
 - [CLAUDE.md](../CLAUDE.md) - Your project guidelines
-- [DATA_MODELS_QUICK_REFERENCE.md](./DATA_MODELS_QUICK_REFERENCE.md) - Your data structures
+- [DATA_MODELS_QUICK_REFERENCE.md](../architecture/DATA_MODELS_QUICK_REFERENCE.md) - Your data structures
 
 ---
 
