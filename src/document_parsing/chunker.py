@@ -179,14 +179,23 @@ class Chunker:
     def __init__(self, config: ChunkerConfig | None = None) -> None:
         """Initialize chunker with optional configuration.
 
+        Reason: Accept and store configuration while relying on ChunkerConfig's
+        automatic validation via __post_init__. No need for explicit validation here
+        since ChunkerConfig validates itself during instantiation.
+
         Args:
             config: ChunkerConfig instance. If None, uses default configuration.
+                The provided (or default) config is automatically validated.
 
         Raises:
-            ValueError: If configuration is invalid.
+            ValueError: If configuration is invalid (raised by ChunkerConfig.__post_init__).
+
+        Example:
+            >>> config = ChunkerConfig(chunk_size=256, overlap_tokens=50)
+            >>> chunker = Chunker(config=config)  # Config already validated
+            >>> chunker_default = Chunker()  # Uses default config
         """
         self.config = config or ChunkerConfig()
-        self.config.validate_config()
 
     def chunk_text(self, text: str, token_ids: list[int]) -> list[Chunk]:
         """Chunk text into overlapping token-based chunks.
