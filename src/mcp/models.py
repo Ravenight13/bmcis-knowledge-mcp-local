@@ -12,7 +12,8 @@ All models use Pydantic v2 for validation and are mypy-strict compatible.
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional, Union
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -88,7 +89,7 @@ class SearchResultMetadata(BaseModel):
 
     chunk_id: int = Field(..., description="Unique chunk identifier")
     source_file: str = Field(..., description="Source file path")
-    source_category: Optional[str] = Field(None, description="Document category")
+    source_category: str | None = Field(None, description="Document category")
     hybrid_score: float = Field(..., description="Combined relevance score (0.0-1.0)", ge=0.0, le=1.0)
     rank: int = Field(..., description="Result rank (1-based)", ge=1)
     chunk_index: int = Field(..., description="Chunk position in document", ge=0)
@@ -117,7 +118,7 @@ class SearchResultPreview(BaseModel):
 
     chunk_id: int = Field(..., description="Unique chunk identifier")
     source_file: str = Field(..., description="Source file path")
-    source_category: Optional[str] = Field(None, description="Document category")
+    source_category: str | None = Field(None, description="Document category")
     hybrid_score: float = Field(..., description="Combined relevance score (0.0-1.0)", ge=0.0, le=1.0)
     rank: int = Field(..., description="Result rank (1-based)", ge=1)
     chunk_index: int = Field(..., description="Chunk position in document", ge=0)
@@ -158,7 +159,7 @@ class SearchResultFull(BaseModel):
     rank: int = Field(..., description="Result rank (1-based)", ge=1)
     score_type: str = Field(..., description="Score type (vector/bm25/hybrid)")
     source_file: str = Field(..., description="Source file path")
-    source_category: Optional[str] = Field(None, description="Document category")
+    source_category: str | None = Field(None, description="Document category")
     context_header: str = Field(..., description="Hierarchical context path")
     chunk_index: int = Field(..., description="Chunk position in document", ge=0)
     total_chunks: int = Field(..., description="Total chunks in document", ge=1)
@@ -188,12 +189,7 @@ class SemanticSearchResponse(BaseModel):
         ... )
     """
 
-    results: Union[
-        List[SearchResultIDs],
-        List[SearchResultMetadata],
-        List[SearchResultPreview],
-        List[SearchResultFull],
-    ] = Field(..., description="Search results (type depends on response_mode)")
+    results: list[SearchResultIDs] | list[SearchResultMetadata] | list[SearchResultPreview] | list[SearchResultFull] = Field(..., description="Search results (type depends on response_mode)")
     total_found: int = Field(..., description="Total matching results before top_k limit", ge=0)
     strategy_used: str = Field(..., description="Search strategy used (vector/bm25/hybrid)")
     execution_time_ms: float = Field(..., description="Execution time in milliseconds", ge=0.0)

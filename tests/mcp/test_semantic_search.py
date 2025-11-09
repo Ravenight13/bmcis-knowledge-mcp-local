@@ -14,22 +14,23 @@ Performance:
 - Integration tests: <1s (requires database)
 """
 
-import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-from src.mcp.tools.semantic_search import (
-    format_ids_only,
-    format_metadata,
-    format_preview,
-    format_full,
-    semantic_search,
-)
+import pytest
+
 from src.mcp.models import (
+    SearchResultFull,
     SearchResultIDs,
     SearchResultMetadata,
     SearchResultPreview,
-    SearchResultFull,
+)
+from src.mcp.tools.semantic_search import (
+    format_full,
+    format_ids_only,
+    format_metadata,
+    format_preview,
+    semantic_search,
 )
 from src.search.results import SearchResult
 

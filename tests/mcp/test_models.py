@@ -19,12 +19,12 @@ import pytest
 from pydantic import ValidationError
 
 from src.mcp.models import (
-    SemanticSearchRequest,
-    SemanticSearchResponse,
+    SearchResultFull,
     SearchResultIDs,
     SearchResultMetadata,
     SearchResultPreview,
-    SearchResultFull,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
 )
 
 

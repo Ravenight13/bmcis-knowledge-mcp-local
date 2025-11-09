@@ -27,21 +27,20 @@ Example:
 
 from __future__ import annotations
 
-import time
 import logging
-from typing import List, Union
+import time
 
-from src.mcp.server import get_hybrid_search, mcp
+from src.core.logging import StructuredLogger
 from src.mcp.models import (
-    SemanticSearchRequest,
-    SemanticSearchResponse,
+    SearchResultFull,
     SearchResultIDs,
     SearchResultMetadata,
     SearchResultPreview,
-    SearchResultFull,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
 )
+from src.mcp.server import get_hybrid_search, mcp
 from src.search.results import SearchResult
-from src.core.logging import StructuredLogger
 
 logger: logging.Logger = StructuredLogger.get_logger(__name__)
 
@@ -167,7 +166,7 @@ def format_full(result: SearchResult) -> SearchResultFull:
     )
 
 
-@mcp.tool()
+@mcp.tool()  # type: ignore[misc]
 def semantic_search(
     query: str,
     top_k: int = 10,
@@ -191,10 +190,10 @@ def semantic_search(
     Returns:
         SemanticSearchResponse with results list, total count, strategy, and timing.
         Result type depends on response_mode:
-        - ids_only ’ List[SearchResultIDs]
-        - metadata ’ List[SearchResultMetadata]
-        - preview ’ List[SearchResultPreview]
-        - full ’ List[SearchResultFull]
+        - ids_only -> List[SearchResultIDs]
+        - metadata -> List[SearchResultMetadata]
+        - preview -> List[SearchResultPreview]
+        - full -> List[SearchResultFull]
 
     Raises:
         ValueError: If query is invalid or parameters out of range
@@ -242,7 +241,7 @@ def semantic_search(
     hybrid_search = get_hybrid_search()
 
     try:
-        results: List[SearchResult] = hybrid_search.search(
+        results: list[SearchResult] = hybrid_search.search(
             query=request.query,
             top_k=request.top_k,
             strategy="hybrid",  # Always use hybrid for MCP (best quality)
@@ -255,12 +254,7 @@ def semantic_search(
     execution_time_ms = (time.time() - start_time) * 1000
 
     # Format results based on response_mode
-    formatted_results: Union[
-        List[SearchResultIDs],
-        List[SearchResultMetadata],
-        List[SearchResultPreview],
-        List[SearchResultFull],
-    ]
+    formatted_results: list[SearchResultIDs] | list[SearchResultMetadata] | list[SearchResultPreview] | list[SearchResultFull]
 
     if request.response_mode == "ids_only":
         formatted_results = [format_ids_only(r) for r in results]
@@ -283,7 +277,7 @@ def semantic_search(
     )
 
     return SemanticSearchResponse(
-        results=formatted_results,  # type: ignore[arg-type]
+        results=formatted_results,
         total_found=len(results),
         strategy_used="hybrid",
         execution_time_ms=execution_time_ms,

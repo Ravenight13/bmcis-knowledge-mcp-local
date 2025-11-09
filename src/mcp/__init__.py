@@ -20,31 +20,29 @@ Example:
 """
 
 from src.mcp.models import (
-    SemanticSearchRequest,
-    SemanticSearchResponse,
+    SearchResultFull,
     SearchResultIDs,
     SearchResultMetadata,
     SearchResultPreview,
-    SearchResultFull,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
 )
 from src.mcp.server import (
-    mcp,
-    initialize_server,
-    get_hybrid_search,
     get_database_pool,
+    get_hybrid_search,
+    initialize_server,
+    mcp,
 )
 
 __all__ = [
-    # Models
-    "SemanticSearchRequest",
-    "SemanticSearchResponse",
+    "SearchResultFull",
     "SearchResultIDs",
     "SearchResultMetadata",
     "SearchResultPreview",
-    "SearchResultFull",
-    # Server
-    "mcp",
-    "initialize_server",
-    "get_hybrid_search",
+    "SemanticSearchRequest",
+    "SemanticSearchResponse",
     "get_database_pool",
+    "get_hybrid_search",
+    "initialize_server",
+    "mcp",
 ]

@@ -24,11 +24,10 @@ Example:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 # FastMCP will be available at runtime
 try:
-    from fastmcp import FastMCP
+    from fastmcp import FastMCP  # type: ignore[import-not-found]
 except ImportError:
     # Stub for type checking when FastMCP not installed
     class FastMCP:  # type: ignore[no-redef]
@@ -51,8 +50,8 @@ logger: logging.Logger = StructuredLogger.get_logger(__name__)
 mcp = FastMCP("bmcis-knowledge-mcp")
 
 # Global state (initialized on startup)
-_db_pool: Optional[DatabasePool] = None
-_hybrid_search: Optional[HybridSearch] = None
+_db_pool: DatabasePool | None = None
+_hybrid_search: HybridSearch | None = None
 
 
 def initialize_server() -> None:
@@ -82,10 +81,11 @@ def initialize_server() -> None:
         logger.info("Database pool initialized")
 
         # Initialize hybrid search
+        structured_logger = StructuredLogger.get_logger(__name__)
         _hybrid_search = HybridSearch(
             db_pool=_db_pool,
             settings=settings,
-            logger=logger,
+            logger=structured_logger,  # type: ignore[arg-type]
         )
         logger.info("HybridSearch initialized")
 
@@ -141,5 +141,5 @@ from src.mcp.tools.semantic_search import semantic_search  # noqa: E402, F401
 # Comment out for testing to allow manual initialization
 try:
     initialize_server()
-except Exception as e:
+except (ImportError, RuntimeError) as e:
     logger.warning(f"Auto-initialization skipped (likely testing): {e}")
