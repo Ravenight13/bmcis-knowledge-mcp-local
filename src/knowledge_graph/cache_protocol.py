@@ -26,45 +26,11 @@ Example:
 
 from __future__ import annotations
 
-from typing import Protocol, Optional, List, Any
+from typing import Protocol, Optional, List, TYPE_CHECKING
 from uuid import UUID
-from dataclasses import dataclass
 
-
-@dataclass
-class Entity:
-    """Entity data structure for cache storage.
-
-    Attributes:
-        id: Unique entity identifier
-        text: Entity text (e.g., "Lutron", "Claude AI")
-        type: Entity classification (PERSON, ORG, PRODUCT, etc.)
-        confidence: Extraction confidence score (0.0-1.0)
-        mention_count: Total mentions in corpus
-    """
-    id: UUID
-    text: str
-    type: str
-    confidence: float
-    mention_count: int
-
-
-@dataclass
-class CacheStats:
-    """Cache statistics for monitoring.
-
-    Attributes:
-        hits: Number of cache hits
-        misses: Number of cache misses
-        evictions: Number of evicted entries
-        size: Current cache size (entries)
-        max_size: Maximum cache capacity
-    """
-    hits: int
-    misses: int
-    evictions: int
-    size: int
-    max_size: int
+# Import Entity and CacheStats from cache module to avoid duplication
+from src.knowledge_graph.cache import Entity, CacheStats
 
 
 class CacheProtocol(Protocol):
