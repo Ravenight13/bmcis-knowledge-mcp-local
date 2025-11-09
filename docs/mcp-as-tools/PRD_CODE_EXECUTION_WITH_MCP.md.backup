@@ -17,15 +17,13 @@
 
 ## Executive Summary
 
-This PRD defines the implementation of **Code Execution with MCP**, a transformative capability that enables Claude agents to execute Python code within a secure sandbox environment, reducing token overhead by **90-95%** while dramatically improving performance for complex search and filtering workflows in BMCIS Knowledge MCP.
+This PRD defines the implementation of **Code Execution with MCP**, a transformative capability that enables Claude agents to execute Python code within a secure sandbox environment, reducing token overhead by 98% while dramatically improving performance for complex search and filtering workflows in BMCIS Knowledge MCP.
 
 **Key Metrics:**
-- **Token Reduction**: 150,000 → 7,500-15,000 tokens (90-95% reduction)
-- **Latency Improvement**: 1,200ms → 300-500ms (3-4x faster)
-- **Cost Savings**: $0.45 → $0.02-$0.05 per complex query (90-95% cheaper)
-- **Target Adoption**: >50% of qualifying agents within 90 days, >80% within 180 days
-
-**Value Proposition**: Code execution enables **progressive disclosure** patterns where agents request compact metadata first, then selectively fetch full content only for relevant results. This achieves industry-leading token efficiency (90-95% reduction) while preserving accuracy through on-demand detail retrieval.
+- **Token Reduction**: 150,000 → 2,000 tokens (98.7% reduction)
+- **Latency Improvement**: 8-12s → 2-3s (4x faster)
+- **Cost Savings**: $0.45 → $0.01 per complex query (98% cheaper)
+- **Target Adoption**: >80% of qualifying agents within 30 days
 
 ---
 
@@ -106,14 +104,6 @@ Claude agents accessing BMCIS Knowledge MCP through traditional tool calling fac
 
 Concrete example: An agent researching "enterprise authentication patterns in microservices" must (1) keyword search for "authentication", (2) vector search for semantic matches, (3) rerank by relevance, (4) filter by "microservices" tag. This 4-step workflow consumes 152,000 tokens and takes 1.2 seconds.
 
-**Progressive Disclosure Opportunity**: Traditional tool calling forces agents to receive full content for all results upfront (150K tokens). Code execution enables a progressive disclosure pattern:
-1. Initial search returns metadata + signatures (2K tokens)
-2. Agent analyzes and identifies relevant subset
-3. Selective full-content requests for top 2-3 results (12K tokens)
-4. Total: 14K tokens (91% reduction) with same accuracy
-
-This pattern aligns with human research behavior: skim many results, deep-dive on few.
-
 ## Target Users
 
 **Primary Persona: Research & Analysis Agents**
@@ -136,50 +126,24 @@ This pattern aligns with human research behavior: skim many results, deep-dive o
 ## Success Metrics
 
 **Token Efficiency**:
-- **Primary**: 90-95% token reduction for multi-step search workflows (150,000 → 7,500-15,000 tokens)
-- **Secondary**: Average tokens per search operation <4,000 (vs. 37,500 baseline)
-- **Context**: Realistic reduction accounting for iterative refinement and selective full-content requests
+- **Primary**: 98%+ token reduction for multi-step search workflows (150,000 → 2,000 tokens)
+- **Secondary**: Average tokens per search operation <5,000 (vs. 37,500 baseline)
 
 **Performance**:
-- **Primary**: 3-4x latency improvement for 4-step workflows (1,200ms → 300-500ms)
+- **Primary**: 4x latency improvement for 4-step workflows (1,200ms → 300ms)
 - **Secondary**: 95th percentile search latency <500ms for code execution path
-- **Context**: Includes subprocess startup overhead (50-100ms)
 
 **Cost Reduction**:
-- **Primary**: 90-95% cost savings per complex search workflow ($0.45 → $0.02-$0.05)
-- **Secondary**: Agent session cost <$0.30 for 50-search sessions (vs. $22.50 baseline)
-- **Context**: Based on Claude Sonnet pricing ($3/million input tokens)
+- **Primary**: 98%+ cost savings per complex search workflow ($0.45 → $0.01)
+- **Secondary**: Agent session cost <$0.10 for 50-search sessions
 
 **Adoption**:
-- **Primary**: >50% of agents with 10+ search operations adopt code execution within 90 days
-- **Secondary**: >80% adoption within 180 days
-- **Tertiary**: >70% of integration engineers recommend for new implementations
-- **Context**: Realistic timeline accounting for documentation, examples, and ecosystem maturity
+- **Primary**: >80% of agents with 10+ search operations adopt code execution within 30 days
+- **Secondary**: >60% of integration engineers choose code execution for new implementations
 
 **Reliability**:
 - **Primary**: Code execution sandbox reliability >99.9% (no crashes, memory leaks, or security violations)
 - **Secondary**: Error rate <2% for valid Python code submissions
-- **Tertiary**: Token budget compliance >95% (actual usage within 10% of predicted)
-
-### Progressive Disclosure Pattern
-
-The revised metrics assume implementation of a **progressive disclosure pattern** where agents request increasingly detailed content:
-
-**Level 0: IDs Only (100-500 tokens)**
-- Use case: Counting matches, checking existence, cache validation
-- Token budget: 100-500 tokens for 50 results
-
-**Level 1: Signatures + Metadata (2,000-4,000 tokens)**
-- Use case: Understanding what functions exist, where they are, high-level purpose
-- Token budget: 200-400 tokens/result = 2,000-4,000 tokens for 10 results
-
-**Level 2: Signatures + Truncated Bodies (5,000-10,000 tokens)**
-- Use case: Understanding implementation approach without full details
-- Token budget: 500-1,000 tokens/result = 5,000-10,000 tokens for 10 results
-
-**Level 3: Full Content (10,000-50,000+ tokens)**
-- Use case: Deep implementation analysis, refactoring, debugging
-- Token budget: 10,000-15,000 tokens/result = 30,000-45,000 tokens for 3 results
 
 </overview>
 
@@ -199,10 +163,10 @@ Core infrastructure for safely executing agent-written Python code with resource
 - **Behavior**: Parse code AST, check for eval/exec/import violations, scan for dangerous builtins, return security analysis report
 
 #### Feature: Sandbox Environment & Resource Isolation
-- **Description**: Execute code in isolated subprocess with CPU, memory, and execution time limits enforced at OS level
+- **Description**: Execute code in isolated environment with CPU, memory, and execution time limits
 - **Inputs**: Validated Python code, resource limits (memory MB, timeout seconds), execution context (globals/locals)
 - **Outputs**: Execution result (output, return value, errors), resource usage metrics, execution metadata
-- **Behavior**: Spawn subprocess with resource limits, execute code, capture output, enforce timeout via SIGKILL/TerminateProcess, cleanup resources
+- **Behavior**: Create subprocess/VM with resource limits, execute code, capture output, enforce timeouts, cleanup resources
 
 #### Feature: Runtime Orchestration & Error Recovery
 - **Description**: Manage complete execution lifecycle including setup, validation, execution, cleanup, and error handling
@@ -414,26 +378,9 @@ Depends on all implementation layers for comprehensive testing.
 
 <implementation-roadmap>
 
-## 🏗️ Development Phases
+## Development Phases
 
-### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-### 📋 Phase 0: Foundation & Setup
-### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**Duration**: 1.5-2 weeks (10-12 working days)
-
-**Team Composition**:
-- 1 Senior Engineer (lead, 100%)
-- 1 Mid-Level Engineer (80%)
-- 1 Infrastructure Specialist (20%, setup only)
-- **Total Effort**: 2.0 FTE-weeks
-
-**Resource Requirements**:
-- Development environments (local machines)
-- CI/CD pipeline setup (GitHub Actions, free tier)
-- Security scanning tools (bandit, safety - open source)
-- Pre-commit hooks infrastructure
-
+### Phase 0: Foundation & Setup
 **Goal**: Establish project infrastructure, core type definitions, testing framework, and security specifications for the Code Execution with MCP system.
 
 **Entry Criteria**:
@@ -504,26 +451,7 @@ Depends on all implementation layers for comprehensive testing.
 
 ---
 
----
-
-### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-### 🔍 Phase 1: Code Search & Processing APIs
-### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**Duration**: 2-3 weeks (12-18 working days)
-
-**Team Composition**:
-- 2 Senior Engineers (100% each, can work in parallel)
-- 1 Mid-Level Engineer (100%)
-- Security Specialist (10%, review only)
-- **Total Effort**: 3.1 FTE-weeks
-
-**Resource Requirements**:
-- Sample knowledge base (100+ code files for testing)
-- Vector embedding models (pre-trained, ~500MB download)
-- BM25 indexing infrastructure
-- Performance testing compute (can use local machines)
-
+### Phase 1: Code Search & Processing APIs
 **Goal**: Implement core search functionality with hybrid search, semantic reranking, filtering, and result processing.
 
 **Entry Criteria**:
@@ -609,53 +537,29 @@ Depends on all implementation layers for comprehensive testing.
 
 ---
 
----
-
-### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-### 🔒 Phase 2: Sandbox & Execution Engine
-### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**Duration**: 2.5-3.5 weeks (15-21 working days)
-
-**Team Composition**:
-- 2 Senior Engineers (100% each)
-- 1 Security Specialist (40%, critical phase)
-- 1 Mid-Level Engineer (80%, testing focus)
-- **Total Effort**: 3.2 FTE-weeks
-
-**Resource Requirements**:
-- RestrictedPython library and dependencies
-- Security testing tools (custom scripts + open source scanners)
-- Resource monitoring infrastructure (tracemalloc, psutil)
-- Isolated testing environments (Docker optional)
-
+### Phase 2: Sandbox & Execution Engine
 **Goal**: Build secure code execution environment with resource isolation, validation, and orchestration.
 
 **Entry Criteria**:
 - Phase 0 security specification approved
 - Phase 1 search APIs operational
-- Subprocess-based execution approach validated and approved
+- Sandbox technology evaluated (RestrictedPython + threading)
 - Security testing framework in place
 
 **Tasks**:
-- [ ] **Implement CodeExecutionSandbox with subprocess-based resource isolation** (depends on: Phase 0 security spec)
+- [ ] **Implement CodeExecutionSandbox with resource isolation** (depends on: Phase 0 security spec)
   - Acceptance criteria:
-    - Subprocess-based execution with OS-level process isolation (REQUIRED in v1)
-    - Timeout enforcement via SIGKILL (Linux/macOS) or TerminateProcess (Windows)
-    - Resource limits enforced: memory <512MB via setrlimit, execution <30s via subprocess timeout
-    - Restricted global namespace (only safe builtins) for user code
+    - Execution environment isolated (no filesystem access outside temp dir, no network)
+    - Resource limits enforced: memory <512MB, execution <30s, single-threaded
+    - Restricted global namespace (only safe builtins)
     - Execution results captured (stdout, stderr, return value, exceptions)
-    - Clean subprocess lifecycle: spawn → execute → terminate → cleanup
-    - Support for async code execution (async/await) within subprocess
-    - 100% timeout reliability (no GIL interference, uncatchable SIGKILL)
+    - Clean environment reset between executions
+    - Support for async code execution (async/await)
   - Test strategy:
-    - Security tests: 15+ attack vectors blocked including infinite loops
-    - Timeout enforcement: 100% reliability with CPU-bound infinite loops
-    - Platform compatibility: Linux, macOS, Windows subprocess termination
-    - Resource limit tests: CPU, memory enforcement via OS
+    - Security tests: 15+ attack vectors blocked
+    - Resource limit tests: CPU, memory, timeout enforcement
     - Stability tests: 1000+ executions without leaks
     - Output capture tests: all streams captured correctly
-    - Subprocess overhead: <30ms P95 measured
 
 - [ ] **Implement InputValidator for code safety checking** (depends on: CodeExecutionSandbox)
   - Acceptance criteria:
@@ -711,28 +615,7 @@ Depends on all implementation layers for comprehensive testing.
 
 ---
 
----
-
-### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-### 🚀 Phase 3: MCP Integration & Full System Testing
-### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**Duration**: 2-2.5 weeks (12-15 working days)
-
-**Team Composition**:
-- 2 Senior Engineers (100% each)
-- 1 Mid-Level Engineer (100%)
-- Security Specialist (20%, audit)
-- Infrastructure Specialist (20%, deployment prep)
-- **Total Effort**: 3.4 FTE-weeks
-
-**Resource Requirements**:
-- MCP SDK and dependencies
-- End-to-end testing infrastructure
-- Monitoring and observability tools (logging, metrics)
-- Production-like staging environment
-- External security audit engagement
-
+### Phase 3: MCP Integration & Full System Testing
 **Goal**: Integrate code search and execution into MCP server with complete testing and production readiness.
 
 **Entry Criteria**:
@@ -819,69 +702,6 @@ Depends on all implementation layers for comprehensive testing.
 - Comprehensive monitoring and observability
 - Security-validated system
 - Complete documentation
-
-
----
-
-## Timeline & Resource Planning
-
-### Project Duration
-- **Optimized Timeline**: 7-9 weeks
-- **Recommended Timeline**: 8 weeks + 1 week buffer
-- **Critical Path**: Foundation → Sandbox → Integration (6-7 weeks)
-
-### Team Composition Summary
-- **Core Team**: 2 Senior Engineers, 1 Mid-Level Engineer (3-4 FTE)
-- **Specialists**: Security Specialist (2-3 weeks), Infrastructure Specialist (0.5-1 week)
-- **Total Effort**: 25-35 FTE-weeks across all phases
-
-### Budget Estimate
-- **Engineering**: $120K-160K (with benefits/overhead)
-- **Infrastructure**: $2K-5K (compute, tools, environments)
-- **Security Audit**: $10K-25K (external penetration testing)
-- **Total Project Cost**: $135K-190K
-
-### Key Milestones
-1. **Week 2**: Foundation complete, security spec approved
-2. **Week 4**: Search APIs operational, sandbox core working
-3. **Week 5**: Security validated, zero breaches
-4. **Week 7**: MCP integration complete, E2E tests passing
-5. **Week 8**: Security audit passed, production ready
-
-### Parallelization Strategy
-- **Weeks 3-4**: Phase 1 (Search APIs) || Phase 2a (Sandbox Core) - run in parallel
-- **Week 5**: Phase 2b (Security Hardening) - all hands
-- **Weeks 6-7**: Phase 3 (MCP Integration) - all hands
-- **Savings**: 2-3 weeks vs sequential approach
-
-### Critical Path Analysis
-The longest sequential path determines minimum project duration:
-
-```
-Phase 0: Foundation (2 weeks)
-    ↓
-Phase 2a: Core Sandbox (2 weeks)
-    ↓
-Phase 2b: Security Hardening (1.5 weeks)
-    ↓
-Phase 3: MCP Integration (2-2.5 weeks)
-```
-
-**Total Critical Path**: 6-7 weeks minimum
-
-**Why This Path is Critical**:
-- Foundation must complete before any implementation
-- Sandbox security is highest risk, cannot be parallelized
-- MCP integration requires working sandbox
-- Security audit must be last (requires complete system)
-
-**Parallelizable Work** (saves 2-3 weeks):
-- Phase 1 (Search APIs) can run parallel to Phase 2a (Sandbox Core)
-- Documentation and testing can proceed continuously
-- Infrastructure setup can overlap with Phase 0
-
-For detailed phase breakdowns with task estimates, see `SOLUTION_TIME_ESTIMATES.md`.
-
 
 </implementation-roadmap>
 
@@ -1062,13 +882,13 @@ class ValidationResult:
 
 **Language**: Python 3.11+
 - **Rationale**: Rich sandboxing ecosystem, excellent MCP SDK support, async/await for concurrent execution
-- **Trade-offs**: Subprocess overhead (+15-30ms), more memory overhead than compiled alternatives
+- **Trade-offs**: GIL limits true parallelism, more memory overhead than compiled alternatives
 - **Alternatives considered**: Node.js (weaker sandboxing), Go (compilation overhead for dynamic code)
 
-**Sandboxing Approach**: Subprocess-based execution with OS-level process isolation (REQUIRED in v1)
-- **Rationale**: Guaranteed timeout via SIGKILL/TerminateProcess, cross-platform (Windows/Linux/macOS), simpler than threading-based approaches, no GIL interference
-- **Trade-offs**: +15-30ms subprocess overhead per execution (acceptable for 30s budget), subprocess spawn cost
-- **Alternatives considered**: Threading with signal.alarm (GIL interference, unreliable timeouts, catchable signals), RestrictedPython (insufficient for timeout enforcement), Docker only (100-300ms overhead)
+**Sandboxing Approach**: RestrictedPython + threading timeouts (baseline), Docker containerization (optional)
+- **Rationale**: Cross-platform compatibility, minimal external dependencies, production-grade with Docker
+- **Trade-offs**: Threading timeouts imperfect for infinite loops, Docker adds 100-300ms startup
+- **Alternatives considered**: Firecracker VM (complexity), gVisor (limited platform support)
 
 **Security Model**: Whitelist-based (explicit allowed imports vs blacklist)
 - **Rationale**: Secure by default, easier to audit, impossible to enumerate all dangerous operations
@@ -1087,172 +907,15 @@ class ValidationResult:
 - **Implementation**: ResultProcessor truncates content, selects essential fields, uses compact JSON
 - **Trade-offs**: Users receive truncated results (design for agent use, not human readability)
 
-**Decision: Thread-Pool with Subprocess Isolation**
-- **Rationale**: MCP servers must handle concurrent clients without blocking. Thread pool enables parallel execution while subprocess isolation ensures security.
-- **Implementation**:
-  - Async MCP server (event loop for I/O multiplexing)
-  - ThreadPoolExecutor (10 workers, bounded queue depth 50)
-  - Subprocess execution (OS-level isolation, SIGKILL timeout)
-- **Concurrency Model**:
-  - Request handling: Async (non-blocking)
-  - Code execution: Subprocess (isolated, one per thread)
-  - Thread pool: Bounded to prevent resource exhaustion
-- **Load Shedding**: 429 Too Many Requests when queue full, exponential backoff
-- **Throughput**: 0.33 requests/second sustained (20/minute, 1,200/hour)
-- **Trade-offs**:
-  - Pro: 10x throughput vs single-threaded, fair scheduling, production-ready
-  - Pro: Simpler than async subprocess management
-  - Con: 10-20ms subprocess spawn overhead (acceptable)
-- **Security**: Threads manage subprocesses (not execute code), OS-level isolation preserved
-- **Alternatives Considered**:
-  - Single-threaded: Blocks all clients during execution (unacceptable UX)
-  - Async with asyncio.create_subprocess_exec: More complex, similar performance
-  - Process pool: Equivalent to thread pool for this use case
+**Decision: Single-Threaded Execution Model**
+- **Rationale**: Simpler reasoning about state, matches MCP request-response pattern
+- **Trade-offs**: Cannot parallelize multiple queries, blocking on long operations
+- **Alternatives**: Worker pool (resource overhead), async (complexity)
 
 **Decision: Explicit Allowlist for Modules**
 - **Rationale**: Impossible to enumerate all dangerous patterns, whitelist is safer
 - **Trade-offs**: More restrictive for users
 - **Alternatives**: Blacklist (incomplete), full trust (unacceptable risk)
-
-## Concurrency Architecture
-
-**Request Flow**:
-1. MCP async server receives `execute_code` requests from multiple clients
-2. Async handler validates input (AST analysis, <100ms, non-blocking)
-3. Submits execution to ThreadPoolExecutor via `run_in_executor()`
-4. Worker thread spawns subprocess for code execution
-5. Thread blocks waiting for subprocess (up to 30s timeout)
-6. Other worker threads continue processing other requests in parallel
-7. Subprocess completes → thread returns result → async handler returns to client
-
-**Layers**:
-- **Layer 1 (MCP Server)**: Async event loop, handles all client I/O
-- **Layer 2 (Thread Pool)**: 10 worker threads, bounded queue (50 depth)
-- **Layer 3 (Subprocess)**: OS-isolated Python interpreter per execution
-
-**Capacity Management**:
-- Max concurrent executions: 10 (ThreadPoolExecutor workers)
-- Max queue depth: 50 pending requests
-- Rejection policy: HTTP 429 when queue full, retry-after guidance
-- Sustainable throughput: 0.33 requests/second (1,200/hour)
-
-**Security Isolation**:
-- Threads do NOT execute user code directly
-- Threads manage subprocess lifecycle (spawn, wait, kill)
-- Subprocesses isolated by OS (memory, file descriptors, network)
-- No shared state between concurrent executions
-
-## Security Architecture
-
-### Defense-in-Depth Security Model
-
-Code Execution with MCP implements a **multi-layer security architecture** with 8 independent defense layers. No single layer is sufficient; security relies on defense-in-depth.
-
-**Security Layers** (in order of execution):
-1. **Input Validation**: AST analysis blocks dangerous patterns (eval, exec, forbidden imports)
-2. **Subprocess Isolation**: OS-level process boundary with independent resource limits (MANDATORY)
-3. **System Call Filtering**: Kernel-enforced syscall restrictions (seccomp-bpf on Linux)
-4. **Resource Constraints**: CPU, memory, file descriptor, and disk limits
-5. **Network Isolation**: Network namespace (Linux) or firewall rules
-6. **Filesystem Isolation**: chroot/temp directory, read-only stdlib access
-7. **Output Sanitization**: XSS prevention, size limits, path scrubbing
-8. **Audit & Monitoring**: Structured logging, anomaly detection, rate limiting
-
-**Security Posture**:
-- ✅ **Suitable for**: Semi-trusted agent code, internal development, research workloads
-- ❌ **NOT suitable for**: Adversarial users, public-facing APIs, untrusted code from external sources
-
-**Subprocess Isolation (Mandatory)**:
-All code execution occurs in isolated subprocesses, NOT threads. This provides:
-- Guaranteed timeout enforcement via SIGKILL
-- Memory isolation (separate address space)
-- Crash isolation (subprocess crash doesn't affect parent)
-- OS-level resource accounting
-- **Overhead**: 10-50ms subprocess startup (acceptable for security benefit)
-
-**Platform Support**:
-- **Linux**: Full support (seccomp-bpf, network namespaces, cgroups) - **Primary platform**
-- **macOS**: Partial support (sandbox-exec, rlimit) - **Secondary platform**
-- **Windows**: Limited support (Job Objects, firewall rules) - **Tertiary platform**
-
-See SOLUTION_ISSUE_1_SECURITY_ARCHITECTURE.md for complete 8-layer specification.
-
-## Threat Model and Security Assumptions
-
-### Explicit Security Assumptions (v1)
-
-**1. Semi-Trusted Code Sources**
-- Code is generated by Claude agents, not directly by untrusted users
-- Agents provide first line of defense (unlikely to generate malicious code)
-- Security focuses on accidental misuse and moderate-effort attacks
-
-**2. Internal Deployment Context**
-- System operates in controlled environments (corporate networks, research labs)
-- External network protections (firewalls, IDS) exist
-- Physical access is controlled
-
-**3. Observable Operations**
-- All code execution is logged and auditable
-- Security team can investigate incidents
-- Anomaly detection alerts on suspicious patterns
-
-**4. Acceptable Risk Tolerance**
-- System prioritizes usability over cryptographic security guarantees
-- Accepts risk of sophisticated attacks (state-level adversaries)
-- Relies on detection and incident response for advanced threats
-
-### Explicit Non-Goals
-
-**What This System Does NOT Defend Against**:
-- ❌ State-level adversaries with kernel exploits or zero-days
-- ❌ Hardware side-channel attacks (Spectre, Meltdown, cache timing)
-- ❌ Social engineering targeting operators
-- ❌ Persistent compromises (rootkits, firmware attacks)
-- ❌ Physical access attacks
-
-**Use Cases This System Is NOT Designed For**:
-- ❌ Public-facing code execution API (e.g., online coding platforms)
-- ❌ Multi-tenant SaaS with adversarial users
-- ❌ Financial transaction processing
-- ❌ PII/PHI data processing (without additional controls)
-- ❌ Cryptographic operations
-
-### Threat Actors
-
-| Threat Actor | Skill Level | Defended? | Notes |
-|--------------|-------------|-----------|-------|
-| Curious Agent | Low | ✅ Yes | Input validation + isolation |
-| Buggy Code | N/A | ✅ Yes | Resource limits + timeout |
-| Moderate Attacker | Medium | ✅ Yes | Multiple layers required to bypass |
-| Advanced Persistent Threat | High | ⚠️ Partial | Detection and response, not prevention |
-| State-Level Adversary | Very High | ❌ No | Out of scope |
-
-### Security Boundaries
-
-**Trust Boundary 1**: Agent → MCP Server
-- Agent is semi-trusted
-- Input validation provides sanity checking
-- Not designed to defend against malicious agents
-
-**Trust Boundary 2**: MCP Server → Subprocess
-- Subprocess is untrusted
-- All 8 security layers enforced
-- Primary security boundary
-
-**Trust Boundary 3**: Subprocess → Host OS
-- Host OS is trusted
-- Kernel vulnerabilities out of scope
-- OS updates and patching are operational requirements
-
-### Residual Risks
-
-**Accepted Risks** (documented and monitored):
-1. **RestrictedPython Bypasses**: Known history of bypasses, mitigated by subprocess isolation
-2. **Kernel Exploits**: Out of scope, rely on OS security updates
-3. **Timing Attacks**: Execution time variation may leak information (accepted for v1)
-4. **Resource Competition**: Concurrent executions may compete for resources (rate limiting mitigates)
-
-**Risk Mitigation Strategy**: Defense-in-depth ensures that exploitation of one vulnerability doesn't compromise the entire system.
 
 </architecture>
 
@@ -1263,12 +926,13 @@ See SOLUTION_ISSUE_1_SECURITY_ARCHITECTURE.md for complete 8-layer specification
 ## Technical Risks
 
 **Risk: Timeout Mechanism Failure**
-- **Status**: RESOLVED via subprocess-based execution in v1
-- **Implementation**: subprocess.Popen with proc.kill() (SIGKILL on Linux/macOS, TerminateProcess on Windows)
-- **Reliability**: 100% (OS-level process termination, uncatchable by user code)
-- **Why Threading Failed**: GIL interference makes threading.Timer unreliable for CPU-bound infinite loops, signal.alarm catchable by user code
-- **Platform Support**: Cross-platform (Windows, Linux, macOS) via subprocess stdlib
-- **Overhead**: +15-30ms subprocess spawn overhead (acceptable for 30s execution budget)
+- **Impact**: High (infinite loops crash server or consume resources)
+- **Likelihood**: Medium (Python threading.Timer is best-effort, not guaranteed)
+- **Mitigation**:
+  - Multi-layer timeout (signal.alarm on Unix, watchdog thread, instruction counting)
+  - Document platform-specific limitations
+  - Test timeout enforcement with 1000+ test cases
+- **Fallback**: Fall back to subprocess-based execution with hard kill after grace period
 
 **Risk: Memory Exhaustion**
 - **Impact**: High (OOM kills server process, affects all users)
@@ -1379,48 +1043,6 @@ See SOLUTION_ISSUE_1_SECURITY_ARCHITECTURE.md for complete 8-layer specification
   - FAQ from beta user feedback
 - **Fallback**: Comprehensive README-only approach
 
-
-## Risk Priority Matrix
-
-### 🔴 Critical Priority (Immediate Action Required)
-| Risk | Impact | Likelihood | Timeline | Mitigation Status |
-|------|--------|------------|----------|-------------------|
-| **Security Validation Bypass** | 🔴 Critical | 🟡 Low | Blocks Launch | ⏳ Testing Phase |
-
-### 🟠 High Priority (Address in Current Phase)
-| Risk | Impact | Likelihood | Timeline | Mitigation Status |
-|------|--------|------------|----------|-------------------|
-| **Timeout Mechanism Failure** | 🟠 High | 🟡 Medium | Delays Testing | ✅ Multi-layer design |
-| **Memory Exhaustion** | 🟠 High | 🟡 Medium | Delays Phase 2 | ⏳ Resource limits planned |
-| **MCP SDK Breaking Changes** | 🟠 High | 🟡 Medium | Blocks Phase 3 | ✅ Version pinning |
-| **Scope Creep to Full REPL** | 🟠 High | 🔴 High | Delays All Phases | ✅ Strict v1 scope |
-| **Security Hardening Underestimation** | 🟠 High | 🟡 Medium | Delays Launch | ⏳ 40% timeline allocated |
-
-### 🟡 Medium Priority (Monitor & Prepare)
-| Risk | Impact | Likelihood | Timeline | Mitigation Status |
-|------|--------|------------|----------|-------------------|
-| **Token Usage Not Improving** | 🟡 Medium | 🟡 Medium | Post-Launch | ⏳ A/B testing planned |
-| **Performance Overhead** | 🟡 Medium | 🟢 Low | Affects Adoption | ✅ Benchmarks in place |
-| **RestrictedPython Maintenance** | 🟡 Medium | 🟢 Low | Long-term | ⏳ Fork capability ready |
-| **Integration Complexity** | 🟡 Medium | 🟡 Medium | Phase 3 | ✅ Isolated module design |
-| **Documentation Insufficiency** | 🟡 Medium | 🔴 High | Affects Adoption | ⏳ 20% timeline allocated |
-
-### 🟢 Low Priority (Acceptable Risk)
-| Risk | Impact | Likelihood | Timeline | Mitigation Status |
-|------|--------|------------|----------|-------------------|
-| **Docker Unavailability** | 🟢 Low | 🔴 High | Optional Feature | ✅ Graceful fallback |
-
-### Legend
-- **Impact Levels**: 🔴 Critical | 🟠 High | 🟡 Medium | 🟢 Low
-- **Likelihood**: 🔴 High (>70%) | 🟡 Medium (30-70%) | 🟢 Low (<30%)
-- **Mitigation Status**: ✅ Complete | ⏳ In Progress | ❌ Not Started
-
-### Risk Response Strategy
-1. **Critical Risks**: Daily monitoring, immediate escalation, stop-work triggers
-2. **High Risks**: Weekly review, active mitigation, fallback plans ready
-3. **Medium Risks**: Bi-weekly review, monitoring metrics, preparation phase
-4. **Low Risks**: Monthly review, accept and monitor
-
 </risks>
 
 ---
@@ -1458,7 +1080,7 @@ See SOLUTION_ISSUE_1_SECURITY_ARCHITECTURE.md for complete 8-layer specification
 ## Open Questions
 
 1. **Docker Support**: Should v1 include Docker as a sandbox backend option, or defer to v2?
-   - Decision: Defer Docker to v2, focus on subprocess-based baseline for v1 (provides sufficient isolation)
+   - Decision: Defer Docker to v2, focus on threading-based baseline for v1
 
 2. **Result Caching**: Should we cache frequent search queries or execution results?
    - Decision: No caching in v1 to avoid stale results, implement cache-busting strategy if added
@@ -1485,8 +1107,8 @@ See SOLUTION_ISSUE_1_SECURITY_ARCHITECTURE.md for complete 8-layer specification
 - Performance test against production data
 
 ### Phase 2 - Sandbox
-- Implement subprocess-based execution (REQUIRED in v1)
-- Plan for optional Docker upgrade in v1.1 or v2 for enhanced filesystem isolation
+- Start with RestrictedPython + threading baseline
+- Plan for optional Docker upgrade in v1.1 or v2
 - Security audit early in phase
 
 ### Phase 3 - MCP Integration
@@ -1496,15 +1118,13 @@ See SOLUTION_ISSUE_1_SECURITY_ARCHITECTURE.md for complete 8-layer specification
 
 ## Success Criteria for MVP
 
-✅ Token reduction: 90-95% for test workflows (150K → 7.5K-15K)
-✅ Token budget compliance: >95% (actual ≤ predicted + 10%)
-✅ Latency improvement: 3-4x faster execution (1,200ms → 300-500ms)
-✅ Cost reduction: 90-95% cheaper per query ($0.45 → $0.02-$0.05)
+✅ Token reduction: 98%+ for test workflows (150K → 2K)
+✅ Latency improvement: 4x faster execution (1.2s → 300ms)
+✅ Cost reduction: 98% cheaper per query ($0.45 → $0.01)
 ✅ Security: Zero isolation breaches in penetration testing
-✅ Reliability: >99.9% uptime, <2% error rate
-✅ Adoption: >50% of agents with 10+ searches adopt within 90 days
-✅ Documentation: Complete API docs, 10+ examples, progressive disclosure guide, setup guide
-✅ Validation: A/B test confirms ≥85% token reduction with statistical significance (p<0.01)
+✅ Reliability: >99.9% uptime, <1% error rate
+✅ Adoption: >80% of agents with 10+ searches adopt feature
+✅ Documentation: Complete API docs, 10+ examples, setup guide
 
 </appendix>
 
