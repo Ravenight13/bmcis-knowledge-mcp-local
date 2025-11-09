@@ -28,18 +28,20 @@ class TestIndexPerformance:
         with DatabasePool.get_connection() as conn:
             with conn.cursor() as cur:
                 # Create 100 test entities (sufficient for index testing)
-                entity_ids = [str(uuid.uuid4()) for _ in range(100)]
+                # Note: id is auto-generated, entity_name is the text field
+                entity_ids: list[int] = []
 
-                for i, eid in enumerate(entity_ids):
+                for i in range(100):
                     cur.execute(
                         """
                         INSERT INTO knowledge_entities
-                        (id, text, entity_type, confidence)
-                        VALUES (%s, %s, %s, %s)
-                        ON CONFLICT DO NOTHING
+                        (entity_name, entity_type)
+                        VALUES (%s, %s)
+                        RETURNING id
                         """,
-                        (eid, f"Test Entity {i}", "PERSON", 0.9)
+                        (f"Test Entity {i}", "PERSON")
                     )
+                    entity_ids.append(cur.fetchone()[0])
 
                 # Create 500 test relationships (5 per entity on average)
                 for i in range(500):
@@ -50,11 +52,11 @@ class TestIndexPerformance:
                     cur.execute(
                         """
                         INSERT INTO entity_relationships
-                        (source_entity_id, target_entity_id, relationship_type, confidence)
-                        VALUES (%s, %s, %s, %s)
+                        (source_entity_id, target_entity_id, relationship_type, confidence, relationship_weight)
+                        VALUES (%s, %s, %s, %s, %s)
                         ON CONFLICT DO NOTHING
                         """,
-                        (source, target, "similar-to", confidence)
+                        (source, target, "similar-to", confidence, 1.0)
                     )
 
                 conn.commit()
@@ -67,7 +69,7 @@ class TestIndexPerformance:
                 cur.execute(
                     "DELETE FROM entity_relationships WHERE relationship_type = 'similar-to'"
                 )
-                cur.execute("DELETE FROM knowledge_entities WHERE text LIKE 'Test Entity %'")
+                cur.execute("DELETE FROM knowledge_entities WHERE entity_name LIKE 'Test Entity %'")
                 conn.commit()
 
     def measure_query_latency(
@@ -187,7 +189,7 @@ class TestIndexPerformance:
                 entity_id = result[0]
 
         query = """
-            SELECT r.target_entity_id, r.confidence, e.text, e.entity_type
+            SELECT r.target_entity_id, r.confidence, e.entity_name, e.entity_type
             FROM entity_relationships r
             JOIN knowledge_entities e ON r.target_entity_id = e.id
             WHERE r.source_entity_id = %s
@@ -226,7 +228,7 @@ class TestIndexPerformance:
         Expected: P95 < 3ms (was 18.5ms before index)
         """
         query = """
-            SELECT id, text, confidence
+            SELECT id, entity_name
             FROM knowledge_entities
             WHERE entity_type = %s
             ORDER BY id
@@ -263,7 +265,7 @@ class TestIndexPerformance:
         Expected: P95 < 2ms (was 5-10ms before index)
         """
         query = """
-            SELECT id, text, entity_type, updated_at
+            SELECT id, entity_name, entity_type, updated_at
             FROM knowledge_entities
             WHERE updated_at > NOW() - INTERVAL '1 hour'
             ORDER BY updated_at DESC
@@ -316,7 +318,7 @@ class TestIndexPerformance:
                 entity_id = result[0]
 
         query = """
-            SELECT r.source_entity_id, r.confidence, e.text AS source_text
+            SELECT r.source_entity_id, r.confidence, e.entity_name AS source_name
             FROM entity_relationships r
             JOIN knowledge_entities e ON r.source_entity_id = e.id
             WHERE r.target_entity_id = %s
@@ -356,35 +358,38 @@ class TestIndexPerformance:
         # Create a source entity with many relationships
         with DatabasePool.get_connection() as conn:
             with conn.cursor() as cur:
-                source_id = str(uuid.uuid4())
+                # Create source entity
                 cur.execute(
                     """
                     INSERT INTO knowledge_entities
-                    (id, text, entity_type, confidence)
-                    VALUES (%s, %s, %s, %s)
+                    (entity_name, entity_type)
+                    VALUES (%s, %s)
+                    RETURNING id
                     """,
-                    (source_id, "Hub Entity", "PERSON", 0.95)
+                    ("Hub Entity", "PERSON")
                 )
+                source_id = cur.fetchone()[0]
 
                 # Create 50 related entities
                 for i in range(50):
-                    target_id = str(uuid.uuid4())
                     cur.execute(
                         """
                         INSERT INTO knowledge_entities
-                        (id, text, entity_type, confidence)
-                        VALUES (%s, %s, %s, %s)
+                        (entity_name, entity_type)
+                        VALUES (%s, %s)
+                        RETURNING id
                         """,
-                        (target_id, f"Related {i}", "PERSON", 0.9)
+                        (f"Related {i}", "PERSON")
                     )
+                    target_id = cur.fetchone()[0]
 
                     cur.execute(
                         """
                         INSERT INTO entity_relationships
-                        (source_entity_id, target_entity_id, relationship_type, confidence)
-                        VALUES (%s, %s, %s, %s)
+                        (source_entity_id, target_entity_id, relationship_type, confidence, relationship_weight)
+                        VALUES (%s, %s, %s, %s, %s)
                         """,
-                        (source_id, target_id, "similar-to", 0.5 + (i % 10) * 0.05)
+                        (source_id, target_id, "similar-to", 0.5 + (i % 10) * 0.05, 1.0)
                     )
 
                 conn.commit()
@@ -425,7 +430,7 @@ class TestIndexPerformance:
                     (source_id,)
                 )
                 cur.execute(
-                    "DELETE FROM knowledge_entities WHERE id = %s OR text LIKE 'Related %'",
+                    "DELETE FROM knowledge_entities WHERE id = %s OR entity_name LIKE 'Related %'",
                     (source_id,)
                 )
                 conn.commit()
