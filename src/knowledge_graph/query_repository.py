@@ -17,6 +17,7 @@ Architecture:
 
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
+from uuid import UUID
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,25 +26,25 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RelatedEntity:
     """Result structure for entity traversal queries."""
-    id: int
+    id: UUID
     text: str
     entity_type: str
     entity_confidence: Optional[float]
     relationship_type: str
     relationship_confidence: float
-    relationship_metadata: Optional[Dict[str, Any]] = None
+    relationship_metadata: Optional[float] = None
 
 
 @dataclass
 class TwoHopEntity:
     """Result structure for 2-hop traversal queries."""
-    id: int
+    id: UUID
     text: str
     entity_type: str
     entity_confidence: Optional[float]
     relationship_type: str
     relationship_confidence: float
-    intermediate_entity_id: int
+    intermediate_entity_id: UUID
     intermediate_entity_name: str
     path_confidence: float
     path_depth: int = 2
@@ -52,7 +53,7 @@ class TwoHopEntity:
 @dataclass
 class BidirectionalEntity:
     """Result structure for bidirectional traversal."""
-    id: int
+    id: UUID
     text: str
     entity_type: str
     entity_confidence: Optional[float]
@@ -68,7 +69,7 @@ class EntityMention:
     """Result structure for entity mention lookups."""
     chunk_id: int
     document_id: str
-    chunk_text: str
+    mention_text: str
     document_category: Optional[str]
     chunk_index: int
     mention_confidence: float
@@ -94,7 +95,7 @@ class KnowledgeGraphQueryRepository:
 
     def traverse_1hop(
         self,
-        entity_id: int,
+        entity_id: UUID,
         min_confidence: float = 0.7,
         relationship_types: Optional[List[str]] = None,
         max_results: int = 50
@@ -105,7 +106,7 @@ class KnowledgeGraphQueryRepository:
         Performance: P50 <5ms, P95 <10ms (with index on source_entity_id)
 
         Args:
-            entity_id: Source entity ID
+            entity_id: Source entity ID (UUID)
             min_confidence: Minimum relationship confidence (default: 0.7)
             relationship_types: Optional filter by relationship types
             max_results: Limit results (default: 50)
@@ -114,8 +115,8 @@ class KnowledgeGraphQueryRepository:
             List of RelatedEntity objects, sorted by relationship confidence (descending)
 
         Example:
-            >>> repo.traverse_1hop(entity_id=123, min_confidence=0.8, max_results=10)
-            [RelatedEntity(id=456, text='Claude AI', ...)]
+            >>> repo.traverse_1hop(entity_id=uuid4(), min_confidence=0.8, max_results=10)
+            [RelatedEntity(id=uuid4(), text='Claude AI', ...)]
         """
         query = """
         WITH related_entities AS (
@@ -123,7 +124,7 @@ class KnowledgeGraphQueryRepository:
                 r.target_entity_id,
                 r.relationship_type,
                 r.confidence AS relationship_confidence,
-                r.metadata AS relationship_metadata
+                r.relationship_weight AS relationship_metadata
             FROM entity_relationships r
             WHERE r.source_entity_id = %s
               AND r.confidence >= %s
@@ -131,9 +132,9 @@ class KnowledgeGraphQueryRepository:
         )
         SELECT
             e.id,
-            e.entity_name AS text,
+            e.text,
             e.entity_type,
-            e.metadata->>'confidence' AS entity_confidence,
+            e.confidence AS entity_confidence,
             re.relationship_type,
             re.relationship_confidence,
             re.relationship_metadata
@@ -162,7 +163,7 @@ class KnowledgeGraphQueryRepository:
                             id=row[0],
                             text=row[1],
                             entity_type=row[2],
-                            entity_confidence=float(row[3]) if row[3] else None,
+                            entity_confidence=row[3],
                             relationship_type=row[4],
                             relationship_confidence=row[5],
                             relationship_metadata=row[6]
@@ -175,7 +176,7 @@ class KnowledgeGraphQueryRepository:
 
     def traverse_2hop(
         self,
-        entity_id: int,
+        entity_id: UUID,
         min_confidence: float = 0.7,
         relationship_types: Optional[List[str]] = None,
         max_results: int = 100
@@ -186,7 +187,7 @@ class KnowledgeGraphQueryRepository:
         Performance: P50 <20ms, P95 <50ms (depends on fanout)
 
         Args:
-            entity_id: Source entity ID
+            entity_id: Source entity ID (UUID)
             min_confidence: Minimum relationship confidence (default: 0.7)
             relationship_types: Optional filter by relationship types
             max_results: Limit results (default: 100)
@@ -196,8 +197,8 @@ class KnowledgeGraphQueryRepository:
             Path confidence = geometric mean of hop1_confidence * hop2_confidence
 
         Example:
-            >>> repo.traverse_2hop(entity_id=123, max_results=20)
-            [TwoHopEntity(id=789, text='GPT-4', intermediate_entity_id=456, ...)]
+            >>> repo.traverse_2hop(entity_id=uuid4(), max_results=20)
+            [TwoHopEntity(id=uuid4(), text='GPT-4', intermediate_entity_id=uuid4(), ...)]
         """
         query = """
         WITH hop1 AS (
@@ -213,13 +214,13 @@ class KnowledgeGraphQueryRepository:
         hop2 AS (
             SELECT
                 r2.target_entity_id AS entity_id,
-                e2.entity_name AS text,
+                e2.text,
                 e2.entity_type,
-                e2.metadata->>'confidence' AS entity_confidence,
+                e2.confidence AS entity_confidence,
                 r2.relationship_type AS hop2_rel_type,
                 r2.confidence AS hop2_confidence,
                 h1.entity_id AS intermediate_entity_id,
-                ei.entity_name AS intermediate_entity_name,
+                ei.text AS intermediate_entity_name,
                 h1.hop1_confidence,
                 h1.hop1_rel_type,
                 SQRT(h1.hop1_confidence * r2.confidence) AS path_confidence
@@ -270,7 +271,7 @@ class KnowledgeGraphQueryRepository:
                             id=row[0],
                             text=row[1],
                             entity_type=row[2],
-                            entity_confidence=float(row[3]) if row[3] else None,
+                            entity_confidence=row[3],
                             relationship_type=row[4],
                             relationship_confidence=row[5],
                             intermediate_entity_id=row[6],
@@ -286,7 +287,7 @@ class KnowledgeGraphQueryRepository:
 
     def traverse_bidirectional(
         self,
-        entity_id: int,
+        entity_id: UUID,
         min_confidence: float = 0.7,
         max_depth: int = 1,
         max_results: int = 50
@@ -297,7 +298,7 @@ class KnowledgeGraphQueryRepository:
         Performance: P50 <15ms (1-hop), P95 <30ms
 
         Args:
-            entity_id: Source entity ID
+            entity_id: Source entity ID (UUID)
             min_confidence: Minimum relationship confidence (default: 0.7)
             max_depth: Maximum traversal depth (1 or 2, default: 1)
             max_results: Limit results (default: 50)
@@ -307,8 +308,8 @@ class KnowledgeGraphQueryRepository:
             and max confidence (descending)
 
         Example:
-            >>> repo.traverse_bidirectional(entity_id=123, max_results=30)
-            [BidirectionalEntity(id=456, outbound_rel_types=['similar-to'], ...)]
+            >>> repo.traverse_bidirectional(entity_id=uuid4(), max_results=30)
+            [BidirectionalEntity(id=uuid4(), outbound_rel_types=['similar-to'], ...)]
         """
         query = """
         WITH outbound AS (
@@ -347,9 +348,9 @@ class KnowledgeGraphQueryRepository:
         )
         SELECT
             c.entity_id,
-            e.entity_name AS text,
+            e.text,
             e.entity_type,
-            e.metadata->>'confidence' AS entity_confidence,
+            e.confidence AS entity_confidence,
             c.outbound_rel_types,
             c.inbound_rel_types,
             c.max_confidence,
@@ -380,7 +381,7 @@ class KnowledgeGraphQueryRepository:
                             id=row[0],
                             text=row[1],
                             entity_type=row[2],
-                            entity_confidence=float(row[3]) if row[3] else None,
+                            entity_confidence=row[3],
                             outbound_rel_types=row[4] if row[4] else [],
                             inbound_rel_types=row[5] if row[5] else [],
                             max_confidence=row[6],
@@ -395,7 +396,7 @@ class KnowledgeGraphQueryRepository:
 
     def traverse_with_type_filter(
         self,
-        entity_id: int,
+        entity_id: UUID,
         relationship_type: str,
         target_entity_types: List[str],
         min_confidence: float = 0.7,
@@ -407,7 +408,7 @@ class KnowledgeGraphQueryRepository:
         Performance: P50 <8ms, P95 <15ms (with entity_type filter)
 
         Args:
-            entity_id: Source entity ID
+            entity_id: Source entity ID (UUID)
             relationship_type: Specific relationship type to filter
             target_entity_types: Entity types to include (e.g., ['VENDOR', 'PRODUCT'])
             min_confidence: Minimum relationship confidence (default: 0.7)
@@ -418,21 +419,21 @@ class KnowledgeGraphQueryRepository:
 
         Example:
             >>> repo.traverse_with_type_filter(
-            ...     entity_id=123,
+            ...     entity_id=uuid4(),
             ...     relationship_type='hierarchical',
             ...     target_entity_types=['PRODUCT', 'TECHNOLOGY']
             ... )
-            [RelatedEntity(id=456, entity_type='PRODUCT', ...)]
+            [RelatedEntity(id=uuid4(), entity_type='PRODUCT', ...)]
         """
         query = """
         SELECT
             e.id,
-            e.entity_name AS text,
+            e.text,
             e.entity_type,
-            e.metadata->>'confidence' AS entity_confidence,
+            e.confidence AS entity_confidence,
             r.relationship_type,
             r.confidence AS relationship_confidence,
-            r.metadata AS relationship_metadata
+            r.relationship_weight AS relationship_metadata
         FROM entity_relationships r
         JOIN knowledge_entities e ON e.id = r.target_entity_id
         WHERE r.source_entity_id = %s
@@ -462,7 +463,7 @@ class KnowledgeGraphQueryRepository:
                             id=row[0],
                             text=row[1],
                             entity_type=row[2],
-                            entity_confidence=float(row[3]) if row[3] else None,
+                            entity_confidence=row[3],
                             relationship_type=row[4],
                             relationship_confidence=row[5],
                             relationship_metadata=row[6]
@@ -475,7 +476,7 @@ class KnowledgeGraphQueryRepository:
 
     def get_entity_mentions(
         self,
-        entity_id: int,
+        entity_id: UUID,
         max_results: int = 100
     ) -> List[EntityMention]:
         """
@@ -484,29 +485,28 @@ class KnowledgeGraphQueryRepository:
         Performance: P50 <10ms, P95 <20ms (with index on entity_id)
 
         Args:
-            entity_id: Entity ID to find mentions for
+            entity_id: Entity ID to find mentions for (UUID)
             max_results: Limit results (default: 100)
 
         Returns:
-            List of EntityMention objects, sorted by confidence and indexed_at
+            List of EntityMention objects, sorted by created_at (descending)
 
         Example:
-            >>> repo.get_entity_mentions(entity_id=123, max_results=50)
+            >>> repo.get_entity_mentions(entity_id=uuid4(), max_results=50)
             [EntityMention(chunk_id=1, document_id='doc.md', ...)]
         """
         query = """
         SELECT
-            ce.chunk_id AS chunk_id,
-            kb.source_file AS document_id,
-            kb.chunk_text AS chunk_text,
-            kb.source_category AS document_category,
-            kb.chunk_index,
-            ce.confidence AS mention_confidence,
-            kb.created_at AS indexed_at
-        FROM chunk_entities ce
-        JOIN knowledge_base kb ON kb.id = ce.chunk_id
-        WHERE ce.entity_id = %s
-        ORDER BY ce.confidence DESC, kb.created_at DESC
+            em.chunk_id AS chunk_id,
+            em.document_id,
+            em.mention_text,
+            NULL AS document_category,
+            0 AS chunk_index,
+            1.0 AS mention_confidence,
+            em.created_at AS indexed_at
+        FROM entity_mentions em
+        WHERE em.entity_id = %s
+        ORDER BY em.created_at DESC
         LIMIT %s
         """
 
@@ -522,7 +522,7 @@ class KnowledgeGraphQueryRepository:
                         EntityMention(
                             chunk_id=row[0],
                             document_id=row[1],
-                            chunk_text=row[2],
+                            mention_text=row[2],
                             document_category=row[3],
                             chunk_index=row[4],
                             mention_confidence=row[5],
