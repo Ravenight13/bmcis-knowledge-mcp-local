@@ -10,10 +10,16 @@ ingestion into the knowledge base.
 """
 
 from src.document_parsing.batch_processor import (
+    Batch,
     BatchConfig,
+    BatchProgress,
     BatchProcessor,
+    BatchResult,
     Chunker,
     ContextHeaderGenerator,
+    ErrorRecoveryAction,
+    calculate_batch_size,
+    create_batches,
 )
 from src.document_parsing.markdown_reader import (
     DocumentMetadata,
@@ -31,9 +37,15 @@ from src.document_parsing.tokenizer import (
 
 __all__ = [
     # Batch processing
+    "Batch",
     "BatchConfig",
+    "BatchProgress",
     "BatchProcessor",
     "BatchProcessingStats",
+    "BatchResult",
+    "ErrorRecoveryAction",
+    "calculate_batch_size",
+    "create_batches",
     # Components
     "Chunker",
     "ContextHeaderGenerator",

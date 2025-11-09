@@ -25,12 +25,18 @@ import pytest
 
 from src.core.database import DatabasePool
 from src.document_parsing.batch_processor import (
+    Batch,
     BatchConfig,
+    BatchProgress,
     BatchProcessor,
+    BatchResult,
     Chunker,
+    ErrorRecoveryAction,
     MarkdownReader,
     ParseError,
     Tokenizer,
+    calculate_batch_size,
+    create_batches,
 )
 from src.document_parsing.models import (
     BatchProcessingStats,
