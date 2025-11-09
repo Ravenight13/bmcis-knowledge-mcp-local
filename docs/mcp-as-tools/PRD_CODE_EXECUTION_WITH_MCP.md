@@ -1031,6 +1031,364 @@ For detailed phase breakdowns with task estimates, see `SOLUTION_TIME_ESTIMATES.
 - **Responsibility**: Register tools, handle requests, manage MCP protocol communication
 - **Key Features**: Tool schema definition, request routing, error normalization, session management
 
+## System Architecture Diagrams
+
+The following diagrams provide comprehensive visual documentation of the system architecture, illustrating component interactions, execution flows, and deployment topology with security layers.
+
+### Component Interaction Diagram
+
+This diagram shows the static architecture of all system components and their communication patterns.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              MCP Agent Environment                               │
+│  ┌────────────────┐                                      ┌─────────────────┐   │
+│  │  Claude Agent  │──────── MCP Request ────────────────▶│   MCP Client    │   │
+│  │                │◀─────── MCP Response ────────────────│                 │   │
+│  └────────────────┘                                      └────────┬────────┘   │
+└──────────────────────────────────────────────────────────────────┼─────────────┘
+                                                                    │
+                                                          MCP Protocol (JSON-RPC)
+                                                                    │
+┌──────────────────────────────────────────────────────────────────▼─────────────┐
+│                           MCP Server (bmcis-knowledge-mcp)                      │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │                          Request Router & Handler                         │  │
+│  │  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────────┐  │  │
+│  │  │ Tool Registry │    │   Validator  │    │  Session Management      │  │  │
+│  │  │              │    │              │    │                          │  │  │
+│  │  │ • execute_code    │ • Schema     │    │ • Connection tracking   │  │  │
+│  │  │ • search_code │    │ • Input      │    │ • Request queuing       │  │  │
+│  │  └──────┬───────┘    └──────┬───────┘    └───────────┬──────────────┘  │  │
+│  └──────────┼───────────────────┼────────────────────────┼─────────────────┘  │
+│             │                   │                        │                     │
+│  ┌──────────▼───────────────────▼────────────────────────▼─────────────────┐  │
+│  │                        AgentCodeExecutor (Orchestrator)                  │  │
+│  │  ┌────────────────────────────────────────────────────────────────────┐  │  │
+│  │  │  Workflow: Validate → Execute → Capture → Process → Return         │  │  │
+│  │  └────┬───────────────┬────────────────┬─────────────────┬───────────┘  │  │
+│  └───────┼───────────────┼────────────────┼─────────────────┼──────────────┘  │
+│          │               │                │                 │                  │
+│  ┌───────▼────────┐ ┌────▼─────────┐ ┌────▼──────────┐ ┌────▼──────────┐     │
+│  │                │ │              │ │               │ │               │     │
+│  │ InputValidator │ │ CodeExecutor │ │  Search APIs  │ │ResultProcessor│     │
+│  │                │ │  (Sandbox)   │ │               │ │               │     │
+│  │ ┌────────────┐ │ │ ┌──────────┐ │ │ ┌───────────┐ │ │ ┌───────────┐ │     │
+│  │ │    AST     │ │ │ │Subprocess│ │ │ │  Hybrid   │ │ │ │  Format   │ │     │
+│  │ │  Analysis  │ │ │ │Isolation │ │ │ │  Search   │ │ │ │  Compact  │ │     │
+│  │ ├────────────┤ │ │ ├──────────┤ │ │ ├───────────┤ │ │ ├───────────┤ │     │
+│  │ │ Dangerous  │ │ │ │ Resource │ │ │ │ Semantic  │ │ │ │ Truncate  │ │     │
+│  │ │  Pattern   │ │ │ │  Limits  │ │ │ │  Rerank   │ │ │ │  Fields   │ │     │
+│  │ │ Detection  │ │ │ ├──────────┤ │ │ ├───────────┤ │ │ ├───────────┤ │     │
+│  │ ├────────────┤ │ │ │  Output  │ │ │ │  Filter   │ │ │ │  Token    │ │     │
+│  │ │ Whitelist  │ │ │ │ Capture  │ │ │ │  Engine   │ │ │ │Efficiency │ │     │
+│  │ │  Modules   │ │ │ └──────────┘ │ │ └───────────┘ │ │ └───────────┘ │     │
+│  │ └────────────┘ │ └──────────────┘ └───────────────┘ └───────────────┘     │
+│  └────────────────┘                                                            │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │                        External Integration Points                       │  │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────────┐   │  │
+│  │  │  Codebase  │  │  Vector DB │  │   BM25     │  │  Cross-Encoder │   │  │
+│  │  │   Files    │  │            │  │   Index    │  │     Models     │   │  │
+│  │  └────────────┘  └────────────┘  └────────────┘  └────────────────┘   │  │
+│  └─────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Component Descriptions:**
+
+| Component | Responsibility | Key Interfaces |
+|-----------|---------------|----------------|
+| **MCP Client** | Protocol communication with server | `call_tool()`, `list_tools()` |
+| **Request Router** | Dispatch requests to appropriate handlers | Route by tool name |
+| **AgentCodeExecutor** | Orchestrate entire execution workflow | Coordinate validation, execution, processing |
+| **InputValidator** | Security analysis of submitted code | AST parsing, pattern detection |
+| **CodeExecutor** | Isolated code execution environment | Subprocess with resource limits |
+| **Search APIs** | Knowledge base search operations | BM25, vector, rerank, filter |
+| **ResultProcessor** | Format results for token efficiency | Truncate, select fields, compact |
+
+**Data Flow Patterns:**
+
+1. **Inbound Flow**: Agent → MCP Client → MCP Server → Request Router → AgentCodeExecutor
+2. **Execution Flow**: AgentCodeExecutor → InputValidator → CodeExecutor → Search APIs
+3. **Result Flow**: Search APIs → ResultProcessor → AgentCodeExecutor → MCP Server → Agent
+4. **Error Flow**: Any component → Error handler → Formatted error → MCP response
+
+### Execution Sequence Diagram
+
+This diagram illustrates the temporal flow of a code execution request, including timeout enforcement at multiple stages and comprehensive error handling.
+
+```
+Agent          MCP Client       MCP Server      Request Router    AgentCodeExecutor    InputValidator    CodeExecutor    Search APIs    ResultProcessor
+  │                 │                │                 │                  │                   │                │               │                │
+  │  execute_code   │                │                 │                  │                   │                │               │                │
+  │  (code, timeout)│                │                 │                  │                   │                │               │                │
+  ├────────────────▶│                │                 │                  │                   │                │               │                │
+  │                 │   JSON-RPC     │                 │                  │                   │                │               │                │
+  │                 │    Request     │                 │                  │                   │                │               │                │
+  │                 ├───────────────▶│                 │                  │                   │                │               │                │
+  │                 │                │  Parse & Route  │                  │                   │                │               │                │
+  │                 │                ├────────────────▶│                  │                   │                │               │                │
+  │                 │                │                 │   Orchestrate    │                   │                │               │                │
+  │                 │                │                 ├─────────────────▶│                   │                │               │                │
+  │                 │                │                 │                  │  Validate Code    │                │               │                │
+  │                 │                │                 │                  ├──────────────────▶│                │               │                │
+  │                 │                │                 │                  │                   │  AST Analysis  │               │                │
+  │                 │                │                 │                  │                   ├───────┐        │               │                │
+  │                 │                │                 │                  │                   │       │        │               │                │
+  │                 │                │                 │                  │                   │◀──────┘        │               │                │
+  │                 │                │                 │                  │                   │  Check Patterns│               │                │
+  │                 │                │                 │                  │                   ├───────┐        │               │                │
+  │                 │                │                 │                  │                   │       │        │               │                │
+  │                 │                │                 │                  │   Validation     │◀──────┘        │               │                │
+  │                 │                │                 │                  │     Result       │                │               │                │
+  │                 │                │                 │                  │◀──────────────────┤                │               │                │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │   [If Safe]       │                │               │                │
+  │                 │                │                 │                  │   Execute Code    │                │               │                │
+  │                 │                │                 │                  ├──────────────────────────────────▶│               │                │
+  │                 │                │                 │                  │                   │                │ Create Process│                │
+  │                 │                │                 │                  │                   │                ├──────┐        │                │
+  │                 │                │                 │                  │                   │                │      │        │                │
+  │                 │                │                 │                  │                   │                │◀─────┘        │                │
+  │                 │                │                 │                  │                   │                │ Set Limits    │                │
+  │                 │                │                 │                  │                   │                ├──────┐        │                │
+  │                 │                │                 │                  │                   │                │      │        │                │
+  │                 │                │                 │                  │                   │                │◀─────┘        │                │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │                   │                │ Start Timeout │                │
+  │                 │                │                 │                  │                   │                ├──────┐        │                │
+  │                 │                │                 │                  │                   │                │  30s │        │                │
+  │                 │                │                 │                  │                   │                │◀─────┘        │                │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │                   │                │ Execute Code  │                │
+  │                 │                │                 │                  │                   │                ├──────────────▶│                │
+  │                 │                │                 │                  │                   │                │               │  Search Query  │
+  │                 │                │                 │                  │                   │                │               ├───────┐        │
+  │                 │                │                 │                  │                   │                │               │  BM25 │        │
+  │                 │                │                 │                  │                   │                │               │◀──────┘        │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │                   │                │               ├───────┐        │
+  │                 │                │                 │                  │                   │                │               │Vector │        │
+  │                 │                │                 │                  │                   │                │               │◀──────┘        │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │                   │                │               ├───────┐        │
+  │                 │                │                 │                  │                   │                │               │Rerank │        │
+  │                 │                │                 │                  │                   │                │               │◀──────┘        │
+  │                 │                │                 │                  │                   │                │  Results      │                │
+  │                 │                │                 │                  │                   │                │◀──────────────┤                │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │                   │                │ Capture Output│                │
+  │                 │                │                 │                  │                   │                ├──────┐        │                │
+  │                 │                │                 │                  │                   │                │      │        │                │
+  │                 │                │                 │                  │   Execution       │                │◀─────┘        │                │
+  │                 │                │                 │                  │     Result        │                │               │                │
+  │                 │                │                 │                  │◀──────────────────────────────────┤               │                │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │  Process Results  │                │               │                │
+  │                 │                │                 │                  ├───────────────────────────────────────────────────────────────────▶│
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │                   │                │               │    Compact     │
+  │                 │                │                 │                  │                   │                │               │   & Format     │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │                   │                │               │   Truncate     │
+  │                 │                │                 │                  │                   │                │               │    Fields      │
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │   Formatted       │                │               │                │
+  │                 │                │                 │                  │     Results       │                │               │                │
+  │                 │                │                 │                  │◀───────────────────────────────────────────────────────────────────┤
+  │                 │                │                 │                  │                   │                │               │                │
+  │                 │                │                 │   Final Result   │                   │                │               │                │
+  │                 │                │                 │◀─────────────────┤                   │                │               │                │
+  │                 │                │  MCP Response   │                  │                   │                │               │                │
+  │                 │                │◀────────────────┤                  │                   │                │               │                │
+  │                 │   JSON-RPC     │                 │                  │                   │                │               │                │
+  │                 │    Response    │                 │                  │                   │                │               │                │
+  │                 │◀───────────────┤                 │                  │                   │                │               │                │
+  │  Result/Error   │                │                 │                  │                   │                │               │                │
+  │◀────────────────┤                │                 │                  │                   │                │               │                │
+  │                 │                │                 │                  │                   │                │               │                │
+
+                                                     ERROR HANDLING PATHS
+
+  [Validation Failure]────────────────────────────────▶ Format Error ────▶ Return Error Response
+  [Timeout (30s)]─────────────────────────────────────▶ Kill Process ────▶ Return Timeout Error
+  [Resource Limit]────────────────────────────────────▶ Terminate ───────▶ Return Resource Error
+  [Search API Error]──────────────────────────────────▶ Capture ─────────▶ Return Partial Results
+```
+
+**Sequence Phases:**
+
+| Phase | Duration | Key Operations | Timeout Points |
+|-------|----------|---------------|----------------|
+| **1. Request Intake** | <10ms | Parse JSON-RPC, validate schema | Network timeout (5s) |
+| **2. Validation** | <100ms | AST analysis, pattern detection | Validation timeout (1s) |
+| **3. Execution Setup** | <50ms | Create subprocess, set limits | Process spawn timeout (2s) |
+| **4. Code Execution** | Variable | Run user code, API calls | User-defined timeout (default 30s) |
+| **5. Result Processing** | <200ms | Compact, format, truncate | Processing timeout (5s) |
+| **6. Response** | <10ms | Serialize, send response | Network timeout (5s) |
+
+**Error Recovery Strategies:**
+
+1. **Validation Failure**: Return immediately with security violation details
+2. **Timeout**: Kill subprocess via SIGKILL/TerminateProcess, return partial results if available
+3. **Resource Exhaustion**: Terminate process, log metrics, return error
+4. **API Failures**: Graceful degradation, return available data
+5. **Network Issues**: Retry with exponential backoff (max 3 attempts)
+
+### Deployment Topology Diagram
+
+This diagram shows the runtime topology including process boundaries, thread pools (4-8 workers), defense-in-depth security layers, and resource isolation mechanisms.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   Host Operating System                                  │
+│                                                                                          │
+│  ┌────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │                              MCP Server Process (Python)                            │ │
+│  │                               PID: Main, UID: mcp-user                             │ │
+│  │                                                                                     │ │
+│  │  ┌───────────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │                           Main Thread (Event Loop)                            │ │ │
+│  │  │                                                                                │ │ │
+│  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐ │ │ │
+│  │  │  │ MCP Protocol │  │Request Queue │  │ Tool Registry│  │ Session Manager  │ │ │ │
+│  │  │  │   Handler    │  │              │  │              │  │                  │ │ │ │
+│  │  │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘ │ │ │
+│  │  └───────────────────────────────────────────────────────────────────────────────┘ │ │
+│  │                                                                                     │ │
+│  │  ┌───────────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │                         Thread Pool (4-8 workers)                             │ │ │
+│  │  │                                                                                │ │ │
+│  │  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │ │ │
+│  │  │  │  Worker Thread 1 │  │  Worker Thread 2 │  │  Worker Thread N │  ...        │ │ │
+│  │  │  │                  │  │                  │  │                  │              │ │ │
+│  │  │  │ • Request Handler│  │ • Request Handler│  │ • Request Handler│              │ │ │
+│  │  │  │ • AgentExecutor  │  │ • AgentExecutor  │  │ • AgentExecutor  │              │ │ │
+│  │  │  │ • Validation     │  │ • Validation     │  │ • Validation     │              │ │ │
+│  │  │  └─────────┬────────┘  └─────────┬────────┘  └─────────┬────────┘              │ │ │
+│  │  └────────────┼──────────────────────┼──────────────────────┼──────────────────────┘ │ │
+│  │               │                      │                      │                        │ │
+│  │               └──────────────────────┴──────────────────────┘                        │ │
+│  │                                      │                                               │ │
+│  │                            Spawn Subprocess for Execution                            │ │
+│  │                                      ▼                                               │ │
+│  └──────────────────────────────────────┬───────────────────────────────────────────────┘ │
+│                                         │                                                 │
+│  ┌──────────────────────────────────────▼───────────────────────────────────────────────┐ │
+│  │                          Code Execution Subprocess (Isolated)                        │ │
+│  │                           PID: Child, UID: sandbox-user                             │ │
+│  │                                                                                       │ │
+│  │  ┌─────────────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │                            Security Layers (Defense in Depth)                    │ │ │
+│  │  │                                                                                  │ │ │
+│  │  │  Layer 1: AST Validation     ┌──────────────────────────────────────────┐      │ │ │
+│  │  │  ├─ Parse code AST           │         User-Submitted Python Code        │      │ │ │
+│  │  │  ├─ Check dangerous patterns │                                          │      │ │ │
+│  │  │  └─ Whitelist verification   └────────────────┬─────────────────────────┘      │ │ │
+│  │  │                                                │                                │ │ │
+│  │  │  Layer 2: RestrictedPython   ┌────────────────▼─────────────────────────┐      │ │ │
+│  │  │  ├─ Limited builtins         │      RestrictedPython Environment        │      │ │ │
+│  │  │  ├─ No eval/exec/compile     │   • Safe builtins only                  │      │ │ │
+│  │  │  └─ Module whitelist:        │   • No file/network access              │      │ │ │
+│  │  │     • json, math, datetime   │   • Limited introspection               │      │ │ │
+│  │  │     • collections, itertools └────────────────┬─────────────────────────┘      │ │ │
+│  │  │     • re, string                              │                                │ │ │
+│  │  │                                                │                                │ │ │
+│  │  │  Layer 3: Process Isolation  ┌────────────────▼─────────────────────────┐      │ │ │
+│  │  │  (REQUIRED for MVP)          │         Subprocess Boundaries            │      │ │ │
+│  │  │  ├─ Separate process         │   • Memory: 512MB max (rlimit)          │      │ │ │
+│  │  │  ├─ Resource limits:         │   • CPU: 30s max execution             │      │ │ │
+│  │  │  │  • CPU: 100% single core  │   • No fork/exec permissions           │      │ │ │
+│  │  │  │  • Memory: 512MB          │   • Temp directory only               │      │ │ │
+│  │  │  │  • Time: 30s              │   • No network access                 │      │ │ │
+│  │  │  └─ No network access        └────────────────┬─────────────────────────┘      │ │ │
+│  │  │                                                │                                │ │ │
+│  │  │  Layer 4: OS Sandboxing      ┌────────────────▼─────────────────────────┐      │ │ │
+│  │  │  (Optional - Linux only)     │        seccomp-bpf (if available)        │      │ │ │
+│  │  │  ├─ seccomp-bpf filters      │   • Syscall filtering                   │      │ │ │
+│  │  │  ├─ Namespace isolation      │   • Block: open, socket, fork          │      │ │ │
+│  │  │  └─ Capability dropping      │   • Allow: read, write (pipes only)    │      │ │ │
+│  │  │                              └──────────────────────────────────────────┘      │ │ │
+│  │  └─────────────────────────────────────────────────────────────────────────────────┘ │ │
+│  │                                                                                       │ │
+│  │  ┌─────────────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │                           Execution Environment                                  │ │ │
+│  │  │                                                                                  │ │ │
+│  │  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐             │ │ │
+│  │  │  │   Search APIs     │  │   Local Copies   │  │  Output Capture  │             │ │ │
+│  │  │  │                   │  │                  │  │                  │             │ │ │
+│  │  │  │ • HybridSearchAPI │  │ • In-memory DB   │  │ • stdout pipe    │             │ │ │
+│  │  │  │ • RerankerAPI     │  │ • Cached vectors │  │ • stderr pipe    │             │ │ │
+│  │  │  │ • FilterAPI       │  │ • No external    │  │ • return value   │             │ │ │
+│  │  │  │ • ResultProcessor │  │   connections    │  │ • exceptions     │             │ │ │
+│  │  │  └──────────────────┘  └──────────────────┘  └──────────────────┘             │ │ │
+│  │  └─────────────────────────────────────────────────────────────────────────────────┘ │ │
+│  └───────────────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                            │
+│  ┌───────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │                          Optional: Docker Container (v1.1/v2)                         │ │
+│  │                                                                                        │ │
+│  │  ┌──────────────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │  docker run --rm --memory=512m --cpus=1 --network=none --read-only             │ │ │
+│  │  │    --tmpfs /tmp:rw,noexec,nosuid,size=100m                                     │ │ │
+│  │  │    --security-opt=no-new-privileges                                            │ │ │
+│  │  │    code-execution:latest                                                       │ │ │
+│  │  └──────────────────────────────────────────────────────────────────────────────────┘ │ │
+│  └───────────────────────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Resource Isolation Matrix:**
+
+| Resource | Main Process | Worker Thread | Subprocess | Docker Container |
+|----------|-------------|---------------|------------|------------------|
+| **CPU** | Unlimited | Shared pool | 1 core max (100%) | 1 core (--cpus=1) |
+| **Memory** | System limit | Shared heap | 512MB (rlimit) | 512MB (--memory) |
+| **Time** | Unlimited | Request timeout | 30s hard limit | 30s timeout |
+| **Network** | Full access | Full access | Blocked (iptables) | None (--network=none) |
+| **Filesystem** | Full access | Full access | /tmp only | tmpfs only |
+| **Processes** | Can spawn | Can spawn | Cannot fork | Cannot fork |
+
+**Security Layer Effectiveness:**
+
+| Attack Vector | AST Validation | RestrictedPython | Process Isolation | seccomp-bpf | Docker |
+|---------------|---------------|------------------|-------------------|-------------|--------|
+| **Code Injection** | ✓ Blocks | ✓ Blocks | - | - | - |
+| **Import Dangerous Modules** | ✓ Blocks | ✓ Blocks | ✓ No access | ✓ Filtered | ✓ None available |
+| **Resource Exhaustion** | - | Partial | ✓ Limits | ✓ Limits | ✓ Hard limits |
+| **File System Access** | ✓ Detected | ✓ Blocked | ✓ /tmp only | ✓ Filtered | ✓ tmpfs only |
+| **Network Access** | ✓ Detected | ✓ No modules | ✓ Blocked | ✓ Filtered | ✓ None |
+| **Process Spawning** | ✓ Detected | ✓ No access | ✓ Cannot fork | ✓ Blocked | ✓ Blocked |
+| **Memory Bombs** | Partial | - | ✓ 512MB limit | - | ✓ Kernel enforced |
+| **CPU Spinning** | - | - | ✓ 30s timeout | - | ✓ cgroup limits |
+
+**Concurrency Model:**
+
+```
+Thread Pool Architecture:
+├─ Main Thread: Handles MCP protocol, request intake, response dispatch
+├─ Worker Pool: 4-8 threads for request processing
+│  ├─ Each worker can handle one request
+│  ├─ Subprocess spawning is synchronous per worker
+│  └─ Multiple subprocesses can run concurrently (different workers)
+└─ Subprocess: One per code execution request
+   ├─ Isolated from parent and siblings
+   ├─ Resource limits enforced by OS
+   └─ Killed after timeout or completion
+```
+
+**Implementation Notes for Deployment:**
+
+- **Essential Component**: Subprocess isolation (Layer 3) is REQUIRED for MVP security
+- **Thread Pool Sizing**: Start with 4-8 workers, tune based on production load (0.33 req/s sustainable)
+- **Docker Integration**: Optional in v1, defer to v1.1 unless required for compliance
+- **Security Layers**: All 4 layers provide defense-in-depth, each catches different attack vectors
+- **Monitoring Points**: Each component boundary is a metrics collection point for observability
+
 ## Data Models
 
 ```python
