@@ -13,6 +13,7 @@ Architecture: Hybrid Normalized + Cache
 """
 
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 from uuid import UUID
 
@@ -20,6 +21,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Enum as SQLEnum,
     Float,
     ForeignKey,
     Index,
@@ -29,7 +31,40 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, validates
+
+
+class EntityTypeEnum(str, Enum):
+    """Valid entity types from spaCy en_core_web_md NER model.
+
+    These represent the canonical set of named entity types that can be extracted
+    from documents. Only these values are allowed in the knowledge_entities table.
+    """
+
+    PERSON = "PERSON"          # People, including fictional characters
+    ORG = "ORG"                # Organizations, companies, agencies, institutions
+    GPE = "GPE"                # Geopolitical entities (countries, cities, states)
+    PRODUCT = "PRODUCT"        # Products, technologies, services
+    EVENT = "EVENT"            # Named events (conferences, wars, etc.)
+    FACILITY = "FACILITY"      # Buildings, airports, highways, bridges
+    LAW = "LAW"                # Named laws, regulations, legal documents
+    LANGUAGE = "LANGUAGE"      # Named languages
+    DATE = "DATE"              # Absolute or relative dates
+    TIME = "TIME"              # Times smaller than a day
+    MONEY = "MONEY"            # Monetary values with currency
+    PERCENT = "PERCENT"        # Percentage values
+
+
+class RelationshipTypeEnum(str, Enum):
+    """Valid relationship types for knowledge graph edges.
+
+    These represent the canonical set of relationship types that can exist
+    between entities. Only these values are allowed in the entity_relationships table.
+    """
+
+    HIERARCHICAL = "hierarchical"              # Parent/child, creator/creation relationships
+    MENTIONS_IN_DOCUMENT = "mentions-in-document"  # Co-occurrence in same document/chunk
+    SIMILAR_TO = "similar-to"                  # Semantic similarity (embedding-based)
 
 
 class Base(DeclarativeBase):
@@ -91,6 +126,29 @@ class KnowledgeEntity(Base):
         back_populates="entity",
         cascade="all, delete-orphan",
     )
+
+    # Validators
+    @validates("entity_type")
+    def validate_entity_type(self, key: str, value: str) -> str:
+        """Validate entity_type is one of the allowed enum values.
+
+        Args:
+            key: Field name ('entity_type')
+            value: Proposed entity type value
+
+        Returns:
+            Validated entity type value
+
+        Raises:
+            ValueError: If entity type is not in EntityTypeEnum
+        """
+        if value not in [t.value for t in EntityTypeEnum]:
+            valid_types = ", ".join([t.value for t in EntityTypeEnum])
+            raise ValueError(
+                f"Invalid entity_type '{value}'. "
+                f"Must be one of: {valid_types}"
+            )
+        return value
 
     # Constraints
     __table_args__ = (
@@ -158,6 +216,29 @@ class EntityRelationship(Base):
         foreign_keys=[target_entity_id],
         back_populates="relationships_to",
     )
+
+    # Validators
+    @validates("relationship_type")
+    def validate_relationship_type(self, key: str, value: str) -> str:
+        """Validate relationship_type is one of the allowed enum values.
+
+        Args:
+            key: Field name ('relationship_type')
+            value: Proposed relationship type value
+
+        Returns:
+            Validated relationship type value
+
+        Raises:
+            ValueError: If relationship type is not in RelationshipTypeEnum
+        """
+        if value not in [t.value for t in RelationshipTypeEnum]:
+            valid_types = ", ".join([t.value for t in RelationshipTypeEnum])
+            raise ValueError(
+                f"Invalid relationship_type '{value}'. "
+                f"Must be one of: {valid_types}"
+            )
+        return value
 
     # Constraints and Indexes
     __table_args__ = (
