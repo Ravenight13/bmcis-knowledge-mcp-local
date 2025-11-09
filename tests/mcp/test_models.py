@@ -55,15 +55,13 @@ class TestSemanticSearchRequest:
 
     def test_invalid_query_empty(self) -> None:
         """Test empty query raises ValidationError."""
-        with pytest.raises(ValidationError, match="at least 1 character"):
+        with pytest.raises(ValidationError, match="empty or whitespace"):
             SemanticSearchRequest(query="")
 
-    def test_valid_query_whitespace_only(self) -> None:
-        """Test whitespace-only query is technically valid (validation at min_length level)."""
-        # Note: Query validation at Pydantic level only checks min_length=1
-        # Semantic validation (stripping whitespace) happens at tool level
-        req = SemanticSearchRequest(query="   ")
-        assert req.query == "   "
+    def test_invalid_query_whitespace_only(self) -> None:
+        """Test whitespace-only query raises ValidationError."""
+        with pytest.raises(ValidationError, match="empty or whitespace"):
+            SemanticSearchRequest(query="   ")
 
     def test_invalid_query_too_long(self) -> None:
         """Test query exceeding max length raises ValidationError."""

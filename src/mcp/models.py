@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SemanticSearchRequest(BaseModel):
@@ -52,6 +52,26 @@ class SemanticSearchRequest(BaseModel):
             "full (~10-50K+ tokens)"
         ),
     )
+
+    @field_validator('query', mode='before')
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        """Validate that query is not empty or whitespace-only.
+
+        Args:
+            v: Query string (raw input, before other validators)
+
+        Returns:
+            Stripped query string
+
+        Raises:
+            ValueError: If query is empty or whitespace-only
+        """
+        if isinstance(v, str):
+            v = v.strip()
+        if not v:
+            raise ValueError('Query cannot be empty or whitespace-only')
+        return v
 
 
 class SearchResultIDs(BaseModel):
