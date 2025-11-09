@@ -1,0 +1,15 @@
+# Production dependencies for BMCIS Knowledge MCP project
+# Install: pip install -r requirements.txt
+
+# Configuration management
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Database driver with binary package
+psycopg[binary]>=3.1.0
+
+# Vector database support
+pgvector>=0.2.0
+
+# Tokenization using OpenAI's tiktoken for accurate token counting
+tiktoken>=0.7.0

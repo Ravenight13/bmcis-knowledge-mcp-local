@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "description": "Maps opaque session IDs to internal task information for security",
+  "nextSessionId": 1,
+  "branches": {
+    "work/session-001": {
+      "sessionId": "001",
+      "taskId": "example-task-id",
+      "description": "Example task description",
+      "created": "2025-11-08",
+      "status": "active"
+    }
+  },
+  "metadata": {
+    "created": "2025-11-08",
+    "lastModified": "2025-11-08",
+    "purpose": "Prevent exposure of internal task details in public git history"
+  }
+}
