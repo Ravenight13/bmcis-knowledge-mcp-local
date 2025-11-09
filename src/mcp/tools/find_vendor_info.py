@@ -48,7 +48,6 @@ from src.mcp.models import (
     VendorInfoPreview,
     VendorRelationship,
     VendorStatistics,
-    WhitelistedVendorInfoFields,
 )
 from src.mcp.server import get_cache_layer, get_database_pool, mcp
 
@@ -126,7 +125,7 @@ def parse_vendor_cursor(cursor: str) -> dict[str, Any]:
     try:
         cursor_bytes = base64.b64decode(cursor.encode("utf-8"))
         cursor_json = cursor_bytes.decode("utf-8")
-        return json.loads(cursor_json)
+        return json.loads(cursor_json)  # type: ignore[no-any-return]
     except (ValueError, json.JSONDecodeError) as e:
         raise ValueError(f"Invalid cursor format: {e}") from e
 
@@ -463,7 +462,7 @@ def format_full(
     )
 
 
-@mcp.tool()  # type: ignore[misc]
+@mcp.tool()  # type: ignore[misc,has-type]
 def find_vendor_info(
     vendor_name: str,
     response_mode: str = "metadata",
@@ -517,7 +516,7 @@ def find_vendor_info(
         ...     response_mode="metadata"
         ... )
     """
-    # Validate request using Pydantic
+    # Validate request
     try:
         request = FindVendorInfoRequest(
             vendor_name=vendor_name,
@@ -528,62 +527,122 @@ def find_vendor_info(
         logger.error(f"Request validation failed: {e}")
         raise ValueError(f"Invalid request parameters: {e}") from e
 
-    # Get database pool and query repository
+    # Parse cursor if provided (for pagination - currently not used for vendor info)
+    if cursor:
+        try:
+            _ = parse_vendor_cursor(cursor)
+            # Note: vendor info doesn't paginate entities yet, cursor support for future use
+        except ValueError as e:
+            logger.warning(f"Invalid cursor: {e} - ignoring")
+
+    # Compute cache key
+    cache_key = compute_vendor_cache_key(request.vendor_name, request.response_mode)
+    cache_layer = get_cache_layer()
+
+    # Check cache first
     start_time = time.time()
-    db_pool = get_database_pool()
-    query_repo = KnowledgeGraphQueryRepository(db_pool)  # type: ignore[no-untyped-call]
+    cached_data = cache_layer.get(cache_key)
+    cache_hit = cached_data is not None
 
-    try:
-        # Find vendor by name
-        vendor_id, vendor_name_normalized, vendor_type, match_confidence = find_vendor_by_name(
-            request.vendor_name, db_pool
-        )
+    formatted_response: VendorInfoIDs | VendorInfoMetadata | VendorInfoPreview | VendorInfoFull
 
-        # Get vendor statistics
-        statistics = get_vendor_statistics(vendor_id, query_repo)
+    if cache_hit:
+        # Use cached results
+        vendor_id = cached_data["vendor_id"]
+        vendor_name_normalized = cached_data["vendor_name"]
+        vendor_type = cached_data["vendor_type"]
+        match_confidence = cached_data["match_confidence"]
+        statistics = cached_data["statistics"]
+        formatted_response = cached_data["response"]
+        logger.debug(f"Cache hit: {cache_key}")
+    else:
+        # Execute fresh query
+        db_pool = get_database_pool()
+        query_repo = KnowledgeGraphQueryRepository(db_pool)  # type: ignore[no-untyped-call]
 
-        # Format response based on response_mode
-        formatted_response: VendorInfoIDs | VendorInfoMetadata | VendorInfoPreview | VendorInfoFull
-
-        if request.response_mode == "ids_only":
-            formatted_response = format_ids_only(
-                vendor_id, vendor_name_normalized, match_confidence, statistics
-            )
-        elif request.response_mode == "metadata":
-            formatted_response = format_metadata(
-                vendor_id, vendor_name_normalized, vendor_type, match_confidence, statistics
-            )
-        elif request.response_mode == "preview":
-            formatted_response = format_preview(
-                vendor_id, vendor_name_normalized, vendor_type, match_confidence, statistics, query_repo
-            )
-        else:  # full
-            formatted_response = format_full(
-                vendor_id, vendor_name_normalized, vendor_type, match_confidence, statistics, query_repo
+        try:
+            # Find vendor by name
+            vendor_id, vendor_name_normalized, vendor_type, match_confidence = find_vendor_by_name(
+                request.vendor_name, db_pool
             )
 
-    except ValueError as e:
-        # Re-raise validation errors as-is (already have actionable messages)
-        logger.error(f"Vendor lookup failed: {e}")
-        raise
-    except Exception as e:
-        logger.error(
-            f"Vendor info retrieval failed: {e}",
-            extra={"vendor_name": vendor_name, "error": str(e)},
-        )
-        raise RuntimeError(f"Vendor info retrieval failed: {e}") from e
+            # Get vendor statistics
+            statistics = get_vendor_statistics(vendor_id, query_repo)
+
+            # Format response based on response_mode
+            if request.response_mode == "ids_only":
+                formatted_response = format_ids_only(
+                    vendor_id, vendor_name_normalized, match_confidence, statistics
+                )
+            elif request.response_mode == "metadata":
+                formatted_response = format_metadata(
+                    vendor_id, vendor_name_normalized, vendor_type, match_confidence, statistics
+                )
+            elif request.response_mode == "preview":
+                formatted_response = format_preview(
+                    vendor_id, vendor_name_normalized, vendor_type, match_confidence, statistics, query_repo
+                )
+            else:  # full
+                formatted_response = format_full(
+                    vendor_id, vendor_name_normalized, vendor_type, match_confidence, statistics, query_repo
+                )
+
+            # Cache results for 300 seconds (vendor data more static)
+            cache_data = {
+                "vendor_id": vendor_id,
+                "vendor_name": vendor_name_normalized,
+                "vendor_type": vendor_type,
+                "match_confidence": match_confidence,
+                "statistics": statistics,
+                "response": formatted_response,
+            }
+            cache_layer.set(cache_key, cache_data, ttl_seconds=300)
+            logger.debug(f"Cache miss: {cache_key} - stored vendor data")
+
+        except ValueError as e:
+            logger.error(f"Vendor lookup failed: {e}")
+            raise
+        except Exception as e:
+            logger.error(
+                f"Vendor info retrieval failed: {e}",
+                extra={"vendor_name": vendor_name, "error": str(e)},
+            )
+            raise RuntimeError(f"Vendor info retrieval failed: {e}") from e
 
     execution_time_ms = (time.time() - start_time) * 1000
 
+    # Convert response to dict for field filtering and pagination
+    response_dict = formatted_response.model_dump()
+
+    # Apply field filtering if requested
+    if fields:
+        response_dict = filter_vendor_fields(response_dict, fields)
+
+    # Create pagination metadata (vendor info typically doesn't paginate entities,
+    # but we support it for consistency)
+    pagination_metadata = PaginationMetadata(
+        cursor=None,  # No pagination for vendor info (single vendor)
+        page_size=1,
+        has_more=False,
+        total_available=1,
+    )
+
     logger.info(
-        f"Vendor info retrieval completed in {execution_time_ms:.1f}ms",
+        f"Vendor info retrieval completed in {execution_time_ms:.1f}ms, cache_hit={cache_hit}",
         extra={
             "vendor_name": vendor_name,
             "response_mode": response_mode,
             "entity_count": statistics.entity_count,
             "relationship_count": statistics.relationship_count,
             "execution_time_ms": execution_time_ms,
+            "cache_hit": cache_hit,
         },
     )
 
-    return formatted_response
+    # Return as dictionary with pagination metadata
+    return {
+        "vendor_name": vendor_name_normalized,
+        "results": response_dict,
+        "pagination": pagination_metadata.model_dump(),
+        "execution_time_ms": execution_time_ms,
+    }

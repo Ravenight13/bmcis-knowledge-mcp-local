@@ -43,7 +43,6 @@ from src.mcp.models import (
     SearchResultPreview,
     SemanticSearchRequest,
     SemanticSearchResponse,
-    WhitelistedSemanticSearchFields,
 )
 from src.mcp.server import get_cache_layer, get_hybrid_search, mcp
 from src.search.results import SearchResult
@@ -125,7 +124,7 @@ def parse_cursor(cursor: str) -> dict[str, Any]:
     try:
         cursor_bytes = base64.b64decode(cursor.encode("utf-8"))
         cursor_json = cursor_bytes.decode("utf-8")
-        return json.loads(cursor_json)
+        return json.loads(cursor_json)  # type: ignore[no-any-return]
     except (ValueError, json.JSONDecodeError) as e:
         raise ValueError(f"Invalid cursor format: {e}") from e
 
@@ -271,7 +270,7 @@ def format_full(result: SearchResult) -> SearchResultFull:
     )
 
 
-@mcp.tool()  # type: ignore[misc]
+@mcp.tool()  # type: ignore[misc,has-type]
 def semantic_search(
     query: str,
     top_k: int | None = None,

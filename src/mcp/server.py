@@ -24,6 +24,7 @@ Example:
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 # FastMCP will be available at runtime
 try:
