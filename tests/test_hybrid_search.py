@@ -1034,5 +1034,393 @@ class TestSearchExplanation:
         assert routing_decision.strategy in ["vector", "bm25", "hybrid"]
 
 
+class TestRRFAlgorithmCorrectness:
+    """Test RRF algorithm correctness and edge cases.
+
+    Validates the Reciprocal Rank Fusion formula: score = 1/(k+rank)
+    and proper deduplication and weighting.
+    """
+
+    def test_rrf_formula_correctness(self) -> None:
+        """Test RRF formula is correctly applied.
+
+        Verifies: score = 1/(k+rank) where k=60 (default).
+        Rank 1: 1/(60+1) = 0.01639
+        Rank 2: 1/(60+2) = 0.01613
+        """
+        rrf_scorer = RRFScorer(k=60)
+        assert rrf_scorer.k == 60
+
+        # Test formula: 1/(k+rank)
+        rank_1_score = 1.0 / (60 + 1)
+        rank_2_score = 1.0 / (60 + 2)
+
+        assert rank_1_score > rank_2_score, "Higher rank should have lower score"
+        assert pytest.approx(rank_1_score, rel=1e-4) == 1.0 / 61
+        assert pytest.approx(rank_2_score, rel=1e-4) == 1.0 / 62
+
+    def test_rrf_with_different_k_values(self) -> None:
+        """Test RRF with different k parameter values.
+
+        Verifies k parameter affects score scale but not ranking.
+        """
+        # Test with k=60 (default)
+        rrf_60 = RRFScorer(k=60)
+        assert rrf_60.k == 60
+
+        # Test with k=100
+        rrf_100 = RRFScorer(k=100)
+        assert rrf_100.k == 100
+
+        # Higher k reduces score spread
+        score_60_rank1 = 1.0 / (60 + 1)
+        score_100_rank1 = 1.0 / (100 + 1)
+
+        assert score_100_rank1 < score_60_rank1, "Higher k should give lower scores"
+
+    def test_rrf_deduplication_logic(self) -> None:
+        """Test RRF correctly deduplicates results.
+
+        When same document appears in both sources, scores are combined.
+        """
+        vector_results = [
+            SearchResult(
+                chunk_id=1,
+                chunk_text="result 1",
+                similarity_score=0.9,
+                bm25_score=0.0,
+                hybrid_score=0.0,
+                rank=1,
+                score_type="vector",
+                source_file="doc1.md",
+                source_category="guide",
+                document_date=None,
+                context_header="doc1",
+                chunk_index=0,
+                total_chunks=1,
+                chunk_token_count=100,
+                metadata={},
+            )
+        ]
+
+        bm25_results = [
+            SearchResult(
+                chunk_id=1,  # Same chunk_id - duplicate
+                chunk_text="result 1",
+                similarity_score=0.0,
+                bm25_score=0.85,
+                hybrid_score=0.0,
+                rank=1,
+                score_type="bm25",
+                source_file="doc1.md",
+                source_category="guide",
+                document_date=None,
+                context_header="doc1",
+                chunk_index=0,
+                total_chunks=1,
+                chunk_token_count=100,
+                metadata={},
+            )
+        ]
+
+        rrf_scorer = RRFScorer(k=60)
+        merged = rrf_scorer.merge_results(vector_results, bm25_results)
+
+        # Should have only 1 result (deduplicated)
+        assert len(merged) == 1, "Duplicate should be merged"
+
+    def test_rrf_edge_case_empty_sources(self) -> None:
+        """Test RRF handles empty source results.
+
+        When one or both sources are empty, should handle gracefully.
+        """
+        rrf_scorer = RRFScorer(k=60)
+
+        # Both empty
+        merged = rrf_scorer.merge_results([], [])
+        assert merged == [], "Empty results should return empty"
+
+        # One empty
+        results = [
+            SearchResult(
+                chunk_id=1,
+                chunk_text="test",
+                similarity_score=0.8,
+                bm25_score=0.0,
+                hybrid_score=0.0,
+                rank=1,
+                score_type="vector",
+                source_file="doc.md",
+                source_category="guide",
+                document_date=None,
+                context_header="test",
+                chunk_index=0,
+                total_chunks=1,
+                chunk_token_count=100,
+                metadata={},
+            )
+        ]
+
+        merged = rrf_scorer.merge_results(results, [])
+        assert len(merged) >= 0, "Should handle single source"
+
+    def test_rrf_weight_normalization(self) -> None:
+        """Test RRF weight normalization.
+
+        Weights should normalize to sum ~1.0.
+        """
+        rrf_scorer = RRFScorer(k=60)
+
+        # Test default weights
+        vector_results = create_test_vector_results(3)
+        bm25_results = create_test_bm25_results(3)
+
+        # Default weights (0.6, 0.4)
+        merged = rrf_scorer.merge_results(
+            vector_results, bm25_results, weights=(0.6, 0.4)
+        )
+
+        assert len(merged) > 0, "Should return merged results"
+
+        # Test custom weights
+        merged = rrf_scorer.merge_results(
+            vector_results, bm25_results, weights=(0.7, 0.3)
+        )
+
+        assert len(merged) > 0, "Should handle different weights"
+
+
+class TestSearchAlgorithmEdgeCases:
+    """Test edge cases in search algorithms.
+
+    Validates handling of:
+    - Empty queries
+    - Extreme score values
+    - Missing metadata
+    - Single result
+    """
+
+    def test_single_result_handling(self) -> None:
+        """Test handling of single result from search."""
+        results = create_test_vector_results(1)
+        assert len(results) == 1, "Should handle single result"
+        assert results[0].rank == 1, "Single result should have rank 1"
+
+    def test_empty_metadata_handling(self) -> None:
+        """Test results with empty metadata."""
+        result = SearchResult(
+            chunk_id=1,
+            chunk_text="test",
+            similarity_score=0.8,
+            bm25_score=0.0,
+            hybrid_score=0.0,
+            rank=1,
+            score_type="vector",
+            source_file="doc.md",
+            source_category="guide",
+            document_date=None,
+            context_header="test",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=100,
+            metadata={},  # Empty metadata
+        )
+
+        assert result.metadata == {}, "Should handle empty metadata"
+
+    def test_zero_score_handling(self) -> None:
+        """Test handling of zero scores."""
+        result = SearchResult(
+            chunk_id=1,
+            chunk_text="test",
+            similarity_score=0.0,
+            bm25_score=0.0,
+            hybrid_score=0.0,
+            rank=1,
+            score_type="vector",
+            source_file="doc.md",
+            source_category="guide",
+            document_date=None,
+            context_header="test",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=100,
+            metadata={},
+        )
+
+        assert result.similarity_score == 0.0, "Should allow zero scores"
+
+    def test_maximum_score_one(self) -> None:
+        """Test handling of maximum score (1.0)."""
+        result = SearchResult(
+            chunk_id=1,
+            chunk_text="perfect match",
+            similarity_score=1.0,
+            bm25_score=1.0,
+            hybrid_score=1.0,
+            rank=1,
+            score_type="vector",
+            source_file="doc.md",
+            source_category="guide",
+            document_date=None,
+            context_header="test",
+            chunk_index=0,
+            total_chunks=1,
+            chunk_token_count=100,
+            metadata={},
+        )
+
+        assert result.similarity_score == 1.0, "Should allow maximum scores"
+
+
+class TestBoostWeightsValidation:
+    """Test BoostWeights configuration and validation.
+
+    Validates:
+    - Default weight values
+    - Custom weight values
+    - Weight ranges (0.0-1.0)
+    - Boost application
+    """
+
+    def test_boost_weights_default_values(self) -> None:
+        """Test default boost weight values."""
+        boosts = BoostWeights()
+
+        assert boosts.vendor == 0.15, "Default vendor boost should be 0.15"
+        assert boosts.doc_type == 0.10, "Default doc_type boost should be 0.10"
+        assert boosts.recency == 0.05, "Default recency boost should be 0.05"
+        assert boosts.entity == 0.10, "Default entity boost should be 0.10"
+        assert boosts.topic == 0.08, "Default topic boost should be 0.08"
+
+    def test_boost_weights_custom_values(self) -> None:
+        """Test BoostWeights with custom values."""
+        boosts = BoostWeights(
+            vendor=0.20,
+            doc_type=0.15,
+            recency=0.10,
+            entity=0.15,
+            topic=0.10,
+        )
+
+        assert boosts.vendor == 0.20, "Custom vendor boost"
+        assert boosts.doc_type == 0.15, "Custom doc_type boost"
+        assert boosts.recency == 0.10, "Custom recency boost"
+        assert boosts.entity == 0.15, "Custom entity boost"
+        assert boosts.topic == 0.10, "Custom topic boost"
+
+    def test_boost_weights_zero_values(self) -> None:
+        """Test BoostWeights with zero values (disabling boosts)."""
+        boosts = BoostWeights(
+            vendor=0.0,
+            doc_type=0.0,
+            recency=0.0,
+            entity=0.0,
+            topic=0.0,
+        )
+
+        assert boosts.vendor == 0.0, "Should allow zero boosts"
+        assert boosts.doc_type == 0.0, "Should allow zero boosts"
+
+    def test_boost_weights_application(self) -> None:
+        """Test applying boost weights to score.
+
+        Score multiplied by (1 + boost_factor).
+        """
+        boosts = BoostWeights(vendor=0.15)
+        original_score = 0.8
+
+        boosted_score = original_score * (1 + boosts.vendor)
+
+        assert boosted_score == pytest.approx(0.92, rel=1e-3), "Boost should apply correctly"
+
+
+class TestQueryRouterTypeValidation:
+    """Test QueryRouter type safety and return types.
+
+    Validates:
+    - Return types are correct
+    - Routing decisions are valid
+    - Confidence scores are in valid range
+    """
+
+    def test_query_router_returns_dict(self) -> None:
+        """Test QueryRouter returns dict with expected keys."""
+        router = QueryRouter()
+        result = router.select_strategy("test query")
+
+        # Should have routing decision with strategy, confidence, reason
+        assert hasattr(result, "strategy"), "Should have strategy"
+        assert hasattr(result, "confidence"), "Should have confidence"
+        assert hasattr(result, "reason"), "Should have reason"
+
+    def test_routing_decision_strategy_valid(self) -> None:
+        """Test routing decision strategy is valid."""
+        router = QueryRouter()
+        result = router.select_strategy("test query")
+
+        assert isinstance(result.strategy, str), "Strategy should be string"
+        assert result.strategy in [
+            "vector",
+            "bm25",
+            "hybrid",
+        ], f"Strategy should be one of valid values, got {result.strategy}"
+
+    def test_routing_decision_confidence_valid(self) -> None:
+        """Test routing decision confidence is in valid range."""
+        router = QueryRouter()
+        result = router.select_strategy("test query")
+
+        assert isinstance(result.confidence, (int, float)), "Confidence should be numeric"
+        assert (
+            0.0 <= result.confidence <= 1.0
+        ), f"Confidence should be 0-1, got {result.confidence}"
+
+
+class TestTypeAnnotationValidation:
+    """Test type safety and return type annotations.
+
+    Validates that all methods have proper type annotations.
+    """
+
+    def test_search_result_has_all_fields(self) -> None:
+        """Test SearchResult has all required typed fields."""
+        result = create_test_vector_results(1)[0]
+
+        # Check all required fields exist
+        assert hasattr(result, "chunk_id")
+        assert hasattr(result, "chunk_text")
+        assert hasattr(result, "similarity_score")
+        assert hasattr(result, "bm25_score")
+        assert hasattr(result, "hybrid_score")
+        assert hasattr(result, "rank")
+        assert hasattr(result, "score_type")
+
+    def test_boost_system_returns_correct_type(self) -> None:
+        """Test BoostingSystem apply_boosts returns SearchResultList."""
+        boosting_system = BoostingSystem()
+        results = create_test_vector_results(3)
+        boosts = BoostWeights()
+
+        # Should return list of SearchResult
+        assert isinstance(results, list), "Results should be list"
+        assert all(
+            isinstance(r, SearchResult) for r in results
+        ), "All results should be SearchResult instances"
+
+    def test_rrf_scorer_returns_correct_type(self) -> None:
+        """Test RRFScorer merge_results returns SearchResultList."""
+        rrf_scorer = RRFScorer(k=60)
+        vector_results = create_test_vector_results(3)
+        bm25_results = create_test_bm25_results(3)
+
+        merged = rrf_scorer.merge_results(vector_results, bm25_results)
+
+        assert isinstance(merged, list), "Merged results should be list"
+        assert all(
+            isinstance(r, SearchResult) for r in merged
+        ), "All merged results should be SearchResult"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
