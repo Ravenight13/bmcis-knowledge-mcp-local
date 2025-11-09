@@ -19,9 +19,11 @@ logging for production use.
 import hashlib
 import logging
 import time
+from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import psycopg2
 from pydantic import BaseModel, Field, field_validator
@@ -37,6 +39,145 @@ from src.document_parsing.models import (
 
 # Module logger
 logger: logging.Logger = StructuredLogger.get_logger(__name__)
+
+
+# ============================================================================
+# BATCH PROCESSING DATA STRUCTURES
+# ============================================================================
+
+
+class ErrorRecoveryAction(Enum):
+    """Enum for error recovery actions.
+
+    Categorizes errors into three response strategies:
+    - RETRY: Transient error (network timeout, connection lost) - attempt retry
+    - SKIP: Recoverable error (malformed data) - skip chunk and continue
+    - FAIL: Permanent error (database constraint) - fail entire batch
+    """
+
+    RETRY = "retry"
+    SKIP = "skip"
+    FAIL = "fail"
+
+
+@dataclass
+class Batch:
+    """Represents a batch of documents for processing.
+
+    Batches partition large document collections into optimized sizes for
+    processing. Each batch maintains document order and includes metadata
+    for tracking and error recovery.
+
+    Attributes:
+        documents: List of documents in this batch.
+        batch_index: Zero-indexed position of batch in sequence.
+        metadata: Optional metadata about this batch (creation time, source, etc).
+    """
+
+    documents: list[ProcessedChunk] = field(
+        default_factory=list,
+        metadata="Documents in this batch"
+    )
+    batch_index: int = field(
+        default=0,
+        metadata="Zero-indexed position in batch sequence"
+    )
+    metadata: dict[str, Any] = field(
+        default_factory=dict,
+        metadata="Optional batch metadata"
+    )
+
+    def __post_init__(self) -> None:
+        """Validate batch state after initialization."""
+        if self.batch_index < 0:
+            raise ValueError(f"batch_index must be >= 0, got {self.batch_index}")
+        if not isinstance(self.documents, list):
+            raise TypeError(f"documents must be list, got {type(self.documents)}")
+
+
+@dataclass
+class BatchProgress:
+    """Tracks batch processing progress and metrics.
+
+    Maintains real-time statistics on batch processing including completion
+    counts, document progress, and error tracking. Used to monitor processing
+    and provide visibility into multi-hour batch operations.
+
+    Attributes:
+        batches_completed: Number of batches successfully processed.
+        batches_total: Total batches to process.
+        documents_processed: Total document chunks processed.
+        errors: List of error messages encountered.
+        start_time: When processing began.
+        current_batch_index: Currently processing batch (for resumption).
+    """
+
+    batches_completed: int = field(
+        default=0,
+        metadata="Batches successfully processed"
+    )
+    batches_total: int = field(
+        default=0,
+        metadata="Total batches to process"
+    )
+    documents_processed: int = field(
+        default=0,
+        metadata="Total chunks successfully processed"
+    )
+    errors: list[str] = field(
+        default_factory=list,
+        metadata="Error messages encountered"
+    )
+    start_time: datetime | None = field(
+        default=None,
+        metadata="Processing start timestamp"
+    )
+    current_batch_index: int = field(
+        default=0,
+        metadata="Currently processing batch index"
+    )
+
+    @property
+    def percent_complete(self) -> float:
+        """Calculate percentage of batches completed.
+
+        Returns:
+            Float from 0.0 to 100.0 representing progress percentage.
+        """
+        if self.batches_total == 0:
+            return 0.0
+        return (self.batches_completed / self.batches_total) * 100.0
+
+    @property
+    def has_errors(self) -> bool:
+        """Check if any errors occurred during processing.
+
+        Returns:
+            True if errors list is not empty.
+        """
+        return len(self.errors) > 0
+
+
+@dataclass
+class BatchResult:
+    """Result of processing a single batch.
+
+    Contains outcome information from batch processing including success status,
+    retry count, error details, and metrics about what was processed.
+
+    Attributes:
+        success: Whether batch processed successfully.
+        retry_count: Number of retries attempted (0 if successful on first try).
+        error: Error message if processing failed (None if successful).
+        documents_processed: Number of documents successfully processed.
+        batch_index: Index of the batch that was processed.
+    """
+
+    success: bool = field(default=False)
+    retry_count: int = field(default=0)
+    error: str | None = field(default=None)
+    documents_processed: int = field(default=0)
+    batch_index: int = field(default=0)
 
 
 # ============================================================================
@@ -193,6 +334,152 @@ class ContextHeaderGenerator:
 
 
 # ============================================================================
+# BATCH PROCESSING UTILITY FUNCTIONS
+# ============================================================================
+
+
+def calculate_batch_size(
+    total_items: int,
+    max_batch_size: int = 32,
+) -> int:
+    """Calculate optimized batch size based on document count.
+
+    Calculates an appropriate batch size considering memory constraints and
+    processing efficiency. Batch sizes are capped at max_batch_size to prevent
+    excessive memory usage. For small collections, returns appropriate smaller
+    sizes to avoid unnecessary overhead.
+
+    Why batch size matters:
+    - Memory efficiency: Each batch is loaded into memory; larger batches use
+      more memory but have fewer database round trips.
+    - Processing speed: Optimal batch size balances transaction overhead vs
+      memory usage, typically 16-32 items.
+    - Scalability: Large document collections (>1000s) benefit from smaller
+      batches to manage memory and enable progress tracking.
+
+    Heuristic algorithm:
+    - For ≤100 items: return total_items (process all at once)
+    - For 101-1000: return min(total_items // 10, max_batch_size)
+    - For >1000: return max_batch_size (optimize for memory)
+    - Always return at least 1
+
+    Args:
+        total_items: Total number of items to process.
+        max_batch_size: Maximum batch size constraint (default 32).
+                       Must be >= 1.
+
+    Returns:
+        Calculated batch size, guaranteed to be >= 1 and <= max_batch_size.
+
+    Raises:
+        ValueError: If max_batch_size < 1 or total_items < 0.
+
+    Examples:
+        >>> calculate_batch_size(50, max_batch_size=32)
+        50  # Small collection processed in one batch
+
+        >>> calculate_batch_size(500, max_batch_size=32)
+        32  # Medium collection uses max size
+
+        >>> calculate_batch_size(5000, max_batch_size=32)
+        32  # Large collection optimized for memory
+    """
+    if max_batch_size < 1:
+        raise ValueError(f"max_batch_size must be >= 1, got {max_batch_size}")
+    if total_items < 0:
+        raise ValueError(f"total_items must be >= 0, got {total_items}")
+
+    if total_items == 0:
+        return 1
+
+    if total_items <= 100:
+        # Small collections: process all at once for efficiency
+        return min(total_items, max_batch_size)
+
+    if total_items <= 1000:
+        # Medium collections: divide into ~10 batches
+        calculated = total_items // 10
+        return min(calculated, max_batch_size)
+
+    # Large collections: use maximum to manage memory
+    return max_batch_size
+
+
+def create_batches(
+    documents: list[ProcessedChunk],
+    batch_size: int | None = None,
+) -> list[Batch]:
+    """Partition documents into optimized batches.
+
+    Creates Batch objects that maintain document order and include metadata
+    for tracking. Calculates optimal batch size automatically if not provided.
+
+    Why batching preserves order and integrity:
+    - Documents maintain original sequence for context preservation
+    - Batch indices enable resumable processing after failures
+    - Metadata tracks source and processing state
+    - Small batches enable fine-grained error recovery
+
+    Processing strategy:
+    1. Calculate batch size if not provided (via calculate_batch_size)
+    2. Partition documents into sequential batches
+    3. Add metadata (batch_index, creation_time)
+    4. Preserve document order across all batches
+
+    Args:
+        documents: List of ProcessedChunk objects to batch.
+        batch_size: Batch size (optional). If None, calculated automatically.
+
+    Returns:
+        List of Batch objects with balanced document distribution.
+
+    Raises:
+        ValueError: If documents empty or batch_size < 1.
+
+    Examples:
+        >>> docs = [ProcessedChunk(...) for _ in range(100)]
+        >>> batches = create_batches(docs, batch_size=32)
+        >>> len(batches)
+        4  # 100 items split into 4 batches of 32, 32, 32, 4
+    """
+    if not documents:
+        raise ValueError("documents list cannot be empty")
+
+    if batch_size is None:
+        batch_size = calculate_batch_size(len(documents))
+    elif batch_size < 1:
+        raise ValueError(f"batch_size must be >= 1, got {batch_size}")
+
+    batches: list[Batch] = []
+    creation_time = datetime.now()
+
+    for batch_index in range(0, len(documents), batch_size):
+        batch_docs = documents[batch_index : batch_index + batch_size]
+        batch = Batch(
+            documents=batch_docs,
+            batch_index=len(batches),
+            metadata={
+                "created_at": creation_time.isoformat(),
+                "document_count": len(batch_docs),
+                "start_index": batch_index,
+                "end_index": batch_index + len(batch_docs) - 1,
+            },
+        )
+        batches.append(batch)
+
+    logger.debug(
+        "Batches created",
+        extra={
+            "batch_count": len(batches),
+            "total_documents": len(documents),
+            "batch_size": batch_size,
+        },
+    )
+
+    return batches
+
+
+# ============================================================================
 # BATCH PROCESSING CONFIGURATION
 # ============================================================================
 
@@ -306,6 +593,10 @@ class BatchProcessor:
         self.config = config
         self.stats = BatchProcessingStats()
 
+        # Progress tracking
+        self._progress = BatchProgress()
+        self._error_count = 0
+
         # Initialize components
         self.reader = MarkdownReader()
         self.tokenizer = Tokenizer()
@@ -322,6 +613,280 @@ class BatchProcessor:
                 "batch_size": config.batch_size,
                 "chunk_max_tokens": config.chunk_max_tokens,
             },
+        )
+
+    def calculate_batch_size(
+        self,
+        total_items: int,
+        max_batch_size: int | None = None,
+    ) -> int:
+        """Calculate optimized batch size for document collection.
+
+        Delegates to module-level calculate_batch_size function with optional
+        override for max_batch_size. Determines appropriate batch size based on
+        collection size and memory constraints.
+
+        Args:
+            total_items: Number of documents to process.
+            max_batch_size: Maximum batch size (uses config.batch_size if None).
+
+        Returns:
+            Calculated batch size.
+        """
+        if max_batch_size is None:
+            max_batch_size = self.config.batch_size
+        return calculate_batch_size(total_items, max_batch_size)
+
+    def create_batches(
+        self,
+        documents: list[ProcessedChunk],
+    ) -> list[Batch]:
+        """Create batch groups from document list.
+
+        Partitions documents into batches using configured batch size.
+        Maintains document order and tracks batch metadata for progress
+        monitoring and error recovery.
+
+        Args:
+            documents: List of ProcessedChunk objects.
+
+        Returns:
+            List of Batch objects partitioning the documents.
+
+        Raises:
+            ValueError: If documents list is empty.
+        """
+        return create_batches(documents, batch_size=self.config.batch_size)
+
+    def track_progress(
+        self,
+        batch_index: int,
+        total_batches: int,
+        documents_count: int = 0,
+    ) -> None:
+        """Update progress tracking metrics.
+
+        Records batch completion and updates internal progress state. Provides
+        percentage complete and enables resumption after failures.
+
+        Why progress tracking aids debugging:
+        - Identifies where processing stalled during long operations
+        - Enables operator intervention if batch size is inefficient
+        - Validates estimated completion time and throughput
+        - Supports resumable processing from last completed batch
+
+        Args:
+            batch_index: Current batch index (0-based).
+            total_batches: Total batches to process.
+            documents_count: Documents processed in this batch (optional).
+        """
+        self._progress.batches_completed = batch_index + 1
+        self._progress.batches_total = total_batches
+        self._progress.documents_processed += documents_count
+        self._progress.current_batch_index = batch_index
+
+        percent = self._progress.percent_complete
+        logger.info(
+            "Progress update",
+            extra={
+                "batches_completed": self._progress.batches_completed,
+                "batches_total": total_batches,
+                "percent_complete": f"{percent:.1f}%",
+                "documents_processed": self._progress.documents_processed,
+            },
+        )
+
+    def get_progress(self) -> BatchProgress:
+        """Get current batch processing progress.
+
+        Returns snapshot of progress metrics including completion counts,
+        error information, and completion percentage.
+
+        What metrics are important for monitoring:
+        - batches_completed / batches_total: Overall progress percentage
+        - documents_processed: Throughput metric (chunks/hour)
+        - errors: List of problems for post-mortem analysis
+        - percent_complete: Easy-to-understand progress indicator
+
+        Returns:
+            BatchProgress object with current metrics.
+        """
+        return BatchProgress(
+            batches_completed=self._progress.batches_completed,
+            batches_total=self._progress.batches_total,
+            documents_processed=self._progress.documents_processed,
+            errors=self._progress.errors.copy(),
+            start_time=self._progress.start_time,
+            current_batch_index=self._progress.current_batch_index,
+        )
+
+    def handle_error(
+        self,
+        error: Exception,
+        batch: Batch,
+    ) -> ErrorRecoveryAction:
+        """Categorize error and determine recovery strategy.
+
+        Analyzes error type to decide whether batch should be retried, skipped,
+        or failed. Categorizes common errors and logs details.
+
+        Error categorization strategy:
+        - Transient (RETRY): Connection timeouts, server errors, locks
+        - Recoverable (SKIP): Validation errors, malformed data
+        - Permanent (FAIL): Database constraints, schema mismatch
+
+        Args:
+            error: Exception that occurred during processing.
+            batch: Batch object being processed when error occurred.
+
+        Returns:
+            ErrorRecoveryAction indicating how to proceed.
+        """
+        error_msg = str(error)
+        self._error_count += 1
+
+        # Categorize error by type
+        if isinstance(error, (TimeoutError, ConnectionError)):
+            # Transient network issues
+            action = ErrorRecoveryAction.RETRY
+            logger.warning(
+                "Transient error encountered, will retry",
+                extra={"batch_index": batch.batch_index, "error_type": type(error).__name__},
+            )
+        elif isinstance(error, (ValueError, TypeError)):
+            # Validation or type errors - skip this batch
+            action = ErrorRecoveryAction.SKIP
+            logger.warning(
+                "Recoverable error encountered, will skip batch",
+                extra={"batch_index": batch.batch_index, "error": error_msg},
+            )
+        elif isinstance(error, psycopg2.IntegrityError):
+            # Database constraint violation - fail processing
+            action = ErrorRecoveryAction.FAIL
+            logger.error(
+                "Database integrity error, batch processing failed",
+                extra={"batch_index": batch.batch_index, "error": error_msg},
+            )
+        else:
+            # Unknown errors default to fail for safety
+            action = ErrorRecoveryAction.FAIL
+            logger.error(
+                "Unknown error, batch processing failed",
+                extra={
+                    "batch_index": batch.batch_index,
+                    "error_type": type(error).__name__,
+                    "error": error_msg,
+                },
+            )
+
+        # Track error in progress
+        self._progress.errors.append(f"Batch {batch.batch_index}: {error_msg}")
+
+        return action
+
+    def process_batch_with_retry(
+        self,
+        batch: Batch,
+        processor: Callable[[Batch], int],
+        max_retries: int = 3,
+    ) -> BatchResult:
+        """Process batch with exponential backoff retry logic.
+
+        Processes batch using provided processor function. On failure, retries
+        up to max_retries times with exponential backoff (1s, 2s, 4s).
+        Gracefully handles transient errors and logs outcomes.
+
+        Retry strategy explanation:
+        - Exponential backoff: 1s, 2s, 4s (2^n delay)
+        - Max retries: 3 attempts to handle transient failures
+        - Backoff prevents overwhelming struggling server
+        - Enables recovery from temporary resource contention
+        - Logs all retry attempts for post-mortem analysis
+
+        Args:
+            batch: Batch to process.
+            processor: Callable that processes batch, returns documents count.
+            max_retries: Maximum number of retry attempts (default 3).
+
+        Returns:
+            BatchResult with success status, retry count, and error info.
+
+        Raises:
+            Exception: If max retries exceeded and error is permanent.
+        """
+        retry_count = 0
+        last_error: Exception | None = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                documents_processed = processor(batch)
+                logger.info(
+                    "Batch processed successfully",
+                    extra={
+                        "batch_index": batch.batch_index,
+                        "documents_processed": documents_processed,
+                        "retry_count": retry_count,
+                    },
+                )
+                return BatchResult(
+                    success=True,
+                    retry_count=retry_count,
+                    error=None,
+                    documents_processed=documents_processed,
+                    batch_index=batch.batch_index,
+                )
+
+            except Exception as e:
+                last_error = e
+                action = self.handle_error(e, batch)
+
+                if action == ErrorRecoveryAction.FAIL:
+                    # Permanent error - don't retry
+                    return BatchResult(
+                        success=False,
+                        retry_count=retry_count,
+                        error=str(e),
+                        documents_processed=0,
+                        batch_index=batch.batch_index,
+                    )
+
+                if action == ErrorRecoveryAction.SKIP:
+                    # Skip batch - don't retry
+                    logger.info(
+                        "Batch skipped due to recoverable error",
+                        extra={"batch_index": batch.batch_index},
+                    )
+                    return BatchResult(
+                        success=False,
+                        retry_count=0,
+                        error=str(e),
+                        documents_processed=0,
+                        batch_index=batch.batch_index,
+                    )
+
+                # Transient error - retry with backoff
+                if attempt < max_retries:
+                    retry_count += 1
+                    backoff_seconds = 2 ** (retry_count - 1)  # 1s, 2s, 4s
+                    logger.info(
+                        "Transient error, retrying with backoff",
+                        extra={
+                            "batch_index": batch.batch_index,
+                            "retry_count": retry_count,
+                            "backoff_seconds": backoff_seconds,
+                            "error": str(e),
+                        },
+                    )
+                    time.sleep(backoff_seconds)
+                    continue
+
+        # Max retries exhausted
+        return BatchResult(
+            success=False,
+            retry_count=retry_count,
+            error=str(last_error) if last_error else "Unknown error",
+            documents_processed=0,
+            batch_index=batch.batch_index,
         )
 
     def process_directory(self) -> list[str]:

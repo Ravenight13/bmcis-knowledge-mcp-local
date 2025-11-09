@@ -25,12 +25,18 @@ import pytest
 
 from src.core.database import DatabasePool
 from src.document_parsing.batch_processor import (
+    Batch,
     BatchConfig,
+    BatchProgress,
     BatchProcessor,
+    BatchResult,
     Chunker,
+    ErrorRecoveryAction,
     MarkdownReader,
     ParseError,
     Tokenizer,
+    calculate_batch_size,
+    create_batches,
 )
 from src.document_parsing.models import (
     BatchProcessingStats,
@@ -712,3 +718,424 @@ class TestPerformance:
             # All batch sizes should produce same results
             assert processor.stats.files_processed == 3
             assert len(chunk_ids) > 0
+
+
+# ============================================================================
+# BATCH SIZE CALCULATION TESTS
+# ============================================================================
+
+
+class TestCalculateBatchSize:
+    """Test batch size calculation with memory heuristics."""
+
+    def test_calculate_batch_size_small_collection(self) -> None:
+        """Test small document counts use appropriate batch sizes."""
+        # Small collections: process all at once (capped at max_batch_size=32)
+        assert calculate_batch_size(50) == 32  # min(50, 32)
+        assert calculate_batch_size(100) == 32  # min(100, 32)
+
+    def test_calculate_batch_size_medium_collection(self) -> None:
+        """Test medium document counts use optimized sizes."""
+        # Medium collections: divide into ~10 batches
+        assert calculate_batch_size(500) == 32  # min(50, 32)
+        assert calculate_batch_size(320) == 32  # min(32, 32)
+
+    def test_calculate_batch_size_large_collection(self) -> None:
+        """Test large document counts use maximum size."""
+        # Large collections: use maximum to manage memory
+        assert calculate_batch_size(5000) == 32
+        assert calculate_batch_size(10000) == 32
+
+    def test_calculate_batch_size_respects_max_constraint(self) -> None:
+        """Test batch size never exceeds max_batch_size."""
+        # Even small collections respect max constraint
+        assert calculate_batch_size(1000, max_batch_size=16) == 16
+        assert calculate_batch_size(500, max_batch_size=20) == 20
+        assert calculate_batch_size(50, max_batch_size=10) == 10
+
+    def test_calculate_batch_size_minimum_one(self) -> None:
+        """Test batch size is always at least 1."""
+        assert calculate_batch_size(0) == 1  # Edge case: empty collection
+        assert calculate_batch_size(1) == 1
+
+    def test_calculate_batch_size_invalid_max(self) -> None:
+        """Test invalid max_batch_size raises error."""
+        with pytest.raises(ValueError):
+            calculate_batch_size(100, max_batch_size=0)
+        with pytest.raises(ValueError):
+            calculate_batch_size(100, max_batch_size=-1)
+
+    def test_calculate_batch_size_invalid_items(self) -> None:
+        """Test negative total_items raises error."""
+        with pytest.raises(ValueError):
+            calculate_batch_size(-1)
+
+
+# ============================================================================
+# BATCH CREATION TESTS
+# ============================================================================
+
+
+class TestCreateBatches:
+    """Test batch creation and partitioning."""
+
+    def test_create_batches_preserves_order(self) -> None:
+        """Test batch creation maintains document order."""
+        # Create test documents
+        docs = []
+        for i in range(10):
+            doc = ProcessedChunk.create_from_chunk(
+                chunk_text=f"Document {i}",
+                context_header=f"header_{i}",
+                metadata=DocumentMetadata(source_file="test.md"),
+                chunk_index=i,
+                total_chunks=10,
+                token_count=10,
+            )
+            docs.append(doc)
+
+        # Create batches with size 3
+        batches = create_batches(docs, batch_size=3)
+
+        # Verify order preserved
+        flat_docs = []
+        for batch in batches:
+            flat_docs.extend(batch.documents)
+
+        for i, doc in enumerate(flat_docs):
+            assert doc.chunk_text == f"Document {i}"
+
+    def test_create_batches_correct_count(self) -> None:
+        """Test batches contain correct number of documents."""
+        docs = [
+            ProcessedChunk.create_from_chunk(
+                chunk_text=f"Doc {i}",
+                context_header="h",
+                metadata=DocumentMetadata(source_file="test.md"),
+                chunk_index=i,
+                total_chunks=100,
+                token_count=5,
+            )
+            for i in range(100)
+        ]
+
+        batches = create_batches(docs, batch_size=32)
+
+        # 100 items / 32 per batch = 3 batches (32, 32, 36)
+        assert len(batches) == 4  # 32, 32, 32, 4
+        assert len(batches[0].documents) == 32
+        assert len(batches[1].documents) == 32
+        assert len(batches[2].documents) == 32
+        assert len(batches[3].documents) == 4
+
+    def test_create_batches_indices_sequential(self) -> None:
+        """Test batch indices are sequential."""
+        docs = [
+            ProcessedChunk.create_from_chunk(
+                chunk_text=f"Doc {i}",
+                context_header="h",
+                metadata=DocumentMetadata(source_file="test.md"),
+                chunk_index=i,
+                total_chunks=50,
+                token_count=5,
+            )
+            for i in range(50)
+        ]
+
+        batches = create_batches(docs, batch_size=10)
+
+        for i, batch in enumerate(batches):
+            assert batch.batch_index == i
+
+    def test_create_batches_empty_raises_error(self) -> None:
+        """Test empty documents list raises error."""
+        with pytest.raises(ValueError):
+            create_batches([])
+
+    def test_create_batches_metadata_tracking(self) -> None:
+        """Test batch metadata is correctly populated."""
+        docs = [
+            ProcessedChunk.create_from_chunk(
+                chunk_text=f"Doc {i}",
+                context_header="h",
+                metadata=DocumentMetadata(source_file="test.md"),
+                chunk_index=i,
+                total_chunks=30,
+                token_count=5,
+            )
+            for i in range(30)
+        ]
+
+        batches = create_batches(docs, batch_size=10)
+
+        for batch in batches:
+            assert "created_at" in batch.metadata
+            assert "document_count" in batch.metadata
+            assert batch.metadata["document_count"] == len(batch.documents)
+
+
+# ============================================================================
+# PROGRESS TRACKING TESTS
+# ============================================================================
+
+
+class TestBatchProgress:
+    """Test progress tracking and metrics."""
+
+    def test_batch_processor_initialization(self, temp_dir: Path) -> None:
+        """Test batch processor initializes progress tracking."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        progress = processor.get_progress()
+        assert progress.batches_completed == 0
+        assert progress.batches_total == 0
+        assert progress.documents_processed == 0
+        assert progress.percent_complete == 0.0
+        assert not progress.has_errors
+
+    def test_track_progress_updates_metrics(self, temp_dir: Path) -> None:
+        """Test progress tracking updates correctly."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        # Simulate processing batches
+        processor.track_progress(batch_index=0, total_batches=10, documents_count=32)
+        processor.track_progress(batch_index=1, total_batches=10, documents_count=32)
+        processor.track_progress(batch_index=2, total_batches=10, documents_count=32)
+
+        progress = processor.get_progress()
+        assert progress.batches_completed == 3
+        assert progress.batches_total == 10
+        assert progress.documents_processed == 96  # 3 * 32
+        assert progress.percent_complete == 30.0
+
+    def test_batch_progress_percent_complete(self) -> None:
+        """Test percentage complete calculation."""
+        progress = BatchProgress(
+            batches_completed=5,
+            batches_total=10,
+            documents_processed=100,
+        )
+        assert progress.percent_complete == 50.0
+
+        progress.batches_completed = 10
+        assert progress.percent_complete == 100.0
+
+        progress.batches_total = 0
+        assert progress.percent_complete == 0.0
+
+    def test_batch_progress_has_errors(self) -> None:
+        """Test error detection in progress."""
+        progress = BatchProgress()
+        assert not progress.has_errors
+
+        progress.errors.append("Error 1")
+        assert progress.has_errors
+
+    def test_get_progress_returns_copy(self, temp_dir: Path) -> None:
+        """Test get_progress returns independent copy."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        processor.track_progress(0, 10, 32)
+        progress1 = processor.get_progress()
+        progress1.errors.append("test error")
+
+        progress2 = processor.get_progress()
+        assert len(progress2.errors) == 0  # Copy is independent
+
+
+# ============================================================================
+# ERROR HANDLING TESTS
+# ============================================================================
+
+
+class TestErrorHandling:
+    """Test error categorization and recovery."""
+
+    def test_handle_error_transient_timeout(self, temp_dir: Path) -> None:
+        """Test timeout errors are categorized as transient."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        error = TimeoutError("Connection timeout")
+
+        action = processor.handle_error(error, batch)
+        assert action == ErrorRecoveryAction.RETRY
+
+    def test_handle_error_transient_connection(self, temp_dir: Path) -> None:
+        """Test connection errors are categorized as transient."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        error = ConnectionError("Connection lost")
+
+        action = processor.handle_error(error, batch)
+        assert action == ErrorRecoveryAction.RETRY
+
+    def test_handle_error_recoverable_validation(self, temp_dir: Path) -> None:
+        """Test validation errors are categorized as recoverable."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        error = ValueError("Invalid data format")
+
+        action = processor.handle_error(error, batch)
+        assert action == ErrorRecoveryAction.SKIP
+
+    def test_handle_error_permanent_database(self, temp_dir: Path) -> None:
+        """Test database errors are categorized as permanent."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        error = psycopg2.IntegrityError("UNIQUE constraint violation")
+
+        action = processor.handle_error(error, batch)
+        assert action == ErrorRecoveryAction.FAIL
+
+    def test_handle_error_unknown_defaults_to_fail(self, temp_dir: Path) -> None:
+        """Test unknown errors default to fail for safety."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        error = RuntimeError("Unknown error")
+
+        action = processor.handle_error(error, batch)
+        assert action == ErrorRecoveryAction.FAIL
+
+    def test_handle_error_tracks_in_progress(self, temp_dir: Path) -> None:
+        """Test errors are tracked in progress."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        error = ValueError("Test error")
+
+        processor.handle_error(error, batch)
+
+        progress = processor.get_progress()
+        assert len(progress.errors) > 0
+        assert "Test error" in progress.errors[0]
+
+
+# ============================================================================
+# RETRY AND BACKOFF TESTS
+# ============================================================================
+
+
+class TestProcessBatchWithRetry:
+    """Test batch processing with retry logic."""
+
+    def test_process_batch_success(self, temp_dir: Path) -> None:
+        """Test successful batch processing on first attempt."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+
+        def mock_processor(b: Batch) -> int:
+            return 5
+
+        result = processor.process_batch_with_retry(batch, mock_processor)
+
+        assert result.success
+        assert result.retry_count == 0
+        assert result.error is None
+        assert result.documents_processed == 5
+
+    def test_process_batch_transient_error_retry(self, temp_dir: Path) -> None:
+        """Test transient error triggers retry with backoff."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        attempt_count = 0
+
+        def mock_processor(b: Batch) -> int:
+            nonlocal attempt_count
+            attempt_count += 1
+            if attempt_count < 2:
+                raise TimeoutError("Network timeout")
+            return 5
+
+        result = processor.process_batch_with_retry(batch, mock_processor, max_retries=2)
+
+        assert result.success
+        assert result.retry_count == 1
+        assert attempt_count == 2
+
+    def test_process_batch_permanent_error_no_retry(self, temp_dir: Path) -> None:
+        """Test permanent error doesn't trigger retries."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        attempt_count = 0
+
+        def mock_processor(b: Batch) -> int:
+            nonlocal attempt_count
+            attempt_count += 1
+            raise psycopg2.IntegrityError("Constraint violation")
+
+        result = processor.process_batch_with_retry(batch, mock_processor, max_retries=3)
+
+        assert not result.success
+        assert result.retry_count == 0
+        assert attempt_count == 1  # Only tried once
+
+    def test_process_batch_recoverable_error_skip(self, temp_dir: Path) -> None:
+        """Test recoverable error skips batch without retries."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        attempt_count = 0
+
+        def mock_processor(b: Batch) -> int:
+            nonlocal attempt_count
+            attempt_count += 1
+            raise ValueError("Invalid data")
+
+        result = processor.process_batch_with_retry(batch, mock_processor, max_retries=3)
+
+        assert not result.success
+        assert result.retry_count == 0
+        assert attempt_count == 1  # Only tried once
+
+    def test_process_batch_max_retries_exhausted(self, temp_dir: Path) -> None:
+        """Test max retries exhaustion returns failure."""
+        config = BatchConfig(input_dir=temp_dir)
+        processor = BatchProcessor(config)
+
+        batch = Batch(documents=[], batch_index=0)
+        attempt_count = 0
+
+        def mock_processor(b: Batch) -> int:
+            nonlocal attempt_count
+            attempt_count += 1
+            raise TimeoutError("Always times out")
+
+        result = processor.process_batch_with_retry(batch, mock_processor, max_retries=2)
+
+        assert not result.success
+        assert result.retry_count == 2
+        assert attempt_count == 3  # Initial + 2 retries
+
+    def test_batch_result_dataclass(self) -> None:
+        """Test BatchResult dataclass."""
+        result = BatchResult(
+            success=True,
+            retry_count=1,
+            error=None,
+            documents_processed=10,
+            batch_index=0,
+        )
+        assert result.success
+        assert result.retry_count == 1
+        assert result.documents_processed == 10

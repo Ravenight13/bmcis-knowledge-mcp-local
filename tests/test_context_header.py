@@ -738,3 +738,438 @@ class TestContextHeaderPerformance:
         # Should be much shorter than content
         assert len(summary) < len(content) / 10
         assert len(summary) > 0
+
+
+class TestBuildHierarchyPath:
+    """Test suite for _build_hierarchy_path method."""
+
+    @pytest.fixture
+    def generator(self) -> ContextHeaderGenerator:
+        """Create generator instance for tests."""
+        return ContextHeaderGenerator()
+
+    def test_build_hierarchy_path_from_hierarchy_field(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test hierarchy extraction from 'hierarchy' field."""
+        metadata = {"hierarchy": ["Chapter 1", "Section A"]}
+        result = generator._build_hierarchy_path(metadata)
+        assert result == "Chapter 1 > Section A"
+
+    def test_build_hierarchy_path_from_sections_field(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test hierarchy extraction from 'sections' field."""
+        metadata = {"sections": ["Part I", "Chapter 2"]}
+        result = generator._build_hierarchy_path(metadata)
+        assert result == "Part I > Chapter 2"
+
+    def test_build_hierarchy_path_from_breadcrumbs_field(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test hierarchy extraction from 'breadcrumbs' field."""
+        metadata = {"breadcrumbs": ["Home", "Products", "Details"]}
+        result = generator._build_hierarchy_path(metadata)
+        assert result == "Home > Products > Details"
+
+    def test_build_hierarchy_path_empty_metadata(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test hierarchy extraction with empty metadata."""
+        result = generator._build_hierarchy_path({})
+        assert result == ""
+
+    def test_build_hierarchy_path_no_hierarchy_fields(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test hierarchy extraction when no hierarchy fields present."""
+        metadata = {"title": "Document", "author": "John"}
+        result = generator._build_hierarchy_path(metadata)
+        assert result == ""
+
+    def test_build_hierarchy_path_with_whitespace(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that hierarchy items are stripped of whitespace."""
+        metadata = {"hierarchy": ["  Chapter 1  ", "  Section A  "]}
+        result = generator._build_hierarchy_path(metadata)
+        assert result == "Chapter 1 > Section A"
+
+    def test_build_hierarchy_path_filters_empty_items(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that empty hierarchy items are filtered."""
+        metadata = {"hierarchy": ["Chapter 1", "", "Section A", None]}
+        result = generator._build_hierarchy_path(metadata)
+        # Should only contain non-empty items
+        assert "Chapter 1" in result
+        assert "Section A" in result
+        assert "  " not in result  # No double spaces
+
+    def test_build_hierarchy_path_tuple_input(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test hierarchy extraction from tuple."""
+        metadata = {"hierarchy": ("Part I", "Chapter 1")}
+        result = generator._build_hierarchy_path(metadata)
+        assert result == "Part I > Chapter 1"
+
+
+class TestIncludeMetadataInHeader:
+    """Test suite for _include_metadata_in_header method."""
+
+    @pytest.fixture
+    def generator(self) -> ContextHeaderGenerator:
+        """Create generator instance for tests."""
+        return ContextHeaderGenerator()
+
+    def test_include_metadata_source_file(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test metadata inclusion with source_file field."""
+        metadata = {"source_file": "guide.md"}
+        result = generator._include_metadata_in_header(metadata)
+        assert "Source: guide.md" in result
+        assert "[" in result and "]" in result
+
+    def test_include_metadata_source(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test metadata inclusion with source field (alternative)."""
+        metadata = {"source": "document.txt"}
+        result = generator._include_metadata_in_header(metadata)
+        assert "Source: document.txt" in result
+
+    def test_include_metadata_date(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test metadata inclusion with date field."""
+        metadata = {"document_date": "2025-11-08"}
+        result = generator._include_metadata_in_header(metadata)
+        assert "Date: 2025-11-08" in result
+
+    def test_include_metadata_author(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test metadata inclusion with author field."""
+        metadata = {"author": "Jane Doe"}
+        result = generator._include_metadata_in_header(metadata)
+        assert "Author: Jane Doe" in result
+
+    def test_include_metadata_multiple_fields(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test metadata inclusion with multiple fields."""
+        metadata = {
+            "source_file": "guide.md",
+            "document_date": "2025-11-08",
+            "author": "John Smith",
+        }
+        result = generator._include_metadata_in_header(metadata)
+        assert "Source: guide.md" in result
+        assert "Date: 2025-11-08" in result
+        assert "Author: John Smith" in result
+        assert " | " in result  # Separator between fields
+
+    def test_include_metadata_empty_metadata(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test with empty metadata dictionary."""
+        result = generator._include_metadata_in_header({})
+        assert result == ""
+
+    def test_include_metadata_none_values_ignored(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that None values are ignored."""
+        metadata = {
+            "source_file": "guide.md",
+            "author": None,
+            "document_date": None,
+        }
+        result = generator._include_metadata_in_header(metadata)
+        assert "Source: guide.md" in result
+        assert "Author:" not in result
+        assert "Date:" not in result
+
+
+class TestValidateHeaderFormat:
+    """Test suite for validate_header_format method."""
+
+    @pytest.fixture
+    def generator(self) -> ContextHeaderGenerator:
+        """Create generator instance for tests."""
+        return ContextHeaderGenerator()
+
+    def test_validate_header_format_valid(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test validation of valid header."""
+        assert generator.validate_header_format("[Document: Test]") is True
+
+    def test_validate_header_format_empty_raises(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that empty header raises ValueError."""
+        with pytest.raises(ValueError, match="cannot be empty"):
+            generator.validate_header_format("")
+
+        with pytest.raises(ValueError, match="cannot be empty"):
+            generator.validate_header_format("   ")
+
+    def test_validate_header_format_too_long_raises(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that header exceeding 200 chars raises ValueError."""
+        long_header = "[Document: " + "a" * 200 + "]"
+        with pytest.raises(ValueError, match="exceeds maximum"):
+            generator.validate_header_format(long_header)
+
+    def test_validate_header_format_no_brackets_raises(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that header without brackets raises ValueError."""
+        with pytest.raises(ValueError, match="bracket pair"):
+            generator.validate_header_format("Document: Test")
+
+    def test_validate_header_format_missing_closing_bracket(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test header with only opening bracket."""
+        with pytest.raises(ValueError, match="bracket pair"):
+            generator.validate_header_format("[Document: Test")
+
+    def test_validate_header_format_multiple_bracket_pairs(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test valid header with multiple bracket pairs."""
+        assert (
+            generator.validate_header_format("[Document: Test] [Author: Jane]")
+            is True
+        )
+
+    def test_validate_header_format_exactly_200_chars(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test header with exactly 200 characters."""
+        # Create header that's exactly 200 chars (including brackets and content)
+        header = "[" + "a" * 198 + "]"
+        assert len(header) == 200
+        assert generator.validate_header_format(header) is True
+
+
+class TestFormatHeaderForDisplay:
+    """Test suite for format_header_for_display method."""
+
+    @pytest.fixture
+    def generator(self) -> ContextHeaderGenerator:
+        """Create generator instance for tests."""
+        return ContextHeaderGenerator()
+
+    def test_format_header_normalizes_whitespace(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that multiple spaces are normalized to single space."""
+        messy = "[Document:  Test]  [Extra:  Value]"
+        clean = generator.format_header_for_display(messy)
+        assert "  " not in clean  # No double spaces
+        # Verify both parts are present and separated correctly
+        assert "[Document: Test]" in clean
+        assert "[Extra: Value]" in clean
+        assert "] [" in clean  # Proper spacing between brackets
+
+    def test_format_header_strips_edges(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that leading/trailing whitespace is removed."""
+        messy = "   [Document: Test]   "
+        clean = generator.format_header_for_display(messy)
+        assert clean == "[Document: Test]"
+
+    def test_format_header_fixes_bracket_spacing(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that bracket spacing is corrected."""
+        messy = "[Document: Test][Author: Jane]"
+        clean = generator.format_header_for_display(messy)
+        assert "] [" in clean
+        assert "][" not in clean
+
+    def test_format_header_normalizes_pipe_separator(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that pipe separators have consistent spacing."""
+        messy = "[A|B]  [C  |  D]"
+        clean = generator.format_header_for_display(messy)
+        # Should have consistent spacing around pipes
+        assert clean.count(" | ") >= 1
+
+    def test_format_header_preserves_content(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that formatting preserves essential content."""
+        header = "[Document: Test] [Author: Jane]"
+        clean = generator.format_header_for_display(header)
+        assert "Document" in clean
+        assert "Test" in clean
+        assert "Author" in clean
+        assert "Jane" in clean
+
+    def test_format_header_unicode_preserved(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that unicode characters are preserved."""
+        header = "[Document: ドキュメント] [Author: José]"
+        clean = generator.format_header_for_display(header)
+        assert "ドキュメント" in clean
+        assert "José" in clean
+
+
+class TestExtractContextFromPreviousChunk:
+    """Test suite for extract_context_from_previous_chunk method."""
+
+    @pytest.fixture
+    def generator(self) -> ContextHeaderGenerator:
+        """Create generator instance for tests."""
+        return ContextHeaderGenerator()
+
+    def test_extract_last_sentence(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test extraction of last sentence from chunk."""
+        prev = "First sentence. Second sentence. Third sentence."
+        result = generator.extract_context_from_previous_chunk(prev)
+        assert "Third sentence" in result
+
+    def test_extract_context_single_sentence(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test extraction with single sentence."""
+        prev = "Only sentence here."
+        result = generator.extract_context_from_previous_chunk(prev)
+        assert "Only sentence" in result
+
+    def test_extract_context_empty_chunk(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test extraction with empty previous chunk."""
+        result = generator.extract_context_from_previous_chunk("")
+        assert result == ""
+
+        result = generator.extract_context_from_previous_chunk("   ")
+        assert result == ""
+
+    def test_extract_context_no_sentence_boundary(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test extraction when no sentence boundaries found."""
+        prev = "Text without proper punctuation"
+        result = generator.extract_context_from_previous_chunk(prev)
+        # Should return something (last part or whole text)
+        assert len(result) > 0
+        assert "Text" in result
+
+    def test_extract_context_question_mark_boundary(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test sentence boundary detection with question mark."""
+        prev = "First? Second! Third."
+        result = generator.extract_context_from_previous_chunk(prev)
+        assert "Third" in result
+
+    def test_extract_context_with_whitespace_handling(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that extracted context has whitespace stripped."""
+        prev = "Sentence one.   Sentence two.   "
+        result = generator.extract_context_from_previous_chunk(prev)
+        # Should not have trailing whitespace
+        assert result == result.strip()
+
+
+class TestCalculateChunkPosition:
+    """Test suite for calculate_chunk_position method."""
+
+    @pytest.fixture
+    def generator(self) -> ContextHeaderGenerator:
+        """Create generator instance for tests."""
+        return ContextHeaderGenerator()
+
+    def test_calculate_chunk_position_first(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test position calculation for first chunk."""
+        result = generator.calculate_chunk_position(0, 5)
+        assert result == "Chunk 1 of 5 (20%)"
+
+    def test_calculate_chunk_position_middle(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test position calculation for middle chunk."""
+        result = generator.calculate_chunk_position(2, 5)
+        assert result == "Chunk 3 of 5 (60%)"
+
+    def test_calculate_chunk_position_last(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test position calculation for last chunk."""
+        result = generator.calculate_chunk_position(4, 5)
+        assert result == "Chunk 5 of 5 (100%)"
+
+    def test_calculate_chunk_position_single_chunk(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test position calculation when document has single chunk."""
+        result = generator.calculate_chunk_position(0, 1)
+        assert result == "Chunk 1 of 1 (100%)"
+
+    def test_calculate_chunk_position_large_document(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test position calculation for large document."""
+        result = generator.calculate_chunk_position(50, 100)
+        assert "Chunk 51 of 100" in result
+        assert "(51%)" in result
+
+    def test_calculate_chunk_position_invalid_index_negative(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that negative chunk index raises ValueError."""
+        with pytest.raises(ValueError, match="chunk_index must be >= 0"):
+            generator.calculate_chunk_position(-1, 5)
+
+    def test_calculate_chunk_position_invalid_total_zero(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that zero total_chunks raises ValueError."""
+        with pytest.raises(ValueError, match="total_chunks must be > 0"):
+            generator.calculate_chunk_position(0, 0)
+
+    def test_calculate_chunk_position_invalid_total_negative(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that negative total_chunks raises ValueError."""
+        with pytest.raises(ValueError, match="total_chunks must be > 0"):
+            generator.calculate_chunk_position(0, -5)
+
+    def test_calculate_chunk_position_index_out_of_bounds(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that chunk_index >= total_chunks raises ValueError."""
+        with pytest.raises(ValueError, match="must be < total_chunks"):
+            generator.calculate_chunk_position(5, 5)
+
+        with pytest.raises(ValueError, match="must be < total_chunks"):
+            generator.calculate_chunk_position(10, 5)
+
+    def test_calculate_chunk_position_percentage_rounding(
+        self, generator: ContextHeaderGenerator
+    ) -> None:
+        """Test that percentage is calculated correctly."""
+        # Chunk index 0 = chunk 1: 1/3 = 33.33% should round down to 33%
+        result = generator.calculate_chunk_position(0, 3)
+        assert "(33%)" in result
+
+        # Chunk index 1 = chunk 2: 2/3 = 66.66% should round down to 66%
+        result = generator.calculate_chunk_position(1, 3)
+        assert "(66%)" in result

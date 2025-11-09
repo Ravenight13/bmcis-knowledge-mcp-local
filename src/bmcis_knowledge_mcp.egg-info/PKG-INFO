@@ -1,0 +1,26 @@
+Metadata-Version: 2.4
+Name: bmcis-knowledge-mcp
+Version: 1.0.0
+Summary: BMCIS Knowledge Base MCP Server with PostgreSQL and pgvector support
+Author-email: BMCIS Team <contact@bmcis.io>
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pydantic-settings>=2.0.0
+Requires-Dist: psycopg[binary]>=3.1.0
+Requires-Dist: pgvector>=0.2.0
+Requires-Dist: sentence-transformers>=2.2.0
+Requires-Dist: torch>=2.0.0
+Requires-Dist: tiktoken>=0.5.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: mypy>=1.7.0; extra == "dev"
+Requires-Dist: ruff>=0.2.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.13.0; extra == "dev"
+Provides-Extra: test
+Requires-Dist: pytest>=7.4.0; extra == "test"
+Requires-Dist: pytest-cov>=4.1.0; extra == "test"
+Requires-Dist: pytest-asyncio>=0.23.0; extra == "test"

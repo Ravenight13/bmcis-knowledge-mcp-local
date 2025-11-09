@@ -21,56 +21,135 @@ from src.document_parsing.tokenizer import Tokenizer, TokenizerConfig
 
 
 class TestChunkerConfig:
-    """Test ChunkerConfig validation."""
+    """Test ChunkerConfig validation.
 
-    def test_default_config(self) -> None:
-        """Test default ChunkerConfig values."""
+    Tests cover:
+    - Default configuration values match specifications
+    - Custom configuration values are properly stored
+    - Validation enforces positive chunk and min_chunk sizes
+    - Validation enforces non-negative overlap_tokens
+    - Cross-field constraints are validated (overlap < chunk, min <= chunk)
+    """
+
+    def test_chunker_config_defaults(self) -> None:
+        """Test default ChunkerConfig values match specifications.
+
+        Reason: Ensures configuration defaults align with pipeline requirements.
+        What it does: Validates that all default fields have expected values.
+        """
         config = ChunkerConfig()
-        assert config.chunk_size == 512
-        assert config.overlap_tokens == 50
-        assert config.preserve_boundaries is True
-        assert config.min_chunk_size == 100
+        assert config.chunk_size == 512, "Default chunk_size should be 512"
+        assert config.overlap_tokens == 50, "Default overlap_tokens should be 50"
+        assert config.preserve_boundaries is True, "Default preserve_boundaries should be True"
+        assert config.min_chunk_size == 100, "Default min_chunk_size should be 100"
 
-    def test_custom_config(self) -> None:
-        """Test custom ChunkerConfig values."""
+    def test_chunker_config_custom(self) -> None:
+        """Test custom ChunkerConfig values are properly stored.
+
+        Reason: Ensures configuration can be customized for different use cases.
+        What it does: Creates config with custom values and verifies persistence.
+        """
         config = ChunkerConfig(
             chunk_size=256,
             overlap_tokens=25,
             preserve_boundaries=False,
             min_chunk_size=50,
         )
-        assert config.chunk_size == 256
-        assert config.overlap_tokens == 25
-        assert config.preserve_boundaries is False
-        assert config.min_chunk_size == 50
+        assert config.chunk_size == 256, "Custom chunk_size should persist"
+        assert config.overlap_tokens == 25, "Custom overlap_tokens should persist"
+        assert config.preserve_boundaries is False, "Custom preserve_boundaries should persist"
+        assert config.min_chunk_size == 50, "Custom min_chunk_size should persist"
 
-    def test_config_validation_overlap_exceeds_chunk_size(self) -> None:
-        """Test validation fails when overlap exceeds chunk size."""
-        config = ChunkerConfig()
+    def test_config_validation_overlap_exceeds_chunk(self) -> None:
+        """Test validation fails when overlap_tokens >= chunk_size.
+
+        Reason: Prevents logical inconsistency where overlap cannot exceed target chunk size.
+        What it does: Attempts to create config with overlap >= chunk_size and verifies ValueError.
+        """
         with pytest.raises(ValueError, match="overlap_tokens.*must be less than"):
-            config.chunk_size = 100
-            config.overlap_tokens = 150
-            config.validate_config()
+            ChunkerConfig(chunk_size=100, overlap_tokens=150)
+
+    def test_config_validation_overlap_equals_chunk(self) -> None:
+        """Test validation fails when overlap_tokens equals chunk_size.
+
+        Reason: Overlap must be strictly less than chunk_size to avoid circular overlaps.
+        What it does: Attempts to create config where overlap equals chunk_size.
+        """
+        with pytest.raises(ValueError, match="overlap_tokens.*must be less than"):
+            ChunkerConfig(chunk_size=100, overlap_tokens=100)
 
     def test_config_validation_min_exceeds_chunk(self) -> None:
-        """Test validation fails when min_chunk_size exceeds chunk_size."""
-        config = ChunkerConfig()
-        with pytest.raises(ValueError, match="min_chunk_size.*must not exceed"):
-            config.chunk_size = 100
-            config.min_chunk_size = 150
-            config.validate_config()
+        """Test validation fails when min_chunk_size > chunk_size.
 
-    def test_config_invalid_chunk_size(self) -> None:
-        """Test that chunk_size must be positive."""
-        with pytest.raises(ValueError):
+        Reason: Prevents impossible constraint where minimum exceeds target size.
+        What it does: Attempts to create config with min_chunk_size > chunk_size.
+        """
+        with pytest.raises(ValueError, match="min_chunk_size.*must not exceed"):
+            ChunkerConfig(chunk_size=100, min_chunk_size=150)
+
+    def test_config_invalid_chunk_sizes(self) -> None:
+        """Test that chunk_size must be positive (not zero or negative).
+
+        Reason: Zero or negative chunk size is meaningless in chunking context.
+        What it does: Verifies ValueError is raised for non-positive chunk_size values.
+        """
+        with pytest.raises(ValueError, match="chunk_size must be positive"):
             ChunkerConfig(chunk_size=0)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="chunk_size must be positive"):
             ChunkerConfig(chunk_size=-1)
 
     def test_config_invalid_min_chunk_size(self) -> None:
-        """Test that min_chunk_size must be positive."""
-        with pytest.raises(ValueError):
+        """Test that min_chunk_size must be positive.
+
+        Reason: Minimum chunk size of zero or negative would create degenerate chunks.
+        What it does: Verifies ValueError is raised for non-positive min_chunk_size.
+        """
+        with pytest.raises(ValueError, match="min_chunk_size must be positive"):
             ChunkerConfig(min_chunk_size=0)
+        with pytest.raises(ValueError, match="min_chunk_size must be positive"):
+            ChunkerConfig(min_chunk_size=-1)
+
+    def test_config_invalid_negative_overlap(self) -> None:
+        """Test that overlap_tokens must be non-negative.
+
+        Reason: Negative overlap is impossible in sequential chunking.
+        What it does: Verifies ValueError is raised for negative overlap_tokens.
+        """
+        with pytest.raises(ValueError, match="overlap_tokens must be non-negative"):
+            ChunkerConfig(overlap_tokens=-1)
+
+    def test_config_zero_overlap_valid(self) -> None:
+        """Test that zero overlap_tokens is valid (no overlap, adjacent chunks).
+
+        Reason: Zero overlap is valid configuration for non-overlapping chunks.
+        What it does: Creates config with zero overlap and verifies success.
+        """
+        config = ChunkerConfig(overlap_tokens=0)
+        assert config.overlap_tokens == 0, "Zero overlap should be valid"
+
+    def test_config_validate_config_explicit_call(self) -> None:
+        """Test validate_config() can be called explicitly for validation.
+
+        Reason: Provides explicit validation API for edge cases or re-validation.
+        What it does: Creates config and calls validate_config() to ensure no error on valid config.
+
+        Example:
+            >>> config = ChunkerConfig(chunk_size=256, overlap_tokens=50)
+            >>> config.validate_config()  # Should not raise
+        """
+        config = ChunkerConfig(chunk_size=256, overlap_tokens=50)
+        # Should not raise
+        config.validate_config()
+
+    def test_config_all_valid_boundaries(self) -> None:
+        """Test configuration with valid values at constraint boundaries.
+
+        Reason: Ensures edge cases of valid constraints work correctly.
+        What it does: Creates config where overlap_tokens is just under chunk_size.
+        """
+        config = ChunkerConfig(chunk_size=100, overlap_tokens=99, min_chunk_size=100)
+        assert config.overlap_tokens == 99, "Overlap just under chunk_size should be valid"
+        assert config.min_chunk_size == 100, "Min chunk equal to chunk_size should be valid"
 
 
 class TestChunkerBasic:
