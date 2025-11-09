@@ -12,11 +12,11 @@ import hashlib
 import logging
 import threading
 import time
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from typing import Generic, TypeVar, Optional, Any
 from collections import OrderedDict
 from collections.abc import Hashable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any, Generic, TypeVar
 
 from src.core.logging import StructuredLogger
 
@@ -157,7 +157,7 @@ class SearchQueryCache(Generic[ResultType]):
                     return None
 
             # Update access metadata
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             updated_entry = CacheEntry(
                 result=entry.result,
                 created_at=entry.created_at,
@@ -195,7 +195,7 @@ class SearchQueryCache(Generic[ResultType]):
             size_bytes: Optional size estimate for memory tracking.
         """
         hash_key = query_hash or self.compute_query_hash(query)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         estimated_size = size_bytes or 2048  # Default estimate
 
         with self._lock:
@@ -432,7 +432,7 @@ class SearchQueryCache(Generic[ResultType]):
             updated_entry = CacheEntry(
                 result=entry.result,
                 created_at=entry.created_at,
-                accessed_at=datetime.now(timezone.utc),
+                accessed_at=datetime.now(UTC),
                 access_count=entry.access_count,
                 size_bytes=entry.size_bytes,
             )

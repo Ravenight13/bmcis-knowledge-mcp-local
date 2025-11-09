@@ -9,14 +9,10 @@ Type-safe implementation with 100% mypy --strict compliance.
 
 from __future__ import annotations
 
-import json
 import logging
-import time
-from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
-from typing import Any, Generic, TypeVar, Optional
-from statistics import mean, median, stdev
-from collections import defaultdict
+from dataclasses import dataclass
+from statistics import mean
+from typing import Any, Generic, TypeVar
 
 from src.core.logging import StructuredLogger
 
