@@ -36,6 +36,8 @@ from typing import Any
 from src.core.logging import StructuredLogger
 from src.mcp.cache import hash_query
 from src.mcp.models import (
+    EnhancedSemanticSearchResult,
+    MCPResponseEnvelope,
     PaginationMetadata,
     SearchResultFull,
     SearchResultIDs,
@@ -43,6 +45,12 @@ from src.mcp.models import (
     SearchResultPreview,
     SemanticSearchRequest,
     SemanticSearchResponse,
+)
+from src.mcp.response_formatter import (
+    calculate_confidence_scores,
+    detect_duplicates,
+    generate_ranking_context,
+    wrap_semantic_search_response,
 )
 from src.mcp.server import get_cache_layer, get_hybrid_search, mcp
 from src.search.results import SearchResult
@@ -278,7 +286,8 @@ def semantic_search(
     cursor: str | None = None,
     fields: list[str] | None = None,
     response_mode: str = "metadata",
-) -> SemanticSearchResponse:
+    response_format: str | None = None,
+) -> SemanticSearchResponse | MCPResponseEnvelope[dict[str, Any]]:
     """Hybrid semantic search with caching, pagination, and field filtering.
 
     Searches the knowledge base using hybrid search (vector similarity + BM25 full-text)
@@ -296,6 +305,10 @@ def semantic_search(
             - "metadata": IDs + file info + scores (~2-4K tokens for 10 results)
             - "preview": metadata + 200-char snippet (~5-10K tokens for 10 results)
             - "full": Complete chunk content (~15K+ tokens for 10 results)
+        response_format: Optional response format. Default: None (legacy format).
+            - None: Return SemanticSearchResponse (backward compatible)
+            - "desktop": Return MCPResponseEnvelope with enhanced metadata
+            - "ids_only"/"metadata"/"preview"/"full": Alias for response_mode (backward compat)
 
     Returns:
         SemanticSearchResponse with:
@@ -456,6 +469,7 @@ def semantic_search(
             "page_size": request.page_size,
             "offset": offset,
             "response_mode": response_mode,
+            "response_format": response_format,
             "results_count": len(page_results),
             "total_available": total_available,
             "execution_time_ms": execution_time_ms,
@@ -463,6 +477,56 @@ def semantic_search(
         },
     )
 
+    # Handle response_format parameter (backward compatibility)
+    effective_response_format = response_format
+
+    # If response_format is a mode alias, map to response_mode
+    if response_format in ["ids_only", "metadata", "preview", "full"]:
+        # Legacy: response_format used as response_mode alias
+        effective_response_format = None
+
+    # Return enhanced envelope format for desktop mode
+    if effective_response_format == "desktop":
+        # Add confidence scores and ranking context for desktop
+        confidence_map = calculate_confidence_scores(page_results)
+        ranking_map = generate_ranking_context(page_results)
+        dedup_map = detect_duplicates(page_results)
+
+        # Enhance results with confidence and ranking
+        enhanced_results: list[EnhancedSemanticSearchResult] = []
+        for i, result in enumerate(formatted_results):
+            if isinstance(result, dict):
+                # Convert dict back to SearchResultMetadata
+                result_obj = SearchResultMetadata(**result)
+            else:
+                result_obj = result
+
+            enhanced = EnhancedSemanticSearchResult(
+                chunk_id=result_obj.chunk_id,
+                source_file=result_obj.source_file,
+                source_category=result_obj.source_category,
+                hybrid_score=result_obj.hybrid_score,
+                rank=result_obj.rank,
+                chunk_index=result_obj.chunk_index,
+                total_chunks=result_obj.total_chunks,
+                confidence=confidence_map.get(result_obj.chunk_id),
+                ranking=ranking_map[result_obj.chunk_id],
+                deduplication=dedup_map.get(result_obj.chunk_id),
+            )
+            enhanced_results.append(enhanced)
+
+        # Wrap in envelope with metadata
+        return wrap_semantic_search_response(
+            results=enhanced_results,  # type: ignore[arg-type]
+            total_found=total_available,
+            execution_time_ms=execution_time_ms,
+            cache_hit=cache_hit,
+            pagination=pagination_metadata,
+            response_mode=request.response_mode,
+            enhanced=True,
+        )
+
+    # Return standard SemanticSearchResponse (backward compatible)
     return SemanticSearchResponse(
         results=formatted_results,
         total_found=total_available,

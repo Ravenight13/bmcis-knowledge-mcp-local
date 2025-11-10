@@ -40,6 +40,7 @@ from src.knowledge_graph.query_repository import KnowledgeGraphQueryRepository
 from src.mcp.cache import hash_query
 from src.mcp.models import (
     FindVendorInfoRequest,
+    MCPResponseEnvelope,
     PaginationMetadata,
     VendorEntity,
     VendorInfoFull,
@@ -49,6 +50,7 @@ from src.mcp.models import (
     VendorRelationship,
     VendorStatistics,
 )
+from src.mcp.response_formatter import wrap_vendor_info_response
 from src.mcp.server import get_cache_layer, get_database_pool, mcp
 
 logger: logging.Logger = StructuredLogger.get_logger(__name__)
@@ -470,7 +472,8 @@ def find_vendor_info(
     page_size: int = 10,
     cursor: str | None = None,
     fields: list[str] | None = None,
-) -> dict[str, Any]:
+    response_format: str | None = None,
+) -> dict[str, Any] | MCPResponseEnvelope[dict[str, Any]]:
     """Find comprehensive vendor information with caching, pagination, and field filtering.
 
     Search the knowledge graph for a vendor and return their entity graph
