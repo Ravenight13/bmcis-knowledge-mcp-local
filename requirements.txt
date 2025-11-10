@@ -13,6 +13,3 @@ pgvector>=0.2.0
 
 # Tokenization using OpenAI's tiktoken for accurate token counting
 tiktoken>=0.7.0
-
-# FastMCP server for MCP protocol integration
-fastmcp>=0.1.0

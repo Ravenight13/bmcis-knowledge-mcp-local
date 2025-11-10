@@ -126,7 +126,7 @@ git commit -m "feat: session-004 - implement search functionality"
 **Key Concepts:**
 - Only you have the mapping between session IDs and actual task IDs
 - Helper scripts in `.git-masking/` handle branch creation and lookup
-- All documentation in `docs/guides/BRANCH_MASKING.md` and `.git-masking/README.md`
+- All documentation in `BRANCH_MASKING.md` and `.git-masking/README.md`
 - Template commit messages in `.git-masking/template-commit-messages.txt`
 
 **Security:**
@@ -135,7 +135,7 @@ git commit -m "feat: session-004 - implement search functionality"
 - Public git history shows only session numbers, no task details
 - Code changes are visible, but task context is hidden
 
-**For detailed usage and troubleshooting, see:** `docs/guides/BRANCH_MASKING.md`
+**For detailed usage and troubleshooting, see:** `BRANCH_MASKING.md`
 
 ### Quality Validation
 

@@ -2,6 +2,4 @@ __init__
 core
 document_parsing
 embedding
-knowledge_graph
-mcp
 search
