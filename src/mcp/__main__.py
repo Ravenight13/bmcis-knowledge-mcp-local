@@ -18,7 +18,7 @@ async def main() -> None:
     # Run FastMCP server via stdio
     # This is the standard way FastMCP servers communicate with MCP clients
     try:
-        await mcp.run_stdio()
+        await mcp.run_stdio_async()
     except KeyboardInterrupt:
         sys.exit(0)
     except Exception as e:
