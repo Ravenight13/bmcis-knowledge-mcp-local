@@ -3,4 +3,5 @@ core
 document_parsing
 embedding
 knowledge_graph
+mcp
 search
