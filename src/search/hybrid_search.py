@@ -88,7 +88,7 @@ from src.search.bm25_search import BM25Search
 from src.search.config import get_search_config
 from src.search.filters import FilterExpression
 from src.search.query_router import QueryRouter
-from src.search.results import SearchResult, SearchResultFormatter
+from src.search.results import SearchResult, SearchResultFormatter, apply_confidence_filtering
 from src.search.rrf import RRFScorer
 from src.search.vector_search import VectorSearch
 
@@ -293,8 +293,14 @@ class HybridSearch:
                 bm25_results = self._execute_bm25_search(query, top_k, filters)
             results = self._merge_and_boost(vector_results, bm25_results, query, boosts)
 
+        # Apply business document filtering (Quick Win #1)
+        results = self._filter_business_documents(results, query)
+
         # Apply final filtering
         results = self._apply_final_filtering(results, top_k, min_score)
+
+        # Apply confidence-based result limiting
+        results = apply_confidence_filtering(results)
 
         logger.info(
             f"Search completed with {len(results)} results",
@@ -794,3 +800,106 @@ class HybridSearch:
         )
 
         return limited
+
+    def _filter_business_documents(
+        self, results: SearchResultList, query: str
+    ) -> SearchResultList:
+        """Filter out non-business documents that don't match business context.
+
+        Quick Win #1: Domain-aware document filtering to improve relevance by
+        removing technical, configuration, and non-business documents from results.
+
+        The filter uses two strategies:
+        1. Includes documents with BUSINESS_KEYWORDS
+        2. Excludes documents with EXCLUDE_PATTERNS
+
+        A document is kept if it has business content AND is not marked for exclusion.
+        If filtering removes too many results (< 3 remaining), the original results
+        are returned to prevent over-filtering.
+
+        Args:
+            results: Search results from vector/BM25/hybrid search.
+            query: Original search query (used for context).
+
+        Returns:
+            Filtered results with non-business documents removed. If filtering
+            removes too many results, returns original results for graceful degradation.
+        """
+        # Business document keywords (indicates business relevance)
+        BUSINESS_KEYWORDS = {
+            "commission",
+            "sales",
+            "vendor",
+            "dealer",
+            "team",
+            "market",
+            "product",
+            "bmcis",
+            "organization",
+            "customer",
+            "revenue",
+            "forecast",
+            "metric",
+            "kpi",
+            "target",
+            "strategy",
+        }
+
+        # Non-business patterns to exclude (technical/implementation docs)
+        EXCLUDE_PATTERNS = {
+            "specification",
+            "api",
+            "git",
+            "authentication",
+            "constitution",
+            "code",
+            "error",
+            "traceback",
+            "deprecated",
+            "python",
+            "javascript",
+            "docker",
+        }
+
+        filtered: SearchResultList = []
+        query_lower = query.lower()
+
+        for result in results:
+            text_lower = result.chunk_text.lower()
+            source_lower = result.source_file.lower()
+
+            # Check if document has business context
+            has_business_content = any(
+                keyword in text_lower or keyword in source_lower
+                for keyword in BUSINESS_KEYWORDS
+            )
+
+            # Check if document should be excluded
+            is_non_business = any(
+                pattern in text_lower or pattern in source_lower
+                for pattern in EXCLUDE_PATTERNS
+            )
+
+            # Keep document if it has business content and is not excluded
+            if has_business_content and not is_non_business:
+                filtered.append(result)
+
+        # Graceful degradation: if filtering removes too many results, return originals
+        if len(filtered) < 3:
+            logger.info(
+                f"Business document filtering: too many results removed ({len(filtered)} < 3), "
+                f"falling back to original results",
+                extra={"input_count": len(results), "filtered_count": len(filtered)},
+            )
+            return results
+
+        logger.info(
+            f"Business document filtering: {len(results)} -> {len(filtered)} results",
+            extra={
+                "input_count": len(results),
+                "filtered_count": len(filtered),
+                "removed_count": len(results) - len(filtered),
+            },
+        )
+
+        return filtered

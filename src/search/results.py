@@ -456,6 +456,88 @@ class SearchResultFormatter:
         return hybrid
 
 
+def apply_confidence_filtering(
+    results: list[SearchResult],
+) -> list[SearchResult]:
+    """Apply adaptive result limiting based on average confidence score.
+
+    Implements confidence-based result limiting that returns fewer low-confidence
+    results to users, improving relevance by filtering out weak matches.
+
+    Logic:
+    - If avg_score >= 0.7: returns all results (high confidence)
+    - If avg_score >= 0.5: returns top 5 (medium confidence)
+    - If avg_score < 0.5: returns top 3 (low confidence)
+
+    Handles edge cases gracefully:
+    - Empty results: returns empty list
+    - Missing/invalid scores: uses 0.0 as default
+    - String scores: attempts conversion, falls back to 0.0
+
+    Args:
+        results: List of SearchResult objects to filter.
+
+    Returns:
+        Filtered list of SearchResult objects with adaptive limiting applied.
+
+    Example:
+        >>> results = [
+        ...     SearchResult(..., hybrid_score=0.95),
+        ...     SearchResult(..., hybrid_score=0.88),
+        ...     SearchResult(..., hybrid_score=0.72),
+        ... ]
+        >>> filtered = apply_confidence_filtering(results)
+        >>> len(filtered)  # Returns all 3 (avg=0.85 >= 0.7)
+        3
+    """
+    # Handle empty results
+    if not results:
+        return []
+
+    # Calculate average score across all results
+    scores: list[float] = []
+    for result in results:
+        # Use hybrid_score if available, otherwise use similarity_score
+        score = result.hybrid_score if result.score_type == "hybrid" else result.similarity_score
+
+        # Handle edge cases: missing/invalid scores
+        if isinstance(score, str):
+            try:
+                score = float(score)
+            except (ValueError, TypeError):
+                score = 0.0
+        elif score is None:
+            score = 0.0
+
+        # Ensure score is in valid range
+        if not isinstance(score, (int, float)) or score < 0.0:
+            score = 0.0
+
+        scores.append(min(1.0, max(0.0, score)))
+
+    if not scores:
+        return []
+
+    avg_score = sum(scores) / len(scores)
+    logger.debug(
+        f"Confidence filtering: avg_score={avg_score:.3f}, total_results={len(results)}"
+    )
+
+    # Apply adaptive limiting based on confidence level
+    if avg_score >= 0.7:
+        # High confidence: return all results
+        logger.debug("High confidence (>=0.7): returning all results")
+        return results
+    elif avg_score >= 0.5:
+        # Medium confidence: return top 5
+        logger.debug("Medium confidence (>=0.5): limiting to top 5 results")
+        return results[:5]
+    else:
+        # Low confidence: return top 3
+        logger.debug("Low confidence (<0.5): limiting to top 3 results")
+        return results[:3]
+
+
 class RankingValidator:
     """Validate search result ranking quality.
 

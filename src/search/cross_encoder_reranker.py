@@ -831,6 +831,217 @@ class CrossEncoderReranker:
             logger.error(f"Reranking pipeline failed: {e}")
             raise RuntimeError(f"Cross-encoder reranking failed: {e}") from e
 
+    def _extract_named_entities(self, text: str) -> set[str]:
+        """Extract known BMCIS entities from text.
+
+        Identifies BMCIS vendor and team member entities by matching against
+        a known entity list. Uses case-insensitive comparison for robustness.
+
+        Known BMCIS entities include:
+        - Vendors: ProSource, Lutron, LegRand, Masimo, CEDIA, Seura, Josh AI
+        - Team members: Cliff Clarke, James Copple
+        - And other key BMCIS-related entities
+
+        Args:
+            text: Text to extract entities from.
+
+        Returns:
+            Set of matched entity names (lowercase for consistency).
+
+        Example:
+            >>> reranker = CrossEncoderReranker()
+            >>> entities = reranker._extract_named_entities(
+            ...     "ProSource integration with Lutron systems"
+            ... )
+            >>> assert "prosource" in entities
+            >>> assert "lutron" in entities
+        """
+        # Known BMCIS entities (vendors and team members)
+        KNOWN_ENTITIES = {
+            "prosource",
+            "lutron",
+            "legrand",
+            "masimo",
+            "cedia",
+            "seura",
+            "josh ai",
+            "josh.ai",
+            "cliff clarke",
+            "cliffclarke",
+            "james copple",
+            "jamescopple",
+            "bmcis",
+        }
+
+        text_lower = text.lower()
+        matched_entities: set[str] = set()
+
+        # Check for each known entity (longer entities first to avoid partial matches)
+        for entity in sorted(KNOWN_ENTITIES, key=len, reverse=True):
+            if entity in text_lower:
+                matched_entities.add(entity)
+
+        logger.debug(f"Extracted {len(matched_entities)} entities from text: {matched_entities}")
+        return matched_entities
+
+    def rerank_with_entity_boost(
+        self,
+        query: str,
+        search_results: list[SearchResult],
+        top_k: int = 5,
+        min_confidence: float = 0.0,
+    ) -> list[SearchResult]:
+        """Rerank results with entity mention boosting.
+
+        Implements enhanced reranking that boosts results containing entities
+        mentioned in the query. This improves ranking for entity-specific queries.
+
+        Algorithm:
+        1. Extract entities from query text
+        2. Get base cross-encoder confidence scores
+        3. Count entity mentions in each candidate result
+        4. Apply entity boost: +10% per mention (max +50%)
+        5. Normalize boosted scores to 0-1 range
+        6. Re-rank by boosted scores
+        7. Fall back to standard reranking if no entities detected
+
+        Entity boost formula:
+            boosted_score = base_score * (1 + min(entity_count * 0.1, 0.5))
+
+        Example with results:
+            Query: "ProSource commission" (has 1 entity: ProSource)
+            - Result A: base_score=0.75, mentions ProSource 3 times
+              boosted = 0.75 * (1 + min(3 * 0.1, 0.5)) = 0.75 * 1.3 = 0.975
+            - Result B: base_score=0.80, mentions Lutron 1 time
+              boosted = 0.80 * (1 + min(1 * 0.1, 0.5)) = 0.80 * 1.1 = 0.88
+            Result A ranks first (0.975 > 0.88) despite lower base score
+
+        Args:
+            query: User search query.
+            search_results: Results from hybrid search.
+            top_k: Number of results to return (default: 5).
+            min_confidence: Minimum confidence threshold (default: 0.0).
+
+        Returns:
+            Top-K reranked results with entity-boosted scores, sorted by score DESC.
+
+        Raises:
+            ValueError: If search_results empty, invalid parameters, or model not loaded.
+            RuntimeError: If reranking pipeline fails.
+
+        Note:
+            Falls back to standard reranking if no entities extracted from query.
+        """
+        if not search_results:
+            raise ValueError("search_results cannot be empty")
+        if top_k < 1:
+            raise ValueError(f"top_k must be >= 1, got {top_k}")
+        if not (0.0 <= min_confidence <= 1.0):
+            raise ValueError(f"min_confidence must be 0-1, got {min_confidence}")
+        if self.model is None:
+            raise ValueError("Model not loaded. Call load_model() first.")
+
+        logger.info(
+            f"Entity-boosted reranking {len(search_results)} results "
+            f"with query: {query[:50]}..."
+        )
+
+        try:
+            # Step 1: Extract entities from query
+            query_entities = self._extract_named_entities(query)
+            logger.debug(f"Found {len(query_entities)} entities in query: {query_entities}")
+
+            # Step 2: If no entities found, fall back to standard reranking
+            if not query_entities:
+                logger.debug("No entities found in query, using standard reranking")
+                return self.rerank(
+                    query, search_results, top_k=top_k, min_confidence=min_confidence
+                )
+
+            # Step 3: Select candidates adaptively
+            candidates = self.candidate_selector.select(
+                search_results,
+                query=query,
+            )
+            logger.debug(f"Selected {len(candidates)} candidates for reranking")
+
+            # Step 4: Get base cross-encoder scores
+            confidence_scores = self.score_pairs(query, candidates)
+
+            # Step 5: Count entity mentions in each candidate and apply boost
+            boosted_scores: list[float] = []
+            for score, candidate in zip(confidence_scores, candidates):
+                # Count entity mentions in candidate text
+                entity_count = sum(
+                    candidate.chunk_text.lower().count(entity)
+                    for entity in query_entities
+                )
+
+                # Apply entity boost: +10% per mention, max +50%
+                boost_factor = min(entity_count * 0.1, 0.5)
+                boosted_score = score * (1.0 + boost_factor)
+
+                # Normalize back to 0-1 range
+                boosted_score = min(boosted_score, 1.0)
+
+                boosted_scores.append(boosted_score)
+
+                if entity_count > 0:
+                    logger.debug(
+                        f"Entity boost applied: {entity_count} mentions, "
+                        f"boost_factor={boost_factor:.2f}, "
+                        f"base={score:.3f} -> boosted={boosted_score:.3f}"
+                    )
+
+            # Step 6: Combine scores with results and filter
+            scored_results: list[tuple[SearchResult, float]] = [
+                (result, score)
+                for result, score in zip(candidates, boosted_scores)
+                if score >= min_confidence
+            ]
+
+            # Step 7: Sort by boosted score descending
+            scored_results.sort(key=lambda x: x[1], reverse=True)
+
+            # Step 8: Take top-K and rerank
+            reranked: list[SearchResult] = []
+            for rank, (result, confidence) in enumerate(scored_results[:top_k], 1):
+                # Create new result with updated score and confidence
+                updated_result = SearchResult(
+                    chunk_id=result.chunk_id,
+                    chunk_text=result.chunk_text,
+                    similarity_score=result.similarity_score,
+                    bm25_score=result.bm25_score,
+                    hybrid_score=confidence,  # Use boosted confidence as hybrid_score
+                    rank=rank,
+                    score_type="cross_encoder",
+                    source_file=result.source_file,
+                    source_category=result.source_category,
+                    document_date=result.document_date,
+                    context_header=result.context_header,
+                    chunk_index=result.chunk_index,
+                    total_chunks=result.total_chunks,
+                    chunk_token_count=result.chunk_token_count,
+                    metadata=result.metadata,
+                    highlighted_context=result.highlighted_context,
+                    confidence=confidence,
+                )
+                reranked.append(updated_result)
+
+            logger.info(
+                f"Entity-boosted reranking complete: returned {len(reranked)} results "
+                f"(candidates={len(candidates)}, scored={len(scored_results)}, top_k={top_k}, "
+                f"entities={len(query_entities)})"
+            )
+
+            return reranked
+
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Entity-boosted reranking pipeline failed: {e}")
+            raise RuntimeError(f"Entity-boosted reranking failed: {e}") from e
+
     def get_device(self) -> str:
         """Get current device (cuda or cpu).
 
