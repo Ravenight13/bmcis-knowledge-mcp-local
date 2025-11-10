@@ -992,9 +992,9 @@ class TestVendorInfoMetadata:
     def test_vendor_info_metadata_with_all_fields(self) -> None:
         """Test VendorInfoMetadata with all optional fields."""
         from src.mcp.models import (
+            VendorEntity,
             VendorInfoMetadata,
             VendorStatistics,
-            VendorEntity,
         )
 
         stats = VendorStatistics(entity_count=20, relationship_count=10)
@@ -1036,8 +1036,8 @@ class TestVendorInfoPreview:
     def test_vendor_info_preview_valid_basic(self) -> None:
         """Test valid VendorInfoPreview with basic data."""
         from src.mcp.models import (
-            VendorInfoPreview,
             VendorEntity,
+            VendorInfoPreview,
             VendorRelationship,
             VendorStatistics,
         )
@@ -1071,8 +1071,8 @@ class TestVendorInfoPreview:
     def test_vendor_info_preview_max_entities(self) -> None:
         """Test VendorInfoPreview with exactly 5 entities."""
         from src.mcp.models import (
-            VendorInfoPreview,
             VendorEntity,
+            VendorInfoPreview,
             VendorStatistics,
         )
 
@@ -1097,8 +1097,8 @@ class TestVendorInfoPreview:
     def test_vendor_info_preview_entity_count_validation(self) -> None:
         """Test that VendorInfoPreview enforces max 5 entities."""
         from src.mcp.models import (
-            VendorInfoPreview,
             VendorEntity,
+            VendorInfoPreview,
             VendorStatistics,
         )
 
@@ -1127,8 +1127,8 @@ class TestVendorInfoFull:
     def test_vendor_info_full_valid_basic(self) -> None:
         """Test valid VendorInfoFull with all data."""
         from src.mcp.models import (
-            VendorInfoFull,
             VendorEntity,
+            VendorInfoFull,
             VendorRelationship,
             VendorStatistics,
         )
@@ -1164,8 +1164,8 @@ class TestVendorInfoFull:
     def test_vendor_info_full_max_entities(self) -> None:
         """Test VendorInfoFull with exactly 100 entities."""
         from src.mcp.models import (
-            VendorInfoFull,
             VendorEntity,
+            VendorInfoFull,
             VendorStatistics,
         )
 
@@ -1215,8 +1215,8 @@ class TestVendorInfoFull:
     def test_vendor_info_full_entity_count_exceeded(self) -> None:
         """Test that VendorInfoFull enforces max 100 entities."""
         from src.mcp.models import (
-            VendorInfoFull,
             VendorEntity,
+            VendorInfoFull,
             VendorStatistics,
         )
 

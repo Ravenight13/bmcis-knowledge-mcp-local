@@ -486,6 +486,9 @@ def find_vendor_info(
         page_size: Number of entities per page (1-50, default: 10)
         cursor: Pagination cursor from previous response
         fields: Optional list of fields to include in response
+        response_format: Optional response format. Default: None (legacy format).
+            - None: Return dict with vendor info (backward compatible)
+            - "desktop": Return MCPResponseEnvelope with enhanced metadata
 
     Returns:
         Dictionary with vendor information including:
@@ -635,6 +638,7 @@ def find_vendor_info(
         extra={
             "vendor_name": vendor_name,
             "response_mode": response_mode,
+            "response_format": response_format,
             "entity_count": statistics.entity_count,
             "relationship_count": statistics.relationship_count,
             "execution_time_ms": execution_time_ms,
@@ -642,7 +646,18 @@ def find_vendor_info(
         },
     )
 
-    # Return as dictionary with pagination metadata
+    # Return enhanced envelope format for desktop mode
+    if response_format == "desktop":
+        return wrap_vendor_info_response(
+            vendor_name=vendor_name_normalized,
+            results=response_dict,
+            execution_time_ms=execution_time_ms,
+            cache_hit=cache_hit,
+            pagination=pagination_metadata,
+            entity_count=statistics.entity_count,
+        )
+
+    # Return standard dictionary format (backward compatible)
     return {
         "vendor_name": vendor_name_normalized,
         "results": response_dict,

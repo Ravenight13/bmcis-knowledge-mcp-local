@@ -12,15 +12,13 @@ All functions are type-safe and mypy-strict compatible.
 
 from __future__ import annotations
 
-import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 from src.mcp.models import (
     ConfidenceScore,
     DeduplicationInfo,
-    EnhancedSemanticSearchResult,
     ExecutionContext,
     MCPResponseEnvelope,
     PaginationMetadata,
@@ -365,7 +363,7 @@ def wrap_semantic_search_response(
     metadata = ResponseMetadata(
         operation="semantic_search",
         version="1.0",
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         request_id=request_id,
         status="success",
         message=None,
@@ -451,7 +449,7 @@ def wrap_vendor_info_response(
     metadata = ResponseMetadata(
         operation="find_vendor_info",
         version="1.0",
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         request_id=request_id,
         status="success",
         message=None,

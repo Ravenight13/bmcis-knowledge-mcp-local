@@ -3,9 +3,10 @@
 Complete type definitions for compression functionality with full type safety.
 """
 
-from typing import Any, Literal
-from pydantic import BaseModel
 from dataclasses import dataclass
+from typing import Any, Literal
+
+from pydantic import BaseModel
 
 CompressionAlgorithm = Literal["gzip", "brotli", "none"]
 

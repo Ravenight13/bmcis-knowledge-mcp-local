@@ -18,7 +18,6 @@ Test coverage: 50+ tests across all response formatting models
 
 import base64
 import json
-from datetime import datetime, timezone
 
 import pytest
 from pydantic import ValidationError

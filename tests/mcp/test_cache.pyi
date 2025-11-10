@@ -1,7 +1,5 @@
 """Type stubs for cache layer tests."""
 
-from src.mcp.cache import CacheLayer, CacheStats, CacheEntry, hash_query
-from typing import Any
 
 def test_set_and_get() -> None: ...
 def test_delete() -> None: ...

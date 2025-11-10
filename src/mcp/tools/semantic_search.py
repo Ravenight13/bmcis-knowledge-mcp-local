@@ -495,23 +495,26 @@ def semantic_search(
         # Enhance results with confidence and ranking
         enhanced_results: list[EnhancedSemanticSearchResult] = []
         for i, result in enumerate(formatted_results):
+            # Convert to SearchResultMetadata if dict
             if isinstance(result, dict):
-                # Convert dict back to SearchResultMetadata
-                result_obj = SearchResultMetadata(**result)
+                result_metadata = SearchResultMetadata(**result)
+            elif isinstance(result, SearchResultMetadata):
+                result_metadata = result
             else:
-                result_obj = result
+                # Skip unsupported types (shouldn't happen)
+                continue
 
             enhanced = EnhancedSemanticSearchResult(
-                chunk_id=result_obj.chunk_id,
-                source_file=result_obj.source_file,
-                source_category=result_obj.source_category,
-                hybrid_score=result_obj.hybrid_score,
-                rank=result_obj.rank,
-                chunk_index=result_obj.chunk_index,
-                total_chunks=result_obj.total_chunks,
-                confidence=confidence_map.get(result_obj.chunk_id),
-                ranking=ranking_map[result_obj.chunk_id],
-                deduplication=dedup_map.get(result_obj.chunk_id),
+                chunk_id=result_metadata.chunk_id,
+                source_file=result_metadata.source_file,
+                source_category=result_metadata.source_category,
+                hybrid_score=result_metadata.hybrid_score,
+                rank=result_metadata.rank,
+                chunk_index=result_metadata.chunk_index,
+                total_chunks=result_metadata.total_chunks,
+                confidence=confidence_map.get(result_metadata.chunk_id),
+                ranking=ranking_map[result_metadata.chunk_id],
+                deduplication=dedup_map.get(result_metadata.chunk_id),
             )
             enhanced_results.append(enhanced)
 

@@ -58,26 +58,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import time
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Literal
-from unittest.mock import Mock, patch
+from typing import Any
 
 import pytest
 
 from src.mcp.models import (
-    FindVendorInfoRequest,
-    SearchResultFull,
-    SearchResultIDs,
-    SearchResultMetadata,
-    SearchResultPreview,
-    SemanticSearchRequest,
-    SemanticSearchResponse,
     VendorEntity,
-    VendorInfoFull,
-    VendorInfoIDs,
-    VendorInfoMetadata,
-    VendorInfoPreview,
     VendorStatistics,
 )
 from src.search.results import SearchResult

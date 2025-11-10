@@ -52,14 +52,12 @@ Success Criteria:
 
 from __future__ import annotations
 
-import asyncio
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 from unittest.mock import MagicMock, Mock, patch
-from uuid import UUID, uuid4
 
 import pytest
 
@@ -67,9 +65,7 @@ from src.mcp.auth import RateLimiter
 from src.mcp.models import (
     FindVendorInfoRequest,
     SearchResultFull,
-    SearchResultIDs,
     SearchResultMetadata,
-    SearchResultPreview,
     SemanticSearchRequest,
     VendorEntity,
     VendorInfoFull,
@@ -80,15 +76,11 @@ from src.mcp.models import (
     VendorStatistics,
 )
 from src.mcp.server import (
-    _db_pool,
-    _hybrid_search,
-    get_database_pool,
     get_hybrid_search,
     initialize_server,
     mcp,
 )
 from src.search.results import SearchResult
-
 
 # ==============================================================================
 # FIXTURES: Realistic Knowledge Graph Data & Mocks
@@ -223,7 +215,7 @@ def mock_vendor_entities() -> list[VendorEntity]:
                 name=f"Related Entity {idx}",
                 entity_type=entity_types[idx % len(entity_types)],
                 confidence=0.85 - (idx * 0.003),
-                snippet=f"Entity related to Acme Corporation in some capacity.",
+                snippet="Entity related to Acme Corporation in some capacity.",
             )
         )
 

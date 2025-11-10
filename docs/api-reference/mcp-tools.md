@@ -1156,6 +1156,454 @@ for chunk_id in top_3_ids:
 
 **Combined with caching**: If you repeat any queries within the TTL window, subsequent fetches are instant with zero additional token cost.
 
+## Response Formatting System
+
+### Overview
+
+All MCP tool responses use a standardized envelope format (`MCPResponseEnvelope`) that provides consistent structure, metadata, and progressive disclosure capabilities. This system is specifically optimized for Claude Desktop integration.
+
+### Response Envelope Structure
+
+Every response follows this structure:
+
+```json
+{
+    "_metadata": {
+        "operation": "semantic_search",
+        "version": "1.0.0",
+        "timestamp": "2025-11-09T10:30:00Z",
+        "request_id": "req_abc123",
+        "status": "success",
+        "message": null
+    },
+    "results": [...],  // Tool-specific results
+    "pagination": {
+        "cursor": "eyJxdWVyeV9oYXNoIjoi...",
+        "page_size": 10,
+        "has_more": true,
+        "total_available": 42
+    },
+    "execution_context": {
+        "tokens_estimated": 2450,
+        "tokens_used": 2523,
+        "cache_hit": true,
+        "execution_time_ms": 156.3,
+        "request_id": "req_abc123"
+    },
+    "warnings": []
+}
+```
+
+### Response Modes and Token Budgets
+
+The system supports four progressive disclosure levels:
+
+| Mode | Per-Result Tokens | 10 Results Total | Use Case |
+|------|------------------|------------------|----------|
+| `ids_only` | ~10 | ~100 | Quick scan, ID collection |
+| `metadata` | ~200 | ~2,500 | **Default** - balanced info |
+| `preview` | ~500 | ~5,000 | Content sampling |
+| `full` | ~1500+ | ~15,000+ | Deep analysis |
+
+### Desktop Mode Optimization
+
+When Claude Desktop is detected, responses automatically include:
+
+#### Enhanced Metadata
+```json
+{
+    "_metadata": {
+        "visual_hints": {
+            "highlight_top": 3,
+            "group_by": "source_category",
+            "show_confidence": true,
+            "collapse_duplicates": true,
+            "expandable_previews": true
+        }
+    }
+}
+```
+
+#### Confidence Scoring
+```json
+{
+    "confidence": {
+        "score_reliability": 0.92,
+        "source_quality": 0.88,
+        "recency": 0.75
+    },
+    "ranking": {
+        "percentile": 99,
+        "explanation": "Top-tier result: Strong semantic and keyword match",
+        "score_method": "hybrid"
+    }
+}
+```
+
+### Field Filtering
+
+Request only specific fields to minimize token usage:
+
+```python
+# Request only essential fields
+response = semantic_search(
+    query="authentication",
+    response_mode="metadata",
+    fields=["chunk_id", "source_file", "hybrid_score"]
+)
+
+# Response contains only requested fields
+{
+    "results": [
+        {
+            "chunk_id": 123,
+            "source_file": "docs/auth.md",
+            "hybrid_score": 0.85
+        }
+    ]
+}
+```
+
+### Progressive Fetching Pattern
+
+Optimize token usage with progressive detail fetching:
+
+```python
+# 1. Start with IDs for overview
+ids = semantic_search(query, response_mode="ids_only", page_size=50)
+# Cost: ~500 tokens
+
+# 2. Get metadata for promising results
+if any(r.hybrid_score > 0.7 for r in ids.results):
+    metadata = semantic_search(query, response_mode="metadata", page_size=20)
+    # Cost: ~4,000 tokens
+
+# 3. Full content for top matches only
+top_ids = [r.chunk_id for r in metadata.results if r.hybrid_score > 0.85][:3]
+for chunk_id in top_ids:
+    full = get_chunk_by_id(chunk_id, response_mode="full")
+    # Cost: ~1,500 per result
+
+# Total: ~9,000 tokens (vs ~75,000 for full mode on all 50)
+```
+
+### Warning System
+
+Responses include actionable warnings for optimization:
+
+```json
+{
+    "warnings": [
+        {
+            "level": "warning",
+            "code": "TOKEN_LIMIT_WARNING",
+            "message": "Response approaching context window limit (18,500/20,000 tokens)",
+            "suggestion": "Use 'metadata' mode or reduce page_size to 5"
+        },
+        {
+            "level": "info",
+            "code": "CACHE_MISS_SLOW",
+            "message": "Cache miss resulted in slower response (456ms)",
+            "suggestion": "Query will be cached for next 30 seconds"
+        }
+    ]
+}
+```
+
+### Standard Warning Codes
+
+| Code | Level | Description | Typical Action |
+|------|-------|-------------|----------------|
+| `TOKEN_LIMIT_WARNING` | warning | Near token limit | Reduce response size |
+| `TOKEN_LIMIT_EXCEEDED` | error | Exceeded limit | Use smaller mode |
+| `LOW_QUALITY_RESULTS` | info | No high-confidence results | Refine query |
+| `PARTIAL_RESULTS` | warning | Some results omitted | Reduce page_size |
+| `DEPRECATED_PARAMETER` | warning | Using deprecated param | Update to new param |
+
+### Execution Context Details
+
+Track performance and token usage:
+
+```json
+{
+    "execution_context": {
+        "tokens_estimated": 2450,      // Pre-calculated estimate
+        "tokens_used": 2523,           // Actual tokens (when measured)
+        "cache_hit": true,             // Result from cache?
+        "execution_time_ms": 85.3,    // Total execution time
+        "request_id": "req_abc123",   // Matches _metadata.request_id
+
+        // Extended metrics (when available)
+        "token_breakdown": {
+            "results": 2200,
+            "metadata": 150,
+            "pagination": 73,
+            "warnings": 100
+        },
+        "cache_key": "search:metadata:abc123def",
+        "database_time_ms": 0,  // 0 if cached
+        "formatting_time_ms": 12.5
+    }
+}
+```
+
+### Error Response Format
+
+Errors follow the same envelope structure:
+
+```json
+{
+    "_metadata": {
+        "operation": "semantic_search",
+        "version": "1.0.0",
+        "timestamp": "2025-11-09T10:30:00Z",
+        "request_id": "req_error_123",
+        "status": "error",
+        "message": "Token limit exceeded for requested response mode"
+    },
+    "results": [],
+    "execution_context": {
+        "tokens_estimated": 25000,
+        "tokens_used": null,
+        "cache_hit": false,
+        "execution_time_ms": 125.4,
+        "request_id": "req_error_123"
+    },
+    "warnings": [
+        {
+            "level": "error",
+            "code": "TOKEN_LIMIT_EXCEEDED",
+            "message": "Response would use 25,000 tokens, Desktop limit is 15,000",
+            "suggestion": "Use 'metadata' mode or reduce page_size to 5"
+        }
+    ]
+}
+```
+
+### Semantic Search Response Examples
+
+#### Example: Metadata Mode with Pagination
+```python
+response = semantic_search(
+    query="cloud security best practices",
+    response_mode="metadata",
+    page_size=10,
+    cursor=None  # First page
+)
+
+# Response structure
+{
+    "_metadata": {...},
+    "results": [
+        {
+            "chunk_id": 123,
+            "source_file": "guides/cloud-security.md",
+            "source_category": "security",
+            "hybrid_score": 0.92,
+            "rank": 1,
+            "chunk_index": 5,
+            "total_chunks": 20
+        }
+        // ... 9 more results
+    ],
+    "pagination": {
+        "cursor": "eyJxdWVyeV9oYXNoIjoiYWJjMTIzIiwib2Zmc2V0IjoxMH0=",
+        "page_size": 10,
+        "has_more": true,
+        "total_available": 42
+    },
+    "execution_context": {
+        "tokens_estimated": 2000,
+        "tokens_used": 2050,
+        "cache_hit": false,
+        "execution_time_ms": 245.3
+    }
+}
+```
+
+#### Example: Desktop-Enhanced Response
+```python
+# With desktop mode, additional metadata is included
+response = semantic_search(
+    query="authentication",
+    response_mode="metadata",
+    desktop_enhanced=True  # Automatic in Claude Desktop
+)
+
+# Enhanced response includes confidence and ranking
+{
+    "results": [
+        {
+            "chunk_id": 456,
+            "source_file": "auth/jwt.md",
+            "hybrid_score": 0.95,
+            "rank": 1,
+            // Standard metadata fields...
+
+            // Desktop enhancements
+            "confidence": {
+                "score_reliability": 0.98,
+                "source_quality": 0.90,
+                "recency": 0.85
+            },
+            "ranking": {
+                "percentile": 100,
+                "explanation": "Perfect match: JWT authentication guide",
+                "score_method": "hybrid"
+            },
+            "deduplication": {
+                "is_duplicate": false,
+                "similar_chunk_ids": [457, 458],
+                "confidence": 0.92
+            }
+        }
+    ]
+}
+```
+
+### Vendor Info Response Examples
+
+#### Example: Progressive Vendor Discovery
+```python
+# Step 1: Get vendor IDs only
+vendor_ids = find_vendor_info(
+    vendor_name="Acme",
+    response_mode="ids_only"
+)
+# Response: ~500 tokens
+{
+    "vendor_name": "Acme Corporation",
+    "entity_ids": ["e_001", "e_002", "e_003", ...],
+    "relationship_ids": ["r_001", "r_002", ...]
+}
+
+# Step 2: Get metadata with statistics
+vendor_meta = find_vendor_info(
+    vendor_name="Acme Corporation",
+    response_mode="metadata"
+)
+# Response: ~3,000 tokens
+{
+    "vendor_name": "Acme Corporation",
+    "statistics": {
+        "entity_count": 85,
+        "relationship_count": 25,
+        "entity_type_distribution": {
+            "COMPANY": 50,
+            "PERSON": 25,
+            "PRODUCT": 10
+        }
+    },
+    "top_entities": [/* Top 5 by relevance */]
+}
+
+# Step 3: Get full details if needed
+vendor_full = find_vendor_info(
+    vendor_name="Acme Corporation",
+    response_mode="full",
+    include_relationships=True
+)
+# Response: ~15,000 tokens
+{
+    "vendor_name": "Acme Corporation",
+    "entities": [/* Up to 100 entities */],
+    "relationships": [/* Up to 500 relationships */],
+    "statistics": {...}
+}
+```
+
+### Best Practices for Response Formatting
+
+1. **Always start with metadata mode** - It's the default for a reason
+2. **Use field filtering aggressively** - Request only what you need
+3. **Implement progressive fetching** - Start broad, then narrow
+4. **Monitor token usage** - Check `execution_context.tokens_used`
+5. **Handle warnings proactively** - Adjust before hitting limits
+6. **Cache strategically** - Leverage the 30-second cache window
+7. **Use pagination for exploration** - Don't fetch everything upfront
+8. **Check confidence scores** - Focus on high-confidence results
+9. **Respect Desktop limits** - Stay under 15,000 tokens per response
+10. **Document mode choices** - Explain why specific modes are used
+
+### Response Format Configuration
+
+Configure response formatting preferences:
+
+```python
+# In .mcp.json environment variables
+{
+    "env": {
+        // Response format preferences
+        "DEFAULT_RESPONSE_MODE": "metadata",
+        "MAX_TOKENS_PER_RESPONSE": "15000",
+        "ENABLE_DESKTOP_ENHANCEMENTS": "true",
+        "INCLUDE_CONFIDENCE_SCORES": "true",
+
+        // Warning thresholds
+        "TOKEN_WARNING_THRESHOLD": "0.8",  // Warn at 80% of limit
+        "LOW_QUALITY_THRESHOLD": "0.5",    // Warn if all scores < 0.5
+
+        // Performance settings
+        "ENABLE_RESPONSE_COMPRESSION": "true",
+        "RESPONSE_STREAMING": "false"  // Not yet supported
+    }
+}
+```
+
+### Migration from Legacy Formats
+
+If migrating from older versions without envelope format:
+
+```python
+# Legacy format (pre-1.0.0)
+old_response = {
+    "results": [...],
+    "total_found": 42
+}
+
+# New envelope format (1.0.0+)
+new_response = {
+    "_metadata": {...},
+    "results": [...],
+    "pagination": {...},
+    "execution_context": {...},
+    "warnings": []
+}
+
+# Client adaptation layer
+def adapt_legacy_response(response):
+    if "_metadata" not in response:
+        # Wrap legacy response in envelope
+        return {
+            "_metadata": {
+                "operation": "unknown",
+                "version": "0.9.0",
+                "status": "success"
+            },
+            "results": response.get("results", []),
+            "execution_context": {
+                "tokens_estimated": 0,
+                "cache_hit": False
+            },
+            "warnings": [{
+                "level": "warning",
+                "code": "LEGACY_FORMAT",
+                "message": "Response in legacy format",
+                "suggestion": "Update server to 1.0.0+"
+            }]
+        }
+    return response
+```
+
+## Additional Resources
+
+For detailed information about response formatting:
+
+- [Response Formatting Guide](../guides/response-formatting-guide.md) - Comprehensive formatting patterns and examples
+- [Claude Desktop Optimization](../guides/claude-desktop-optimization.md) - Desktop-specific optimizations
+- [API Reference: Response Formats](./response-formats.md) - Complete schema documentation
+- [Pagination and Filtering Guide](../guides/pagination-filtering-guide.md) - Advanced pagination patterns
+
 ---
 
 *Last updated: November 2024 | Version: 1.0.0*

@@ -50,17 +50,12 @@ import gzip
 import json
 import time
 from typing import Any
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 from src.mcp.models import (
     FindVendorInfoRequest,
     PaginationMetadata,
-    SearchResultFull,
-    SearchResultIDs,
-    SearchResultMetadata,
-    SearchResultPreview,
     SemanticSearchRequest,
     SemanticSearchResponse,
     VendorEntity,
@@ -68,7 +63,6 @@ from src.mcp.models import (
     VendorInfoIDs,
     VendorInfoMetadata,
     VendorInfoPreview,
-    VendorRelationship,
     VendorStatistics,
 )
 from src.mcp.tools.semantic_search import (
@@ -78,7 +72,6 @@ from src.mcp.tools.semantic_search import (
     format_preview,
 )
 from src.search.results import SearchResult
-
 
 # ==============================================================================
 # TEST FIXTURES

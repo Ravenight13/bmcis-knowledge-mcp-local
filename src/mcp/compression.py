@@ -22,9 +22,9 @@ from __future__ import annotations
 import gzip
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -149,7 +149,7 @@ class FieldShortener:
     """
 
     # Comprehensive mapping of field names to short forms
-    SHORTENING_MAP: dict[str, str] = {
+    SHORTENING_MAP: ClassVar[dict[str, str]] = {
         # Vendor fields
         "vendor_id": "vid",
         "vendor_name": "vn",
@@ -198,7 +198,7 @@ class FieldShortener:
     }
 
     # Reverse mapping for unshortening
-    REVERSE_MAP: dict[str, str] = {v: k for k, v in SHORTENING_MAP.items()}
+    REVERSE_MAP: ClassVar[dict[str, str]] = {v: k for k, v in SHORTENING_MAP.items()}
 
     @classmethod
     def shorten(cls, data: dict[str, Any]) -> dict[str, Any]:
@@ -488,14 +488,14 @@ class ResponseCompressor:
                 if self._config.algorithm == "gzip":
                     try:
                         decompressed_bytes = gzip.decompress(data)
-                    except Exception:
+                    except (OSError, EOFError, gzip.BadGzipFile):
                         # Not gzip compressed, treat as raw data
                         decompressed_bytes = data
                 elif self._config.algorithm == "brotli":
                     try:
                         import brotli
                         decompressed_bytes = brotli.decompress(data)
-                    except Exception:
+                    except (OSError, EOFError, ModuleNotFoundError):
                         # Not brotli compressed, treat as raw data
                         decompressed_bytes = data
                 else:  # "none"
@@ -569,7 +569,7 @@ class ResponseCompressor:
             try:
                 gzip_compressed = gzip.compress(original_bytes, compresslevel=6)
                 gzip_size = len(gzip_compressed)
-            except Exception:
+            except (OSError, MemoryError):
                 gzip_size = original_size
 
             # Estimate brotli compression
@@ -577,7 +577,7 @@ class ResponseCompressor:
                 import brotli
                 brotli_compressed = brotli.compress(original_bytes, quality=6)
                 brotli_size = len(brotli_compressed)
-            except Exception:
+            except (OSError, MemoryError, ModuleNotFoundError):
                 brotli_size = original_size
 
             # Calculate savings
@@ -598,7 +598,7 @@ class ResponseCompressor:
                 "worth_compressing": savings_percent > 10,
             }
 
-        except Exception as e:
+        except (TypeError, ValueError, AttributeError) as e:
             return {
                 "error": str(e),
                 "original_size_bytes": 0,

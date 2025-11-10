@@ -19,13 +19,11 @@ Performance:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.mcp.server import (
-    _db_pool,
-    _hybrid_search,
     get_database_pool,
     get_hybrid_search,
     initialize_server,

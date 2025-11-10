@@ -1,6 +1,7 @@
 """Performance tests for cache layer."""
 
 import time
+
 from src.mcp.cache import CacheLayer
 
 
@@ -25,7 +26,7 @@ def test_cache_hit_latency() -> None:
     elapsed_ms = (end - start) * 1000
     avg_latency_us = (elapsed_ms * 1000) / iterations
 
-    print(f"\nCache Hit Performance:")
+    print("\nCache Hit Performance:")
     print(f"  Total iterations: {iterations:,}")
     print(f"  Total time: {elapsed_ms:.2f}ms")
     print(f"  Average latency: {avg_latency_us:.2f}µs per hit")
@@ -51,7 +52,7 @@ def test_cache_miss_latency() -> None:
     elapsed_ms = (end - start) * 1000
     avg_latency_us = (elapsed_ms * 1000) / iterations
 
-    print(f"\nCache Miss Performance:")
+    print("\nCache Miss Performance:")
     print(f"  Total iterations: {iterations:,}")
     print(f"  Total time: {elapsed_ms:.2f}ms")
     print(f"  Average latency: {avg_latency_us:.2f}µs per miss")
@@ -75,7 +76,7 @@ def test_cache_set_latency() -> None:
     elapsed_ms = (end - start) * 1000
     avg_latency_us = (elapsed_ms * 1000) / iterations
 
-    print(f"\nCache Set Performance:")
+    print("\nCache Set Performance:")
     print(f"  Total iterations: {iterations:,}")
     print(f"  Total time: {elapsed_ms:.2f}ms")
     print(f"  Average latency: {avg_latency_us:.2f}µs per set")
