@@ -456,6 +456,94 @@ class SearchResultFormatter:
         return hybrid
 
 
+def apply_confidence_filtering(
+    results: list[SearchResult],
+) -> list[SearchResult]:
+    """Apply adaptive result limiting based on average confidence score.
+
+    Implements confidence-based result limiting that returns fewer low-confidence
+    results to users, improving relevance by filtering out weak matches.
+
+    Thresholds are calibrated to actual knowledge base score distribution:
+    - Most hybrid search queries score in 0.2-0.3 range (from 12.71% baseline relevance)
+    - Document filtering and entity boosting require more results to show benefits
+    - Conservative limiting (top 3) was masking search improvements
+
+    Logic:
+    - If avg_score >= 0.6: returns all results (high confidence)
+    - If avg_score >= 0.3: returns top 7 (medium confidence)
+    - If avg_score < 0.3: returns top 4 (low confidence)
+
+    Handles edge cases gracefully:
+    - Empty results: returns empty list
+    - Missing/invalid scores: uses 0.0 as default
+    - String scores: attempts conversion, falls back to 0.0
+
+    Args:
+        results: List of SearchResult objects to filter.
+
+    Returns:
+        Filtered list of SearchResult objects with adaptive limiting applied.
+
+    Example:
+        >>> results = [
+        ...     SearchResult(..., hybrid_score=0.28),
+        ...     SearchResult(..., hybrid_score=0.25),
+        ...     SearchResult(..., hybrid_score=0.22),
+        ... ]
+        >>> filtered = apply_confidence_filtering(results)
+        >>> len(filtered)  # Returns 4 (avg=0.25 < 0.3, low confidence)
+        4
+    """
+    # Handle empty results
+    if not results:
+        return []
+
+    # Calculate average score across all results
+    scores: list[float] = []
+    for result in results:
+        # Use hybrid_score if available, otherwise use similarity_score
+        score = result.hybrid_score if result.score_type == "hybrid" else result.similarity_score
+
+        # Handle edge cases: missing/invalid scores
+        if isinstance(score, str):
+            try:
+                score = float(score)
+            except (ValueError, TypeError):
+                score = 0.0
+        elif score is None:
+            score = 0.0
+
+        # Ensure score is in valid range
+        if not isinstance(score, (int, float)) or score < 0.0:
+            score = 0.0
+
+        scores.append(min(1.0, max(0.0, score)))
+
+    if not scores:
+        return []
+
+    avg_score = sum(scores) / len(scores)
+    logger.debug(
+        f"Confidence filtering: avg_score={avg_score:.3f}, total_results={len(results)}"
+    )
+
+    # Apply adaptive limiting based on confidence level
+    # Thresholds tuned to actual KB score distribution (0.2-0.3 range)
+    if avg_score >= 0.6:
+        # High confidence: return all results
+        logger.debug("High confidence (>=0.6): returning all results")
+        return results
+    elif avg_score >= 0.3:
+        # Medium confidence: return top 7 (allows document filtering benefits)
+        logger.debug("Medium confidence (>=0.3): limiting to top 7 results")
+        return results[:7]
+    else:
+        # Low confidence: return top 4 (minimal filtering)
+        logger.debug("Low confidence (<0.3): limiting to top 4 results")
+        return results[:4]
+
+
 class RankingValidator:
     """Validate search result ranking quality.
 
