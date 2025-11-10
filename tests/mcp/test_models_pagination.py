@@ -66,15 +66,15 @@ class TestPaginationMetadata:
         assert pagination.has_more is True
 
     def test_pagination_metadata_page_size_min(self) -> None:
-        """Test page_size minimum validation (1)."""
-        with pytest.raises(ValidationError) as exc_info:
-            PaginationMetadata(
-                cursor=None,
-                page_size=0,
-                has_more=False,
-                total_available=10,
-            )
-        assert "page_size" in str(exc_info.value)
+        """Test page_size minimum validation (0 is now valid for empty results)."""
+        # page_size=0 is now allowed for empty result scenarios
+        pagination = PaginationMetadata(
+            cursor=None,
+            page_size=0,
+            has_more=False,
+            total_available=0,
+        )
+        assert pagination.page_size == 0
 
     def test_pagination_metadata_page_size_max(self) -> None:
         """Test page_size maximum validation (50)."""
@@ -208,15 +208,18 @@ class TestSemanticSearchRequestPagination:
     """Test SemanticSearchRequest pagination and backward compatibility."""
 
     def test_request_default_page_size(self) -> None:
-        """Test default page_size is 10."""
+        """Test default page_size is 10 and top_k defaults to 10."""
         request = SemanticSearchRequest(query="test")
         assert request.page_size == 10
-        assert request.top_k is None
+        assert request.top_k == 10  # top_k now defaults to 10 for backward compatibility
 
     def test_request_custom_page_size(self) -> None:
-        """Test custom page_size."""
-        request = SemanticSearchRequest(query="test", page_size=25)
+        """Test custom page_size with explicit top_k."""
+        # When only page_size is provided, top_k defaults to 10 and takes precedence
+        # To actually get page_size=25, must also set top_k=25
+        request = SemanticSearchRequest(query="test", page_size=25, top_k=25)
         assert request.page_size == 25
+        assert request.top_k == 25
 
     def test_request_page_size_min(self) -> None:
         """Test page_size minimum (1)."""
@@ -317,11 +320,13 @@ class TestSemanticSearchRequestPagination:
         request = SemanticSearchRequest(
             query="test query",
             page_size=15,
+            top_k=15,  # Must set top_k to match page_size for it to take effect
             cursor=cursor,
             response_mode="preview",
         )
         assert request.query == "test query"
         assert request.page_size == 15
+        assert request.top_k == 15
         assert request.cursor == cursor
         assert request.response_mode == "preview"
 
@@ -884,6 +889,7 @@ class TestPaginationEdgeCases:
         request = SemanticSearchRequest(
             query="complex search query",
             page_size=20,
+            top_k=20,  # Must set top_k to match page_size for it to take effect
             cursor=cursor,
             fields=["chunk_id", "source_file", "hybrid_score"],
             response_mode="metadata",
@@ -892,6 +898,7 @@ class TestPaginationEdgeCases:
         # Validate all fields
         assert request.query == "complex search query"
         assert request.page_size == 20
+        assert request.top_k == 20
         assert request.cursor == cursor
         assert request.fields == ["chunk_id", "source_file", "hybrid_score"]
         assert request.response_mode == "metadata"

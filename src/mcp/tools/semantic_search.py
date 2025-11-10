@@ -270,7 +270,7 @@ def format_full(result: SearchResult) -> SearchResultFull:
     )
 
 
-@mcp.tool()  # type: ignore[misc,has-type]
+@mcp.tool()  # type: ignore[misc]
 def semantic_search(
     query: str,
     top_k: int | None = None,

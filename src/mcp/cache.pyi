@@ -3,13 +3,7 @@
 from collections import OrderedDict
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Optional
-import sys
-
-if sys.version_info >= (3, 11):
-    from typing import Self
-else:
-    from typing_extensions import Self
+from typing import Any
 
 @dataclass
 class CacheEntry:
@@ -51,7 +45,7 @@ class CacheLayer:
         default_ttl: int = 300
     ) -> None: ...
 
-    def get(self, cache_key: str) -> Optional[Any]: ...
+    def get(self, cache_key: str) -> Any | None: ...
 
     def set(self, cache_key: str, value: Any, ttl_seconds: int) -> None: ...
 

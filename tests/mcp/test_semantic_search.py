@@ -396,10 +396,16 @@ class TestSemanticSearchTool:
 class TestResponseModePerformance:
     """Test response mode performance characteristics."""
 
+    @patch("src.mcp.tools.semantic_search.get_cache_layer")
     @patch("src.mcp.tools.semantic_search.get_hybrid_search")
-    def test_ids_only_mode_latency(self, mock_get_search: Mock) -> None:
+    def test_ids_only_mode_latency(self, mock_get_search: Mock, mock_get_cache: Mock) -> None:
         """Test ids_only mode has fastest response time."""
         import time
+
+        # Mock cache to always miss (prevent cache pollution from other tests)
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
 
         # Create a sample result
         sample = SearchResult(
@@ -441,9 +447,15 @@ class TestResponseModePerformance:
         assert len(response_ids.results) == 1
         assert len(response_full.results) == 1
 
+    @patch("src.mcp.tools.semantic_search.get_cache_layer")
     @patch("src.mcp.tools.semantic_search.get_hybrid_search")
-    def test_metadata_mode_default_performance(self, mock_get_search: Mock) -> None:
+    def test_metadata_mode_default_performance(self, mock_get_search: Mock, mock_get_cache: Mock) -> None:
         """Test metadata mode (default) has balanced performance."""
+        # Mock cache to always miss (prevent cache pollution from other tests)
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
+
         sample = SearchResult(
             chunk_id=1,
             chunk_text="Medium size text " * 50,  # ~800 chars
@@ -472,9 +484,15 @@ class TestResponseModePerformance:
         assert len(response.results) == 1
         assert isinstance(response.results[0], SearchResultMetadata)
 
+    @patch("src.mcp.tools.semantic_search.get_cache_layer")
     @patch("src.mcp.tools.semantic_search.get_hybrid_search")
-    def test_preview_mode_with_snippet_overhead(self, mock_get_search: Mock) -> None:
+    def test_preview_mode_with_snippet_overhead(self, mock_get_search: Mock, mock_get_cache: Mock) -> None:
         """Test preview mode includes snippet formatting overhead."""
+        # Mock cache to always miss (prevent cache pollution from other tests)
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
+
         sample = SearchResult(
             chunk_id=1,
             chunk_text="This is content. " * 100,  # ~1700 chars, needs truncation
@@ -509,11 +527,17 @@ class TestResponseModePerformance:
 class TestTokenReductionAcrossModes:
     """Test token reduction benefits of progressive disclosure."""
 
+    @patch("src.mcp.tools.semantic_search.get_cache_layer")
     @patch("src.mcp.tools.semantic_search.get_hybrid_search")
     def test_metadata_vs_full_token_reduction(
-        self, mock_get_search: Mock
+        self, mock_get_search: Mock, mock_get_cache: Mock
     ) -> None:
         """Test metadata mode produces significantly fewer tokens than full."""
+        # Mock cache to always miss (prevent cache pollution from other tests)
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
+
         # Create result with substantial content
         large_text = "Authentication security token validation " * 200  # ~8000 chars
         sample = SearchResult(
@@ -608,9 +632,15 @@ class TestTokenReductionAcrossModes:
 class TestEdgeCaseResponses:
     """Test edge cases in response formatting."""
 
+    @patch("src.mcp.tools.semantic_search.get_cache_layer")
     @patch("src.mcp.tools.semantic_search.get_hybrid_search")
-    def test_snippet_exactly_200_characters(self, mock_get_search: Mock) -> None:
+    def test_snippet_exactly_200_characters(self, mock_get_search: Mock, mock_get_cache: Mock) -> None:
         """Test snippet with exactly 200 characters."""
+        # Mock cache to always miss (prevent cache pollution from other tests)
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
+
         text_200 = "a" * 200  # Exactly 200 chars
 
         sample = SearchResult(
@@ -641,11 +671,17 @@ class TestEdgeCaseResponses:
         assert result.chunk_snippet == text_200
         assert not result.chunk_snippet.endswith("...")
 
+    @patch("src.mcp.tools.semantic_search.get_cache_layer")
     @patch("src.mcp.tools.semantic_search.get_hybrid_search")
     def test_snippet_201_characters_truncation(
-        self, mock_get_search: Mock
+        self, mock_get_search: Mock, mock_get_cache: Mock
     ) -> None:
         """Test snippet with 201 characters gets truncated to 200 + ellipsis."""
+        # Mock cache to always miss (prevent cache pollution from other tests)
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
+
         text_201 = "b" * 201  # One over the limit
 
         sample = SearchResult(
@@ -677,9 +713,15 @@ class TestEdgeCaseResponses:
         assert result.chunk_snippet.endswith("...")
         assert result.chunk_snippet == "b" * 200 + "..."
 
+    @patch("src.mcp.tools.semantic_search.get_cache_layer")
     @patch("src.mcp.tools.semantic_search.get_hybrid_search")
-    def test_empty_results_list(self, mock_get_search: Mock) -> None:
+    def test_empty_results_list(self, mock_get_search: Mock, mock_get_cache: Mock) -> None:
         """Test handling of empty results from search."""
+        # Mock cache to always miss (prevent cache pollution from other tests)
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
+
         mock_search = Mock()
         mock_search.search.return_value = []
         mock_get_search.return_value = mock_search
@@ -690,9 +732,15 @@ class TestEdgeCaseResponses:
         assert len(response.results) == 0
         assert response.execution_time_ms >= 0
 
+    @patch("src.mcp.tools.semantic_search.get_cache_layer")
     @patch("src.mcp.tools.semantic_search.get_hybrid_search")
-    def test_large_result_set_maximum(self, mock_get_search: Mock) -> None:
+    def test_large_result_set_maximum(self, mock_get_search: Mock, mock_get_cache: Mock) -> None:
         """Test handling of maximum result set (top_k=50)."""
+        # Mock cache to always miss (prevent cache pollution from other tests)
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
+
         # Create 50 results
         results = [
             SearchResult(
@@ -728,9 +776,15 @@ class TestEdgeCaseResponses:
             assert result.rank == i + 1
             assert result.chunk_id == i
 
+    @patch("src.mcp.tools.semantic_search.get_cache_layer")
     @patch("src.mcp.tools.semantic_search.get_hybrid_search")
-    def test_single_result(self, mock_get_search: Mock) -> None:
+    def test_single_result(self, mock_get_search: Mock, mock_get_cache: Mock) -> None:
         """Test handling of single result."""
+        # Mock cache to always miss (prevent cache pollution from other tests)
+        mock_cache = Mock()
+        mock_cache.get.return_value = None
+        mock_get_cache.return_value = mock_cache
+
         sample = SearchResult(
             chunk_id=1,
             chunk_text="Single result",

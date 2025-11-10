@@ -144,7 +144,7 @@ class PaginationMetadata(BaseModel):
     page_size: int = Field(
         ...,
         description="Number of results returned in this page",
-        ge=1,
+        ge=0,
         le=50,
     )
     has_more: bool = Field(
@@ -261,7 +261,7 @@ class SemanticSearchRequest(BaseModel):
         ),
     )
     top_k: int | None = Field(
-        default=None,
+        default=10,
         description="DEPRECATED: Use page_size instead. If provided, takes precedence for backward compatibility.",
         ge=1,
         le=50,

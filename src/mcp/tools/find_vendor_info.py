@@ -462,7 +462,7 @@ def format_full(
     )
 
 
-@mcp.tool()  # type: ignore[misc,has-type]
+@mcp.tool()  # type: ignore[misc]
 def find_vendor_info(
     vendor_name: str,
     response_mode: str = "metadata",
