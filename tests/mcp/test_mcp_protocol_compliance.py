@@ -23,9 +23,8 @@ Performance:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from typing import Any, Callable
-from unittest.mock import MagicMock
+from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -34,15 +33,9 @@ from src.mcp.models import (
     MCPResponseEnvelope,
     PaginationMetadata,
     ResponseMetadata,
-    ResponseWarning,
-    SearchResultFull,
-    SearchResultIDs,
-    SearchResultMetadata,
-    SearchResultPreview,
     SemanticSearchRequest,
     SemanticSearchResponse,
 )
-
 
 # ==============================================================================
 # HELPER FUNCTIONS FOR PROTOCOL VALIDATION
@@ -285,7 +278,7 @@ class TestResponseFormatValidation:
         metadata = ResponseMetadata(
             operation="semantic_search",
             version="1.0",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             request_id="req_test_001",
             status="success",
         )
@@ -317,7 +310,7 @@ class TestResponseFormatValidation:
 
     def test_response_envelope_metadata_presence_and_format(self) -> None:
         """Test response metadata header is present and properly formatted."""
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         metadata = ResponseMetadata(
             operation="semantic_search",
             version="1.0",
@@ -345,7 +338,7 @@ class TestResponseFormatValidation:
         metadata = ResponseMetadata(
             operation="semantic_search",
             version="1.0",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             request_id="req_123",
             status="success",
         )
@@ -387,7 +380,7 @@ class TestResponseFormatValidation:
         metadata = ResponseMetadata(
             operation="semantic_search",
             version="1.0",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             request_id="req_123",
             status="success",
         )
@@ -646,7 +639,7 @@ class TestProtocolComplianceIntegration:
         metadata = ResponseMetadata(
             operation="semantic_search",
             version="1.0",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             request_id="req_cycle_001",
             status="success",
         )
@@ -750,7 +743,7 @@ class TestProtocolComplianceIntegration:
         metadata = ResponseMetadata(
             operation="semantic_search",
             version="1.0",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             request_id="req_type_001",
             status="success",
         )
@@ -802,7 +795,7 @@ class TestMCPProtocolComplianceCertification:
             metadata = ResponseMetadata(
                 operation="semantic_search",
                 version="1.0",
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 request_id=f"req_cert_{i:03d}",
                 status="success",
             )

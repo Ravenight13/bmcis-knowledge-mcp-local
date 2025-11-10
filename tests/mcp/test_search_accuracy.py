@@ -38,25 +38,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
-from unittest.mock import Mock, patch
 
 import pytest
 
-from src.mcp.models import (
-    SearchResultFull,
-    SearchResultIDs,
-    SearchResultMetadata,
-    SearchResultPreview,
-)
-from src.mcp.tools.semantic_search import (
-    format_full,
-    format_ids_only,
-    format_metadata,
-    format_preview,
-)
 from src.search.results import SearchResult
-
 
 # ==============================================================================
 # GROUND TRUTH DATASET

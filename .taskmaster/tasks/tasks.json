@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": 1,
+        "id": "1",
         "title": "Database and Core Utilities Setup",
         "description": "Initialize PostgreSQL 16 with pgvector, create database schema, and establish core configuration management",
         "details": "Execute sql/schema_768.sql, create config system with Pydantic, set up connection pooling, implement logging and error handling utilities. Configure virtual environment, pytest, pre-commit hooks.",
@@ -91,7 +91,7 @@
         "updatedAt": "2025-11-08T03:44:12.305Z"
       },
       {
-        "id": 2,
+        "id": "2",
         "title": "Document Parsing and Chunking System",
         "description": "Build document ingestion pipeline for markdown files with metadata extraction and token-based chunking",
         "details": "Implement functions to read markdown files, extract metadata (vendor, category, team_member), use tiktoken for 512-token chunks with 20% overlap. Generate context headers, implement batch processing.",
@@ -172,7 +172,7 @@
         "updatedAt": "2025-11-08T13:41:30.300Z"
       },
       {
-        "id": 3,
+        "id": "3",
         "title": "Embedding Generation Pipeline",
         "description": "Generate 768-dimensional embeddings for document chunks using all-mpnet-base-v2 model",
         "details": "Load sentence-transformers model, implement parallel embedding generation, handle model caching. Insert chunks with embeddings into knowledge_base table with HNSW indexing.",
@@ -240,7 +240,7 @@
         "updatedAt": "2025-11-08T13:53:02.249Z"
       },
       {
-        "id": 4,
+        "id": "4",
         "title": "Vector and BM25 Search Implementation",
         "description": "Develop vector similarity and full-text search capabilities using pgvector and PostgreSQL ts_vector",
         "details": "Implement HNSW cosine similarity search, BM25 full-text search via GIN indexes. Create search functions supporting metadata filtering, performance profiling.",
@@ -327,7 +327,7 @@
         "updatedAt": "2025-11-08T14:54:52.275Z"
       },
       {
-        "id": 5,
+        "id": "5",
         "title": "Hybrid Search with Reciprocal Rank Fusion",
         "description": "Combine vector and BM25 search results using Reciprocal Rank Fusion (RRF)",
         "details": "Implement RRF algorithm (k=60), create multi-factor boosting system (+15%/+10%/+5%/+10%/+8% for vendor/doc_type/recency/entity/topic). Design query routing mechanism.",
@@ -445,7 +445,7 @@
         "updatedAt": "2025-11-08T19:24:43.181Z"
       },
       {
-        "id": 6,
+        "id": "6",
         "title": "Cross-Encoder Reranking System",
         "description": "Implement final reranking stage using ms-marco-MiniLM-L-6-v2 cross-encoder model",
         "details": "Load cross-encoder model, develop candidate selection strategy, implement scoring and final result selection. Add adaptive pool sizing based on query complexity.",
@@ -513,7 +513,7 @@
         "updatedAt": "2025-11-08T21:59:47.701Z"
       },
       {
-        "id": 7,
+        "id": "7",
         "title": "Entity Extraction and Knowledge Graph",
         "description": "Build entity recognition system and knowledge graph with relationship mapping",
         "details": "Implement NER using spaCy, create knowledge_entities and entity_relationships tables. Develop entity deduplication, canonicalization, and graph traversal queries.",
@@ -601,7 +601,7 @@
         "updatedAt": "2025-11-09T20:39:43.584Z"
       },
       {
-        "id": 8,
+        "id": "8",
         "title": "Neon Production Validation System",
         "description": "Create cross-checking mechanism to validate local search against Neon production results",
         "details": "Implement read-only Neon database connection, develop A/B search comparison, create golden query set for accuracy testing. Build pre-commit accuracy validation hook.",
@@ -676,7 +676,7 @@
         "expansionPrompt": "Split into: 1) Read-only Neon database connection with credential management, 2) A/B search comparison system executing identical queries, 3) Golden query dataset creation with manual annotations, 4) Accuracy metrics calculation (overlap@5, rank correlation, precision/recall), 5) Pre-commit hook integration for automated validation"
       },
       {
-        "id": 9,
+        "id": "9",
         "title": "Search Optimization and Tuning",
         "description": "Fine-tune search parameters to achieve 90%+ accuracy and maintain performance targets",
         "details": "Experiment with HNSW parameters, chunking strategies, boost weights, candidate pool sizing. Profile and optimize each search stage for latency.",
@@ -763,7 +763,7 @@
         "expansionPrompt": "Break into: 1) HNSW parameter tuning (ef_search, m values) with performance testing, 2) Boost weight optimization across multiple factors, 3) Chunking strategy experimentation (token sizes, overlap percentages), 4) Candidate pool size optimization for cross-encoder, 5) Performance profiling and bottleneck identification, 6) A/B testing framework for validating improvements"
       },
       {
-        "id": 10,
+        "id": "10",
         "title": "FastMCP Server Integration",
         "description": "Package search system as FastMCP server with Claude Desktop integration",
         "details": "Implement MCP server with semantic_search and find_vendor_info tools. Create request handlers, implement authentication, comprehensive error handling.",
@@ -781,7 +781,8 @@
             "dependencies": [],
             "details": "Set up FastMCP server project structure, configure server initialization, implement semantic_search tool endpoint that accepts query parameters and returns ranked results, implement find_vendor_info tool endpoint for vendor-specific searches, configure server routing and basic middleware",
             "status": "pending",
-            "testStrategy": "Unit tests for tool endpoint functionality, integration tests for server startup and tool registration"
+            "testStrategy": "Unit tests for tool endpoint functionality, integration tests for server startup and tool registration",
+            "parentId": "undefined"
           },
           {
             "id": 2,
@@ -792,7 +793,8 @@
             ],
             "details": "Implement request validation middleware, add comprehensive error handling for database connection failures, search timeouts, and malformed requests, create structured error responses with appropriate HTTP status codes, implement request logging and monitoring hooks",
             "status": "pending",
-            "testStrategy": "Error scenario testing, timeout handling validation, malformed request rejection tests"
+            "testStrategy": "Error scenario testing, timeout handling validation, malformed request rejection tests",
+            "parentId": "undefined"
           },
           {
             "id": 3,
@@ -803,7 +805,8 @@
             ],
             "details": "Implement MCP protocol authentication, configure client certificate validation or token-based auth, add authorization middleware for tool access control, integrate with existing authentication systems if applicable, implement secure session management",
             "status": "pending",
-            "testStrategy": "Authentication flow testing, unauthorized access prevention validation, security penetration testing"
+            "testStrategy": "Authentication flow testing, unauthorized access prevention validation, security penetration testing",
+            "parentId": "undefined"
           },
           {
             "id": 4,
@@ -813,8 +816,10 @@
               3
             ],
             "details": "Implement response formatting that optimizes search results for Claude Desktop display, include result metadata, confidence scores, and structured data that enhances Claude's ability to provide contextual responses, add response compression and caching strategies for improved performance",
-            "status": "pending",
-            "testStrategy": "Claude Desktop integration testing, response format validation, performance benchmarking of compressed responses"
+            "status": "done",
+            "testStrategy": "Claude Desktop integration testing, response format validation, performance benchmarking of compressed responses",
+            "updatedAt": "2025-11-10T00:57:23.246Z",
+            "parentId": "undefined"
           },
           {
             "id": 5,
@@ -825,25 +830,24 @@
             ],
             "details": "Create end-to-end test suite covering complete search workflows, implement performance benchmarking for response times and throughput, validate MCP protocol compliance, test Claude Desktop integration scenarios, create load testing for concurrent requests, validate search accuracy maintains >90% target",
             "status": "pending",
-            "testStrategy": "End-to-end workflow testing, performance benchmarking against <300ms p50 target, load testing with concurrent clients, MCP protocol compliance validation"
+            "testStrategy": "End-to-end workflow testing, performance benchmarking against <300ms p50 target, load testing with concurrent clients, MCP protocol compliance validation",
+            "parentId": "undefined"
           }
         ],
         "complexity": 6,
         "recommendedSubtasks": 5,
         "expansionPrompt": "Break down into: 1) FastMCP server setup with semantic_search and find_vendor_info tools, 2) Request handler implementation with proper error handling, 3) Authentication system integration, 4) Response formatting for Claude Desktop compatibility, 5) End-to-end testing and performance validation",
-        "updatedAt": "2025-11-10T00:37:38.151Z"
+        "updatedAt": "2025-11-10T00:57:23.246Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-10T00:37:38.152Z",
+      "lastModified": "2025-11-10T00:57:23.250Z",
       "taskCount": 10,
       "completedCount": 7,
       "tags": [
         "master"
-      ],
-      "created": "2025-11-10T00:37:39.673Z",
-      "description": "Tasks for master context"
+      ]
     }
   }
 }

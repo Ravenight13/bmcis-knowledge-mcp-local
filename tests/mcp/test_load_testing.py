@@ -26,23 +26,19 @@ Type-safe implementation with 100% mypy --strict compliance.
 from __future__ import annotations
 
 import gc
-import logging
 import os
 import resource
 import statistics
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any, Callable
-from unittest.mock import Mock, patch
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
-from src.mcp.auth import RateLimiter, validate_api_key
-from src.mcp.models import SemanticSearchRequest, FindVendorInfoRequest
-from src.mcp.tools.semantic_search import semantic_search
-from src.mcp.tools.find_vendor_info import find_vendor_info
-
+from src.mcp.auth import RateLimiter
 
 # ============================================================================
 # Load Testing Data Structures
@@ -192,7 +188,7 @@ def simulate_semantic_search_request(query: str) -> tuple[bool, float]:
         latency_ms = (end_time - start_time) * 1000
 
         return (True, latency_ms)
-    except Exception as e:
+    except Exception:
         end_time = time.perf_counter()
         latency_ms = (end_time - start_time) * 1000
         return (False, latency_ms)
@@ -229,7 +225,7 @@ def simulate_find_vendor_request(vendor_name: str) -> tuple[bool, float]:
         latency_ms = (end_time - start_time) * 1000
 
         return (True, latency_ms)
-    except Exception as e:
+    except Exception:
         end_time = time.perf_counter()
         latency_ms = (end_time - start_time) * 1000
         return (False, latency_ms)
@@ -379,7 +375,7 @@ class TestConcurrentLoadSmall:
             "P99 should be >= P95"
 
         # Log metrics for analysis
-        print(f"\nSmall Load Test - Semantic Search:")
+        print("\nSmall Load Test - Semantic Search:")
         print(f"  Duration: {metrics.duration_seconds():.1f}s")
         print(f"  Total Requests: {metrics.total_requests}")
         print(f"  Success Rate: {metrics.success_rate():.2f}%")
@@ -415,7 +411,7 @@ class TestConcurrentLoadSmall:
         assert metrics.p95_latency_ms() >= metrics.p50_latency_ms(), \
             "P95 should be >= P50"
 
-        print(f"\nSmall Load Test - Vendor Info:")
+        print("\nSmall Load Test - Vendor Info:")
         print(f"  Duration: {metrics.duration_seconds():.1f}s")
         print(f"  Total Requests: {metrics.total_requests}")
         print(f"  Success Rate: {metrics.success_rate():.2f}%")
@@ -443,7 +439,7 @@ class TestConcurrentLoadSmall:
         assert memory_growth < 10.0, \
             f"Memory growth {memory_growth:.1f}% should be < 10%"
 
-        print(f"\nSmall Load Test - Memory Stability:")
+        print("\nSmall Load Test - Memory Stability:")
         print(f"  Start: {metrics.start_memory_mb:.1f}MB")
         print(f"  End: {metrics.end_memory_mb:.1f}MB")
         print(f"  Growth: {memory_growth:.2f}%")
@@ -489,7 +485,7 @@ class TestConcurrentLoadMedium:
         assert metrics.p95_latency_ms() < 500.0, \
             f"P95 latency {metrics.p95_latency_ms():.2f}ms should be < 500ms"
 
-        print(f"\nMedium Load Test - Mixed Workload:")
+        print("\nMedium Load Test - Mixed Workload:")
         print(f"  Duration: {metrics.duration_seconds():.1f}s")
         print(f"  Total Requests: {metrics.total_requests}")
         print(f"  Success Rate: {metrics.success_rate():.2f}%")
@@ -526,7 +522,7 @@ class TestConcurrentLoadMedium:
         assert metrics.success_rate() > 99.0, \
             "Success rate should exceed 99% with adequate rate limits"
 
-        print(f"\nMedium Load Test - Rate Limiter Effectiveness:")
+        print("\nMedium Load Test - Rate Limiter Effectiveness:")
         print(f"  Total Requests: {metrics.total_requests}")
         print(f"  Rate Limit Hits: {metrics.rate_limit_hits}")
         print(f"  Success Rate: {metrics.success_rate():.2f}%")
@@ -552,7 +548,7 @@ class TestConcurrentLoadMedium:
         assert metrics.failed_requests < (metrics.total_requests * 0.01), \
             "Connection pool should handle <1% failures"
 
-        print(f"\nMedium Load Test - Connection Pool:")
+        print("\nMedium Load Test - Connection Pool:")
         print(f"  Total Requests: {metrics.total_requests}")
         print(f"  Failed Requests: {metrics.failed_requests}")
         print(f"  Failure Rate: {(metrics.failed_requests / metrics.total_requests * 100):.2f}%")
@@ -590,7 +586,7 @@ class TestConcurrentLoadLarge:
         assert metrics.success_rate() > 95.0, \
             "Success rate should exceed 95% under 100 concurrent users"
 
-        print(f"\nLarge Load Test - 100 Concurrent Users:")
+        print("\nLarge Load Test - 100 Concurrent Users:")
         print(f"  Duration: {metrics.duration_seconds():.1f}s")
         print(f"  Total Requests: {metrics.total_requests}")
         print(f"  Successful: {metrics.successful_requests}")
@@ -629,7 +625,7 @@ class TestConcurrentLoadLarge:
         assert metrics_phase2.success_rate() > 90.0, \
             "Should maintain >90% success rate even during 200 user spike"
 
-        print(f"\nLarge Load Test - Burst Traffic (100->200 users):")
+        print("\nLarge Load Test - Burst Traffic (100->200 users):")
         print(f"  Phase 1 (100 users): {metrics_phase1.success_rate():.2f}%")
         print(f"  Phase 2 (200 users): {metrics_phase2.success_rate():.2f}%")
         print(f"  Burst P95: {metrics_phase2.p95_latency_ms():.2f}ms")
@@ -655,7 +651,7 @@ class TestConcurrentLoadLarge:
         assert memory_growth < 10.0, \
             f"Memory growth {memory_growth:.1f}% should be < 10% (no leaks)"
 
-        print(f"\nLarge Load Test - Memory Leak Detection:")
+        print("\nLarge Load Test - Memory Leak Detection:")
         print(f"  Start Memory: {metrics.start_memory_mb:.1f}MB")
         print(f"  End Memory: {metrics.end_memory_mb:.1f}MB")
         print(f"  Growth: {memory_growth:.2f}%")
@@ -708,11 +704,11 @@ class TestRateLimiterStress:
         assert api_key in rate_limiter.buckets, \
             "Rate limiter should track bucket for api_key"
 
-        print(f"\nRate Limiter Stress - Exhaustion:")
-        print(f"  Minute Limit: 10")
+        print("\nRate Limiter Stress - Exhaustion:")
+        print("  Minute Limit: 10")
         print(f"  Allowed: {allowed_count}")
         print(f"  Denied: {denied_count}")
-        print(f"  Exhaustion detected: OK")
+        print("  Exhaustion detected: OK")
 
     def test_rate_limiter_multi_tier_enforcement(self) -> None:
         """Test multi-tier rate limiting (minute, hour, day).
@@ -747,13 +743,13 @@ class TestRateLimiterStress:
         assert denied_count >= 1, \
             f"Should deny requests exceeding limit, denied {denied_count}"
 
-        print(f"\nRate Limiter Stress - Multi-Tier Enforcement:")
-        print(f"  Minute Limit: 5")
-        print(f"  Hour Limit: 50")
-        print(f"  Day Limit: 500")
+        print("\nRate Limiter Stress - Multi-Tier Enforcement:")
+        print("  Minute Limit: 5")
+        print("  Hour Limit: 50")
+        print("  Day Limit: 500")
         print(f"  Allowed: {allowed_count}")
         print(f"  Denied: {denied_count}")
-        print(f"  Minute limit enforced: OK")
+        print("  Minute limit enforced: OK")
 
     def test_rate_limiter_concurrent_edge_cases(self) -> None:
         """Test concurrent access and edge cases (clock skew, boundaries).
@@ -783,7 +779,7 @@ class TestRateLimiterStress:
         # All should be allowed (each key has its own bucket)
         assert all(results), "All concurrent requests to different keys should succeed"
 
-        print(f"\nRate Limiter Stress - Concurrent Edge Cases:")
+        print("\nRate Limiter Stress - Concurrent Edge Cases:")
         print(f"  Concurrent Keys: {len(api_keys)}")
         print(f"  All Allowed: {all(results)}")
-        print(f"  Result: OK - No race conditions detected")
+        print("  Result: OK - No race conditions detected")
