@@ -1,14 +1,22 @@
 {
-  "timestamp": "2025-11-09T21:54:54.930389",
+  "timestamp": "2025-11-09T22:03:32.038770",
   "queries": [
     {
       "query": "ProSource commission rates and vendor structure",
       "category": "vendor_entity",
-      "total_results": 3,
+      "total_results": 4,
       "top_k": 10,
       "results": [
         {
           "rank": 1,
+          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
+          "source_file": "PROCESSING_SUMMARY_20250914_201135.txt",
+          "relevance_score": 0.8500000000000001,
+          "has_keywords": true,
+          "reasoning": "Highly relevant - contains key concepts"
+        },
+        {
+          "rank": 2,
           "text_preview": "0   STEWART FILMSCREEN: 2 records, $0.00   STORM AUDIO: 1 records, $0.00   TRANSIENT PROTECTION DESIGN: 5 records, $0.00   VERBATIM LIGHTING: 1 record",
           "source_file": "PROCESSING_SUMMARY_20250914_201200.txt",
           "relevance_score": 0.25,
@@ -16,30 +24,30 @@
           "reasoning": "Low relevance - minimal keyword match"
         },
         {
-          "rank": 2,
-          "text_preview": "ds, $0.00   LUTRON: 200 records, $0.00   MASIMO: 33 records, $0.00   SEELESS SOLUTIONS: 3 records, $0.00   STEWART FILMSCREEN: 7 records, $0.00   STOR",
-          "source_file": "COMMISSION_PROCESSING_202503_20250915_171832_Summary.txt",
-          "relevance_score": 0.0,
-          "has_keywords": false,
-          "reasoning": "Low relevance - minimal keyword match"
+          "rank": 3,
+          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
+          "source_file": "PROCESSING_SUMMARY_20250914_201143.txt",
+          "relevance_score": 0.8500000000000001,
+          "has_keywords": true,
+          "reasoning": "Highly relevant - contains key concepts"
         },
         {
-          "rank": 3,
-          "text_preview": "*Type 5 Investigator:** Excellent for technical depth and analytical approach   - **Experience:** Lighting industry background with manufacturer repre",
-          "source_file": "Enneagram_Team_Development_Plan.md",
-          "relevance_score": 0.65,
+          "rank": 4,
+          "text_preview": "COMMISSION PROCESSING VALIDATION REPORT ================================================== Generated: 2025-09-14 20:08:59 Tolerance: $1.25  SUMMARY: C",
+          "source_file": "validation_report_20250914_200859.txt",
+          "relevance_score": 1.0,
           "has_keywords": true,
-          "reasoning": "Somewhat relevant - has some keywords"
+          "reasoning": "Highly relevant - contains key concepts"
         }
       ],
-      "avg_relevance": 0.3,
-      "ranking_quality": 0.5,
-      "evaluation_time": 1.8490300178527832
+      "avg_relevance": 0.7375,
+      "ranking_quality": 0.33333333333333337,
+      "evaluation_time": 1.6135480403900146
     },
     {
       "query": "What is the organizational structure of BMCIS sales teams?",
       "category": "organizational",
-      "total_results": 3,
+      "total_results": 4,
       "top_k": 10,
       "results": [
         {
@@ -52,134 +60,166 @@
         },
         {
           "rank": 2,
-          "text_preview": "\"\"\"Generate embedding for single text chunk\"\"\"         response = await self.client.embeddings.create(             model=self.model,             input",
-          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
-          "relevance_score": 0.25,
+          "text_preview": "# Lutron Dealer Life Progression Framework  ## Summary of the Idea Establish a systematic pathway for dealer advancement through specific Lutron produ",
+          "source_file": "02_Lutron_Dealer_Life_Progression.md",
+          "relevance_score": 0.2,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
         },
         {
           "rank": 3,
-          "text_preview": "ut``, ``putmask`` behave like their ndarray counterparts -----------------------------------------------------------  Previously, ``putmask`` was used",
+          "text_preview": ".. -*- rest -*-  ================================================== API changes in the new masked array implementation ===============================",
           "source_file": "API_CHANGES.txt",
           "relevance_score": 0.0,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 4,
+          "text_preview": "JOSH AI: 29 records, $0.00   K-ARRAY: 1 records, $0.00   LED INSPIRATIONS: 6 records, $0.00   LUTRON: 218 records, $0.00   MASIMO: 34 records, $0.00  ",
+          "source_file": "PROCESSING_SUMMARY_20250914_180613.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
         }
       ],
-      "avg_relevance": 0.15,
-      "ranking_quality": 0.5,
-      "evaluation_time": 0.05193662643432617
+      "avg_relevance": 0.1,
+      "ranking_quality": 1.0,
+      "evaluation_time": 0.04210495948791504
     },
     {
       "query": "Dealer classification and segmentation",
       "category": "classification",
-      "total_results": 3,
+      "total_results": 4,
       "top_k": 10,
       "results": [
         {
           "rank": 1,
-          "text_preview": "ployment - Real-time code watching or live updates - Code modification or refactoring tools  **Rationale**: Scope creep prevention requires explicit b",
-          "source_file": "constitution.md",
-          "relevance_score": 0.2,
+          "text_preview": "wn 30.2%** (5,629 \u2192 3,930) - **Average Transaction Value Up 3.4%** ($791 \u2192 $818) - **Revenue decline driven by volume, not value**  ---  ## \ud83c\udfaf VENDOR P",
+          "source_file": "Commission_Analysis_2024_2025_Strategic_Resource.md",
+          "relevance_score": 0.0,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
         },
         {
           "rank": 2,
-          "text_preview": "# Git Repository Authentication - Technical Notes  **Repository:** https://github.com/Ravenight13/bmcis-vp-sales-system   **Status:** Authentication r",
-          "source_file": "Git_Authentication_Notes.md",
+          "text_preview": "hich backend is used     \"\"\"      async def execute_query(self, query_type: str, params: Dict) -> Result:         \"\"\"         Route query to optimal b",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.35000000000000003,
+          "has_keywords": true,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "ter Role Directory] Return \u2192 [Master Compilation Playbook]",
+          "source_file": "Inside Sales | Rep Playbook.md",
           "relevance_score": 0.0,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
         },
         {
-          "rank": 3,
-          "text_preview": "your NON-NEGOTIABLE principles]** ([why it's highest priority]) 2. **[Next principle]** ([why it's next]) 3. **[Next principle]** ([why it's next]) 4.",
-          "source_file": "constitution-template.md",
-          "relevance_score": 0.0,
+          "rank": 4,
+          "text_preview": "aram_idx})\"             params.append(domains)             param_idx += 1          if time_range:             sql += f\" AND mbe.created_at BETWEEN ${p",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.25,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
         }
       ],
-      "avg_relevance": 0.06666666666666667,
-      "ranking_quality": 1.0,
-      "evaluation_time": 0.04392600059509277
+      "avg_relevance": 0.15000000000000002,
+      "ranking_quality": 0.33333333333333337,
+      "evaluation_time": 0.05109882354736328
     },
     {
       "query": "Lutron lighting control specifications",
       "category": "product",
-      "total_results": 3,
+      "total_results": 4,
       "top_k": 10,
       "results": [
         {
           "rank": 1,
-          "text_preview": "- Audio Expert | bkirkpatrick@bellandmccoy.com | 972.351.6909 - **Blair Lucas** - Video Expert | blucas@bellandmccoy.com | 817.807.0027  ---  ## \ud83d\udcda Ess",
-          "source_file": "Kamal_Tehfeh_Welcome_Package.md",
+          "text_preview": "### 3. **Window Coverings Specialists = High-Value Targets**  - Only 13 dealers, but $531K average revenue - Highest per-dealer revenue of any segment",
+          "source_file": "DEALER_TYPE_INSIGHTS.md",
           "relevance_score": 0.2,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
         },
         {
           "rank": 2,
-          "text_preview": "f content becoming outdated as technology evolves  7. **Competitive Response and Advantage Erosion**    - Competitors may copy approach or develop alt",
-          "source_file": "06_Costa_Rica_Builder_Developer_Strategy_Analysis.md",
-          "relevance_score": 0.2,
+          "text_preview": "nal, Display Technologies, Just Video Walls  ### **Blair Lucas - VIDEO CATEGORY (8 Total Vendors)** **Primary Role:** North DAM | **Districts Served:*",
+          "source_file": "BMCIS_Storytellers_Comprehensive_Role_Definition.md",
+          "relevance_score": 0.55,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 3,
+          "text_preview": "YEAR-BY-YEAR CHANNEL PERFORMANCE  ### RIS Direct (Primary Channel): - **2023:** $16.4M (169 dealers) - **2024:** $18.1M (192 dealers) - **+10% growth*",
+          "source_file": "DEALER_TYPE_INSIGHTS.md",
+          "relevance_score": 0.0,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
         },
         {
-          "rank": 3,
-          "text_preview": "mendations + roadmap     3. STRATEGIC VALIDATION: Cross-system verification (Both Systems)    \u2514\u2500 Current System: Operational feasibility assessment   ",
-          "source_file": "Strategic_Decision_Framework.md",
-          "relevance_score": 0.0,
+          "rank": 4,
+          "text_preview": "peline Management:** Maintain opportunity records, update deal stages, and ensure CRM data accuracy - **Territory Coordination:** Support Outside Sale",
+          "source_file": "Inside_Sales_Rep_Expanded_Role_Definition.md",
+          "relevance_score": 0.30000000000000004,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
         }
       ],
-      "avg_relevance": 0.13333333333333333,
-      "ranking_quality": 1.0,
-      "evaluation_time": 0.04503297805786133
+      "avg_relevance": 0.2625,
+      "ranking_quality": 0.33333333333333337,
+      "evaluation_time": 0.04252195358276367
     },
     {
       "query": "Weekly sales targets and performance metrics",
       "category": "metrics",
-      "total_results": 3,
+      "total_results": 4,
       "top_k": 10,
       "results": [
         {
           "rank": 1,
-          "text_preview": "high-end integrators prefer specialized groups' boutique feel. The 2021 Azione merger addresses this perception gap by maintaining premium brand ident",
-          "source_file": "Nationwide_Complete_Intelligence_Report.md",
-          "relevance_score": 0.0,
-          "has_keywords": false,
-          "reasoning": "Low relevance - minimal keyword match"
-        },
-        {
-          "rank": 2,
-          "text_preview": "y dues of $750 ($3,000 annually) compare favorably to competitors while the business-focused education through VITAL Management and peer-driven Leader",
-          "source_file": "Azione_Complete_Intelligence_Report.md",
-          "relevance_score": 0.2,
-          "has_keywords": false,
-          "reasoning": "Low relevance - minimal keyword match"
-        },
-        {
-          "rank": 3,
           "text_preview": "g of Salesforce Architect into leadership strategy.   Reference: This deep dive links back to the [Master Role Directory] for overall organizational c",
           "source_file": "Leadership Playbook.md",
           "relevance_score": 0.25,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 2,
+          "text_preview": "ns, file I/O) to  ensure rapid response  FR-005: System MUST respond within 100ms under normal load  FR-006: System MUST include service name, version",
+          "source_file": "speckit_specify_research_101225.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "Steps to validate transcendental functions: 1) Add a file 'umath-validation-set-<ufuncname>.txt', where ufuncname is name of    the function in NumPy ",
+          "source_file": "umath-validation-set-README.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 4,
+          "text_preview": "UDIO: 2 records, $0.00   STRAIGHT WIRE: 3 records, $0.00   TRANSIENT PROTECTION DESIGN: 6 records, $0.00   TOTAL RECORDS: 319   TOTAL EXTRACTED: $0.00",
+          "source_file": "PROCESSING_SUMMARY_20250914_181515.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
         }
       ],
-      "avg_relevance": 0.15,
-      "ranking_quality": 0.0,
-      "evaluation_time": 0.042793989181518555
+      "avg_relevance": 0.1125,
+      "ranking_quality": 1.0,
+      "evaluation_time": 0.04899787902832031
     },
     {
       "query": "Commission processing procedures and timeline",
       "category": "process",
-      "total_results": 3,
+      "total_results": 4,
       "top_k": 10,
       "results": [
         {
@@ -192,94 +232,118 @@
         },
         {
           "rank": 2,
-          "text_preview": "cabling, connectivity, mounting, AV infrastructure | Jacob Hartmann | [legrand.us/c2g](https://legrand.us/c2g) |  ---  ## NETWORKING CATEGORY VENDORS ",
-          "source_file": "Vendor_Line_Card_Database.md",
-          "relevance_score": 0.0,
-          "has_keywords": false,
-          "reasoning": "Low relevance - minimal keyword match"
+          "text_preview": "COMMISSION PROCESSING VALIDATION REPORT ================================================== Generated: 2025-09-14 18:06:13 Tolerance: $1.25  SUMMARY: C",
+          "source_file": "validation_report_20250914_180613.txt",
+          "relevance_score": 0.5,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
         },
         {
           "rank": 3,
-          "text_preview": "# Commission Processing Mismatch Tracker  **Processing Date:** [TO BE POPULATED]   **Month/Year:** [TO BE POPULATED]   **Total Vendors Processed:** [T",
-          "source_file": "Mismatch_Tracker_Template.md",
-          "relevance_score": 0.65,
+          "text_preview": "les Amount,Commission Amount LUTRON,7AVLLC,2578.00,207.00 LUTRON,ABSOLUTE AUDIO-CORPUS,412.00,32.00 COASTAL SOURCE,ARC SOUND AND VISION,15623.00,1250.",
+          "source_file": "README.md",
+          "relevance_score": 0.6500000000000001,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 4,
+          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
+          "source_file": "PROCESSING_SUMMARY_20250914_201143.txt",
+          "relevance_score": 0.55,
           "has_keywords": true,
           "reasoning": "Somewhat relevant - has some keywords"
         }
       ],
-      "avg_relevance": 0.21666666666666667,
-      "ranking_quality": 0.5,
-      "evaluation_time": 0.03734183311462402
+      "avg_relevance": 0.42500000000000004,
+      "ranking_quality": 0.33333333333333337,
+      "evaluation_time": 0.04748702049255371
     },
     {
       "query": "Team member profiles and specializations",
       "category": "people",
-      "total_results": 3,
+      "total_results": 4,
       "top_k": 10,
       "results": [
         {
           "rank": 1,
-          "text_preview": "ion delivery    - Feedback collection and program improvement    - Storyteller training and preparation requirements  ---  ## TARGET FOCUS AREAS - **P",
-          "source_file": "EXEC_MEETING_DAY3_OFFICE_HOURS_TOPIC.md",
+          "text_preview": "aram_idx})\"             params.append(domains)             param_idx += 1          if time_range:             sql += f\" AND mbe.created_at BETWEEN ${p",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.55,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 2,
+          "text_preview": "CHAR(500),     created_at TIMESTAMP DEFAULT NOW() );  -- Strategic initiatives tracking CREATE TABLE strategic_initiatives (     initiative_id SERIAL ",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.7,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 3,
+          "text_preview": "on, pattern, metric     embedding vector(1536),     tags VARCHAR(50)[],     related_entities JSONB,  -- {vendor_ids: [], team_member_ids: []}     crea",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.5,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 4,
+          "text_preview": "rives from its creator's nickname.  The methodology was created by **Brian**, known as \"BMad,\" who brings over 20 years of software engineering and en",
+          "source_file": "BMAD_research.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        }
+      ],
+      "avg_relevance": 0.4875,
+      "ranking_quality": 0.6666666666666667,
+      "evaluation_time": 0.04612016677856445
+    },
+    {
+      "query": "Market intelligence and competitive analysis",
+      "category": "market",
+      "total_results": 4,
+      "top_k": 10,
+      "results": [
+        {
+          "rank": 1,
+          "text_preview": "rstand) - [ ] All mandatory sections completed - [ ] Terminology used consistently throughout  **Requirement Completeness:** - [ ] No [NEEDS CLARIFICA",
+          "source_file": "speckit_specify_research_101225.md",
           "relevance_score": 0.0,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
         },
         {
           "rank": 2,
-          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
-          "source_file": "PROCESSING_SUMMARY_20250914_201142.txt",
-          "relevance_score": 0.0,
+          "text_preview": "out ambiguity - Can be skipped: Only for prototypes with explicit override  REQUIRED SECTIONS: 1. Mission Statement (what spec-kit's /clarify accompli",
+          "source_file": "speckit_documentation_generation_prompts_v2.md",
+          "relevance_score": 0.2,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
         },
         {
           "rank": 3,
-          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
-          "source_file": "PROCESSING_SUMMARY_20250914_214202.txt",
+          "text_preview": "late**: `[T001] feat(module): description` - **Types**: feat, fix, docs, refactor, test, chore, perf - **Frequency**: After each completed task (atomi",
+          "source_file": "speckit_constitution_reference_101225.md",
           "relevance_score": 0.0,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
-        }
-      ],
-      "avg_relevance": 0.0,
-      "ranking_quality": 1.0,
-      "evaluation_time": 0.03602719306945801
-    },
-    {
-      "query": "Market intelligence and competitive analysis",
-      "category": "market",
-      "total_results": 3,
-      "top_k": 10,
-      "results": [
+        },
         {
-          "rank": 1,
+          "rank": 4,
           "text_preview": "rnance: from implicit tribal knowledge to explicit, AI-enforceable principles. The constitution serves as \"architectural DNA,\" capturing organizationa",
           "source_file": "speckit_constitution_reference_101225.md",
           "relevance_score": 0.0,
           "has_keywords": false,
           "reasoning": "Low relevance - minimal keyword match"
-        },
-        {
-          "rank": 2,
-          "text_preview": "e  ### The foundational concept  Spec-kit constitutions codify organizational wisdom that typically lives in tribal knowledge: testing approaches, arc",
-          "source_file": "speckit_constitution_reference_101225.md",
-          "relevance_score": 0.0,
-          "has_keywords": false,
-          "reasoning": "Low relevance - minimal keyword match"
-        },
-        {
-          "rank": 3,
-          "text_preview": "compliance) coexist with team flexibility (tool choices, workflows) through constitutional inheritance.  **7. Success requires both technology and cul",
-          "source_file": "speckit_constitution_reference_101225.md",
-          "relevance_score": 0.0,
-          "has_keywords": false,
-          "reasoning": "Low relevance - minimal keyword match"
         }
       ],
-      "avg_relevance": 0.0,
-      "ranking_quality": 1.0,
-      "evaluation_time": 0.043930768966674805
+      "avg_relevance": 0.05,
+      "ranking_quality": 0.6666666666666667,
+      "evaluation_time": 0.04660773277282715
     }
   ]
 }

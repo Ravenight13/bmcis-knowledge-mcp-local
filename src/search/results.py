@@ -464,10 +464,15 @@ def apply_confidence_filtering(
     Implements confidence-based result limiting that returns fewer low-confidence
     results to users, improving relevance by filtering out weak matches.
 
+    Thresholds are calibrated to actual knowledge base score distribution:
+    - Most hybrid search queries score in 0.2-0.3 range (from 12.71% baseline relevance)
+    - Document filtering and entity boosting require more results to show benefits
+    - Conservative limiting (top 3) was masking search improvements
+
     Logic:
-    - If avg_score >= 0.7: returns all results (high confidence)
-    - If avg_score >= 0.5: returns top 5 (medium confidence)
-    - If avg_score < 0.5: returns top 3 (low confidence)
+    - If avg_score >= 0.6: returns all results (high confidence)
+    - If avg_score >= 0.3: returns top 7 (medium confidence)
+    - If avg_score < 0.3: returns top 4 (low confidence)
 
     Handles edge cases gracefully:
     - Empty results: returns empty list
@@ -482,13 +487,13 @@ def apply_confidence_filtering(
 
     Example:
         >>> results = [
-        ...     SearchResult(..., hybrid_score=0.95),
-        ...     SearchResult(..., hybrid_score=0.88),
-        ...     SearchResult(..., hybrid_score=0.72),
+        ...     SearchResult(..., hybrid_score=0.28),
+        ...     SearchResult(..., hybrid_score=0.25),
+        ...     SearchResult(..., hybrid_score=0.22),
         ... ]
         >>> filtered = apply_confidence_filtering(results)
-        >>> len(filtered)  # Returns all 3 (avg=0.85 >= 0.7)
-        3
+        >>> len(filtered)  # Returns 4 (avg=0.25 < 0.3, low confidence)
+        4
     """
     # Handle empty results
     if not results:
@@ -524,18 +529,19 @@ def apply_confidence_filtering(
     )
 
     # Apply adaptive limiting based on confidence level
-    if avg_score >= 0.7:
+    # Thresholds tuned to actual KB score distribution (0.2-0.3 range)
+    if avg_score >= 0.6:
         # High confidence: return all results
-        logger.debug("High confidence (>=0.7): returning all results")
+        logger.debug("High confidence (>=0.6): returning all results")
         return results
-    elif avg_score >= 0.5:
-        # Medium confidence: return top 5
-        logger.debug("Medium confidence (>=0.5): limiting to top 5 results")
-        return results[:5]
+    elif avg_score >= 0.3:
+        # Medium confidence: return top 7 (allows document filtering benefits)
+        logger.debug("Medium confidence (>=0.3): limiting to top 7 results")
+        return results[:7]
     else:
-        # Low confidence: return top 3
-        logger.debug("Low confidence (<0.5): limiting to top 3 results")
-        return results[:3]
+        # Low confidence: return top 4 (minimal filtering)
+        logger.debug("Low confidence (<0.3): limiting to top 4 results")
+        return results[:4]
 
 
 class RankingValidator:

@@ -86,7 +86,9 @@ from src.embedding.model_loader import ModelLoader
 from src.search.boosting import BoostWeights, BoostingSystem
 from src.search.bm25_search import BM25Search
 from src.search.config import get_search_config
+from src.search.cross_encoder_reranker import CrossEncoderReranker
 from src.search.filters import FilterExpression
+from src.search.query_expansion import QueryExpander
 from src.search.query_router import QueryRouter
 from src.search.results import SearchResult, SearchResultFormatter, apply_confidence_filtering
 from src.search.rrf import RRFScorer
@@ -186,6 +188,15 @@ class HybridSearch:
         self._boosting_system = BoostingSystem(db_pool, settings, logger)
         self._query_router = QueryRouter(settings, logger)
         self._formatter = SearchResultFormatter()
+        self._query_expander = QueryExpander()  # Initialize query expander
+
+        # Initialize cross-encoder reranker for entity mention boosting
+        try:
+            self.reranker = CrossEncoderReranker(device="auto", batch_size=32)
+            logging.debug("CrossEncoderReranker initialized for entity mention boosting")
+        except Exception as e:
+            logging.warning(f"Failed to initialize CrossEncoderReranker: {e}")
+            self.reranker = None
 
         # Load embedding model for text-to-vector conversion
         try:
@@ -249,6 +260,32 @@ class HybridSearch:
         if not (0.0 <= min_score <= 1.0):
             raise ValueError(f"min_score must be 0-1, got {min_score}")
 
+        # Expand query with synonyms and related terms (Quick Win Phase 1)
+        try:
+            expanded_query = self._query_expander.expand_query(query)
+            if expanded_query != query:
+                logger.info(
+                    f"Query expanded for improved coverage",
+                    extra={
+                        "original_query": query,
+                        "expanded_query_length": len(expanded_query),
+                        "expansion_applied": True,
+                    },
+                )
+                search_query = expanded_query
+            else:
+                # No entities found - use original query
+                search_query = query
+        except Exception as e:
+            logger.warning(
+                f"Query expansion failed, using original query",
+                extra={
+                    "query": query,
+                    "error": str(e),
+                },
+            )
+            search_query = query
+
         # Determine strategy if not specified
         if strategy is None:
             routing_decision = self._query_router.select_strategy(query)
@@ -276,25 +313,40 @@ class HybridSearch:
                 topic=self._search_config.boosts.topic,
             )
 
-        # Execute search based on strategy
+        # Execute search based on strategy (using expanded query for semantic search)
         if strategy == "vector":
-            vector_results = self._execute_vector_search(query, top_k, filters)
+            vector_results = self._execute_vector_search(search_query, top_k, filters)
             results = vector_results
         elif strategy == "bm25":
-            bm25_results = self._execute_bm25_search(query, top_k, filters)
+            bm25_results = self._execute_bm25_search(search_query, top_k, filters)
             results = bm25_results
         else:  # hybrid
             if use_parallel:
                 vector_results, bm25_results = self._execute_parallel_hybrid_search(
-                    query, top_k, filters
+                    search_query, top_k, filters
                 )
             else:
-                vector_results = self._execute_vector_search(query, top_k, filters)
-                bm25_results = self._execute_bm25_search(query, top_k, filters)
+                vector_results = self._execute_vector_search(search_query, top_k, filters)
+                bm25_results = self._execute_bm25_search(search_query, top_k, filters)
             results = self._merge_and_boost(vector_results, bm25_results, query, boosts)
 
         # Apply business document filtering (Quick Win #1)
         results = self._filter_business_documents(results, query)
+
+        # Apply entity mention boosting (Quick Win #2)
+        # Rerank results to boost those containing entities mentioned in the query
+        if hasattr(self, 'reranker') and self.reranker and len(results) > 0:
+            try:
+                results = self.reranker.rerank_with_entity_boost(query, results, top_k=len(results))
+                logger.info(
+                    f"Applied entity mention boosting to {len(results)} results",
+                    extra={"query": query, "results_count": len(results)},
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Entity boosting failed, continuing without boost: {e}",
+                    extra={"error": str(e), "query": query},
+                )
 
         # Apply final filtering
         results = self._apply_final_filtering(results, top_k, min_score)
