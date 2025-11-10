@@ -178,11 +178,15 @@ class DatabasePool:
         if cls._pool is None:
             cls.initialize()
 
-        conn: Connection | None = None
+        yielded_conn: Connection | None = None
 
         try:
             # Retry loop with exponential backoff
             for attempt in range(retries):
+                # CRITICAL FIX: Move connection variable inside loop to prevent leaks
+                # Each retry attempt has its own connection lifecycle with guaranteed cleanup
+                conn: Connection | None = None
+
                 try:
                     # Acquire connection from pool
                     conn = cls._pool.getconn()  # type: ignore[union-attr]
@@ -196,16 +200,34 @@ class DatabasePool:
                         cur.execute("SELECT 1")
 
                     logger.debug("Connection health check passed")
+
+                    # CRITICAL: Track yielded connection for outer finally cleanup
+                    yielded_conn = conn
                     yield conn
                     return
 
                 except (OperationalError, DatabaseError) as e:
+                    # CRITICAL FIX: Return failed attempt connection immediately before retry
+                    # This prevents leaking connections when retries occur
+                    if conn is not None:
+                        try:
+                            cls._pool.putconn(conn)
+                            logger.debug(
+                                "Returned failed attempt connection to pool (attempt %d)",
+                                attempt + 1,
+                            )
+                        except Exception as pool_error:
+                            logger.warning(
+                                "Error returning failed connection to pool: %s",
+                                pool_error,
+                            )
+
                     # Connection failed, log and potentially retry
                     if attempt < retries - 1:
                         # Calculate exponential backoff wait time
                         wait_time = 2**attempt  # 1, 2, 4, 8... seconds
                         logger.warning(
-                            "Connection attempt %d failed: %s. " "Retrying in %d seconds...",
+                            "Connection attempt %d failed: %s. Retrying in %d seconds...",
                             attempt + 1,
                             e,
                             wait_time,
@@ -227,10 +249,17 @@ class DatabasePool:
             raise RuntimeError(msg)
 
         finally:
-            # Always return connection to pool, even if exception occurred
-            if conn is not None and cls._pool is not None:
-                cls._pool.putconn(conn)
-                logger.debug("Connection returned to pool")
+            # Always return yielded connection, even if exception occurred during use
+            # This handles exceptions raised in user code (inside the with block)
+            if yielded_conn is not None and cls._pool is not None:
+                try:
+                    cls._pool.putconn(yielded_conn)
+                    logger.debug("Connection returned to pool")
+                except Exception as pool_error:
+                    logger.warning(
+                        "Error returning connection to pool in finally: %s",
+                        pool_error,
+                    )
 
     @classmethod
     def close_all(cls) -> None:

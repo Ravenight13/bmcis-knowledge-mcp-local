@@ -10,6 +10,9 @@ Applies content-aware boosts to search results based on multiple factors:
 All boosts are cumulative but clamped to maximum 1.0 to preserve relative
 ranking while amplifying relevant results.
 
+For extensible boost strategy support, see boost_strategies.py module which
+provides BoostStrategy ABC and BoostStrategyFactory for custom implementations.
+
 Performance target: <10ms for boosting 100 results
 """
 
@@ -24,6 +27,7 @@ from src.core.config import Settings
 from src.core.database import DatabasePool
 from src.core.logging import StructuredLogger
 from src.search.results import SearchResult
+from src.search.boost_strategies import BoostStrategyFactory
 
 # Module logger
 logger: logging.Logger = StructuredLogger.get_logger(__name__)
@@ -456,3 +460,84 @@ class BoostingSystem:
         """
         boosted = original_score * (1.0 + boost_factor)
         return min(max(boosted, 0.0), 1.0)  # Clamp to [0, 1]
+
+    def apply_boost_strategies(
+        self,
+        results: list[SearchResult],
+        query: str,
+        strategies: list[str] | None = None,
+    ) -> list[SearchResult]:
+        """Apply boost strategies using the extensible factory system.
+
+        Uses BoostStrategyFactory to create and apply boost strategies to results.
+
+        Args:
+            results: Search results to boost.
+            query: Search query for context analysis.
+            strategies: Optional list of strategy names. If None, uses all default strategies.
+
+        Returns:
+            Results with boosted scores, reranked by new scores.
+
+        Example:
+            >>> boosting = BoostingSystem()
+            >>> results = boosting.apply_boost_strategies(results, query)
+            >>> # Or with specific strategies:
+            >>> results = boosting.apply_boost_strategies(
+            ...     results, query, strategies=["vendor", "recency"]
+            ... )
+        """
+        if not results:
+            return []
+
+        # Create strategies: all if None, or specific ones
+        if strategies is None:
+            boost_strategies = BoostStrategyFactory.create_all_strategies()
+        else:
+            boost_strategies = [
+                BoostStrategyFactory.create_strategy(s) for s in strategies
+            ]
+
+        # Apply cumulative boosts from all strategies
+        boosted_results: list[tuple[SearchResult, float]] = []
+
+        for idx, result in enumerate(results):
+            base_score = result.hybrid_score or result.similarity_score
+            total_boost = 0.0
+
+            # Apply each strategy's boost
+            for strategy in boost_strategies:
+                if strategy.should_boost(query, result):
+                    total_boost += strategy.calculate_boost(query, result)
+
+            # Apply boost with clamping
+            boosted_score = self._boost_score(base_score, total_boost)
+            boosted_results.append((result, boosted_score))
+
+        # Sort by boosted score and update ranks
+        boosted_results.sort(key=lambda x: x[1], reverse=True)
+
+        output: list[SearchResult] = []
+        for new_rank, (result, boosted_score) in enumerate(boosted_results, start=1):
+            updated_result = SearchResult(
+                chunk_id=result.chunk_id,
+                chunk_text=result.chunk_text,
+                similarity_score=result.similarity_score,
+                bm25_score=result.bm25_score,
+                hybrid_score=boosted_score,
+                rank=new_rank,
+                score_type=result.score_type,
+                source_file=result.source_file,
+                source_category=result.source_category,
+                document_date=result.document_date,
+                context_header=result.context_header,
+                chunk_index=result.chunk_index,
+                total_chunks=result.total_chunks,
+                chunk_token_count=result.chunk_token_count,
+                metadata=result.metadata,
+                highlighted_context=result.highlighted_context,
+                confidence=result.confidence,
+            )
+            output.append(updated_result)
+
+        return output

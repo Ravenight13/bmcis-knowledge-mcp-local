@@ -1,0 +1,1152 @@
+<div align="center">
+
+[🏠 Home](#) | [📋 ToC](#table-of-contents) | [🚀 Quick Start](#phase-0-foundation--setup) | [⚠️ Risks](#risk-priority-matrix) | [✅ Success](#success-criteria-for-mvp) | [📊 Tests](#test-pyramid) | [🏗️ Roadmap](#development-phases)
+
+</div>
+
+---
+
+# Code Execution with MCP: Product Requirements Document
+
+**Repository Planning Graph (RPG) Format**
+**Target Audience**: Engineering Team
+**Status**: Ready for Implementation
+**Last Updated**: November 2024
+
+---
+
+## Executive Summary
+
+This PRD defines the implementation of **Code Execution with MCP**, a transformative capability that enables Claude agents to execute Python code within a secure sandbox environment, reducing token overhead by 98% while dramatically improving performance for complex search and filtering workflows in BMCIS Knowledge MCP.
+
+**Key Metrics:**
+- **Token Reduction**: 150,000 → 2,000 tokens (98.7% reduction)
+- **Latency Improvement**: 8-12s → 2-3s (4x faster)
+- **Cost Savings**: $0.45 → $0.01 per complex query (98% cheaper)
+- **Target Adoption**: >80% of qualifying agents within 30 days
+
+---
+
+## Table of Contents
+
+### Quick Links
+[Executive Summary](#executive-summary) | [Problem Statement](#problem-statement) | [Implementation Roadmap](#development-phases) | [Risks](#technical-risks) | [Test Strategy](#test-pyramid)
+
+### Detailed Navigation
+
+1. **[Executive Summary](#executive-summary)**
+   - Key Metrics
+   - Target Adoption
+
+2. **[Overview](#problem-statement)**
+   - 2.1 [Problem Statement](#problem-statement)
+   - 2.2 [Target Users](#target-users)
+   - 2.3 [Success Metrics](#success-metrics)
+
+3. **[Functional Decomposition](#capability-tree)**
+   - 3.1 [Capability Tree](#capability-tree)
+     - Code Execution Engine
+     - Search & Processing APIs
+     - MCP Integration
+
+4. **[Structural Decomposition](#repository-structure)**
+   - 4.1 [Repository Structure](#repository-structure)
+   - 4.2 [Module Definitions](#module-definitions)
+
+5. **[Dependency Graph](#dependency-chain)**
+   - 5.1 [Foundation Layer (Phase 0)](#foundation-layer-phase-0)
+   - 5.2 [Code Intelligence Layer (Phase 1)](#code-intelligence-layer-phase-1)
+   - 5.3 [Security & Execution Layer (Phase 2)](#security--execution-layer-phase-2)
+   - 5.4 [Integration Layer (Phase 3)](#integration-layer-phase-3)
+
+6. **[Implementation Roadmap](#development-phases)**
+   - 6.1 [Phase 0: Foundation & Setup](#phase-0-foundation--setup)
+   - 6.2 [Phase 1: Code Search & Processing APIs](#phase-1-code-search--processing-apis)
+   - 6.3 [Phase 2: Sandbox & Execution Engine](#phase-2-sandbox--execution-engine)
+   - 6.4 [Phase 3: MCP Integration & Full System Testing](#phase-3-mcp-integration--full-system-testing)
+
+7. **[Test Strategy](#test-pyramid)**
+   - 7.1 [Test Pyramid](#test-pyramid)
+   - 7.2 [Coverage Requirements](#coverage-requirements)
+   - 7.3 [Critical Test Scenarios](#critical-test-scenarios)
+
+8. **[Architecture](#system-components)**
+   - 8.1 [System Components](#system-components)
+   - 8.2 [Data Models](#data-models)
+   - 8.3 [Technology Stack](#technology-stack)
+   - 8.4 [Design Decisions](#design-decisions)
+
+9. **[Risks](#technical-risks)**
+   - 9.1 [Technical Risks](#technical-risks)
+   - 9.2 [Dependency Risks](#dependency-risks)
+   - 9.3 [Scope Risks](#scope-risks)
+   - 9.4 [Risk Priority Matrix](#risk-priority-matrix)
+
+10. **[Appendix](#references)**
+    - 10.1 [References](#references)
+    - 10.2 [Glossary](#glossary)
+    - 10.3 [Open Questions](#open-questions)
+    - 10.4 [Success Criteria](#success-criteria-for-mvp)
+
+---
+
+<overview>
+
+## Problem Statement
+
+Claude agents accessing BMCIS Knowledge MCP through traditional tool calling face severe efficiency bottlenecks when executing complex search workflows. A typical multi-stage search operation (BM25 keyword search → vector similarity search → reranking → metadata filtering) consumes 150,000+ tokens per workflow execution. This creates three critical pain points:
+
+1. **Token Overhead**: Each tool call requires full schema serialization, parameter validation, and result marshaling. A 4-step search workflow requires 4 separate round-trips, with each step adding 30,000-40,000 tokens of overhead.
+
+2. **Latency Cascades**: Sequential tool calls introduce cumulative latency. A search workflow requiring BM25 filtering (200ms) → vector search (300ms) → reranking (400ms) → metadata filtering (100ms) totals 1,000ms+ in network round-trips alone, excluding agent reasoning time between steps.
+
+3. **Cost Explosion**: At current token pricing, complex search workflows cost $0.30-0.45 per execution. For agents performing 100+ searches per session, this translates to $30-45 in token costs, making production deployment economically prohibitive.
+
+Concrete example: An agent researching "enterprise authentication patterns in microservices" must (1) keyword search for "authentication", (2) vector search for semantic matches, (3) rerank by relevance, (4) filter by "microservices" tag. This 4-step workflow consumes 152,000 tokens and takes 1.2 seconds.
+
+## Target Users
+
+**Primary Persona: Research & Analysis Agents**
+- Claude agents performing knowledge discovery, technical research, or multi-document analysis
+- Workflows involving 10-50+ search operations per session with complex filtering requirements
+- Need to compose search primitives (BM25, vector, reranking) into custom retrieval pipelines
+- Current pain: Token budgets exhausted after 3-5 complex searches, forcing workflow simplification
+
+**Secondary Persona: Integration Engineers**
+- Developers building agent-powered applications that query BMCIS Knowledge MCP
+- Requirements: Sub-500ms search latency, <$0.10 per agent session cost
+- Current pain: Traditional tool calling makes production deployment cost-prohibitive and latency-sensitive applications infeasible
+
+**Workflow Context**:
+- Agents spawn for 30-90 minute research sessions
+- Execute 20-100 search operations with varying complexity
+- Require programmable search composition (e.g., "search A OR B, then rerank by C, filter by D")
+- Need to iterate on search parameters based on intermediate results
+
+## Success Metrics
+
+**Token Efficiency**:
+- **Primary**: 98%+ token reduction for multi-step search workflows (150,000 → 2,000 tokens)
+- **Secondary**: Average tokens per search operation <5,000 (vs. 37,500 baseline)
+
+**Performance**:
+- **Primary**: 4x latency improvement for 4-step workflows (1,200ms → 300ms)
+- **Secondary**: 95th percentile search latency <500ms for code execution path
+
+**Cost Reduction**:
+- **Primary**: 98%+ cost savings per complex search workflow ($0.45 → $0.01)
+- **Secondary**: Agent session cost <$0.10 for 50-search sessions
+
+**Adoption**:
+- **Primary**: >80% of agents with 10+ search operations adopt code execution within 30 days
+- **Secondary**: >60% of integration engineers choose code execution for new implementations
+
+**Reliability**:
+- **Primary**: Code execution sandbox reliability >99.9% (no crashes, memory leaks, or security violations)
+- **Secondary**: Error rate <2% for valid Python code submissions
+
+</overview>
+
+---
+
+<functional-decomposition>
+
+## Capability Tree
+
+### Capability: Code Execution Engine
+Core infrastructure for safely executing agent-written Python code with resource isolation, validation, and runtime management.
+
+#### Feature: Code Validation & Security Analysis
+- **Description**: Statically analyze code for dangerous patterns before execution, enforcing whitelist of allowed operations
+- **Inputs**: Python source code (string), security configuration (whitelist, allowed modules)
+- **Outputs**: Validation result (pass/fail), list of blocked operations, risk assessment level
+- **Behavior**: Parse code AST, check for eval/exec/import violations, scan for dangerous builtins, return security analysis report
+
+#### Feature: Sandbox Environment & Resource Isolation
+- **Description**: Execute code in isolated environment with CPU, memory, and execution time limits
+- **Inputs**: Validated Python code, resource limits (memory MB, timeout seconds), execution context (globals/locals)
+- **Outputs**: Execution result (output, return value, errors), resource usage metrics, execution metadata
+- **Behavior**: Create subprocess/VM with resource limits, execute code, capture output, enforce timeouts, cleanup resources
+
+#### Feature: Runtime Orchestration & Error Recovery
+- **Description**: Manage complete execution lifecycle including setup, validation, execution, cleanup, and error handling
+- **Inputs**: Code string, execution context, retry configuration
+- **Outputs**: Final execution result with success status, complete execution trace, error details if failed
+- **Behavior**: Validate → execute → capture output → handle errors → cleanup, with exponential backoff retry for transient failures
+
+### Capability: Search & Processing APIs
+High-level APIs for searching knowledge base and processing results through ranking, filtering, and formatting.
+
+#### Feature: Hybrid Search (BM25 + Vector)
+- **Description**: Perform combined keyword and semantic search across code/documentation repository
+- **Inputs**: Query string, BM25 weight (0-1), vector weight (0-1), top_k results, optional filters
+- **Outputs**: List of SearchResult objects with relevance scores and metadata
+- **Behavior**: Execute BM25 search and vector search in parallel, fuse results with weighted scoring, return top-k, all processing stays in-environment
+
+#### Feature: Semantic Reranking
+- **Description**: Improve result quality by reranking with cross-encoder models
+- **Inputs**: Original query string, document list, top_k to return, optional relevance threshold
+- **Outputs**: Reranked document list with updated relevance scores
+- **Behavior**: Compute pairwise relevance scores, sort by score, apply threshold filter, return top-k with new rankings
+
+#### Feature: Result Filtering & Selection
+- **Description**: Filter search results by domain, score threshold, metadata, or custom predicates
+- **Inputs**: Search results, filter criteria (domain, min_score, metadata fields), optional custom filter function
+- **Outputs**: Filtered result subset matching all criteria
+- **Behavior**: Iterate results, apply each filter criterion, accumulate matching results, preserve original ordering where possible
+
+#### Feature: Result Processing & Compaction
+- **Description**: Format results into compact representations suitable for agent consumption while preserving essential information
+- **Inputs**: Raw search/execution results, output format (json/markdown/text), max preview length, field selection
+- **Outputs**: Formatted results string or structured object, token-efficient representation
+- **Behavior**: Truncate long content to preview length, select only specified fields, apply formatting template, return compact output
+
+### Capability: MCP Integration
+Tool definitions and server integration for Model Context Protocol, enabling agent access to code execution.
+
+#### Feature: MCP Tool Definition & Schema
+- **Description**: Define execute_code and search_code tools with input/output schemas compliant with MCP specification
+- **Inputs**: Tool specifications (name, description, input schema, output schema)
+- **Outputs**: MCP-compliant tool definitions in JSON schema format
+- **Behavior**: Create JSON schema objects, validate against MCP specification, produce tool manifests for server registration
+
+#### Feature: Request Routing & Handling
+- **Description**: Route incoming MCP requests to appropriate handler (code execution vs search), validate inputs, invoke tool, format response
+- **Inputs**: MCP request object (tool name, arguments), execution context
+- **Outputs**: MCP response object (success/error, result data)
+- **Behavior**: Parse request → validate inputs against schema → invoke handler → capture result → format response → return to client
+
+#### Feature: Server Integration & Lifecycle
+- **Description**: Initialize MCP server, register tools, handle client connections, manage session lifecycle
+- **Inputs**: Server configuration (port, handlers, tools), client requests
+- **Outputs**: Server runtime, registered tools, client responses
+- **Behavior**: Boot server → register all tools → accept connections → dispatch requests → handle errors → graceful shutdown
+
+</functional-decomposition>
+
+---
+
+<structural-decomposition>
+
+## Repository Structure
+
+```
+bmcis-knowledge-mcp/
+├── src/
+│   ├── code_api/
+│   │   ├── __init__.py                    # Public API exports
+│   │   ├── search.py                      # HybridSearchAPI, SearchResult
+│   │   ├── reranking.py                   # RerankerAPI
+│   │   ├── filtering.py                   # FilterAPI
+│   │   └── results.py                     # ResultProcessor
+│   ├── code_execution/
+│   │   ├── __init__.py                    # Public exports
+│   │   ├── sandbox.py                     # CodeExecutionSandbox
+│   │   ├── agent_interface.py             # AgentCodeExecutor
+│   │   └── validation.py                  # InputValidator, SecurityChecker
+│   ├── mcp_tools/
+│   │   ├── __init__.py                    # Public exports
+│   │   ├── code_execution_tool.py         # MCP tool definition
+│   │   └── server_integration.py          # MCP server integration
+│   └── [existing modules remain unchanged]
+├── tests/
+│   ├── test_code_api.py                   # API functionality tests
+│   ├── test_sandbox_security.py           # Security validation tests
+│   ├── test_code_execution.py             # Execution engine tests
+│   ├── integration/
+│   │   ├── test_mcp_code_execution.py     # MCP integration tests
+│   │   └── test_end_to_end.py             # Full workflow tests
+│   └── fixtures/
+│       ├── sample_code.py                 # Test code samples
+│       └── test_queries.json              # Test search queries
+├── docs/
+│   ├── code-execution/
+│   │   ├── README.md                      # Feature overview
+│   │   ├── implementation-guide.md        # Detailed implementation steps
+│   │   └── security-model.md              # Security architecture
+│   └── mcp-as-tools/
+│       └── [this PRD]
+├── pyproject.toml
+├── .env.example                           # Environment configuration template
+└── README.md
+```
+
+## Module Definitions
+
+### Module: src/code_api/
+- **Maps to capability**: Search & Processing APIs
+- **Responsibility**: Provide high-level Python APIs for search, reranking, filtering, and result processing operations
+- **File structure**:
+  ```
+  code_api/
+  ├── __init__.py              # Exports: HybridSearchAPI, RerankerAPI, FilterAPI, ResultProcessor
+  ├── search.py                # HybridSearchAPI class
+  ├── reranking.py             # RerankerAPI class
+  ├── filtering.py             # FilterAPI class
+  └── results.py               # ResultProcessor class, SearchResult dataclass
+  ```
+- **Exports**:
+  - `HybridSearchAPI` - Execute BM25 + vector search with configurable fusion
+  - `RerankerAPI` - Rerank results using cross-encoder models
+  - `FilterAPI` - Filter results by domain, score, metadata
+  - `ResultProcessor` - Format and compact results for token efficiency
+  - `SearchResult` - Dataclass for individual search results
+
+### Module: src/code_execution/
+- **Maps to capability**: Code Execution Engine
+- **Responsibility**: Safe execution of untrusted Python code with resource isolation, validation, and error handling
+- **File structure**:
+  ```
+  code_execution/
+  ├── __init__.py              # Exports: CodeExecutionSandbox, AgentCodeExecutor, ValidationResult
+  ├── sandbox.py               # CodeExecutionSandbox class, execution logic
+  ├── agent_interface.py       # AgentCodeExecutor wrapper for agent use
+  └── validation.py            # InputValidator, dangerous pattern detection
+  ```
+- **Exports**:
+  - `CodeExecutionSandbox` - Isolated execution environment with resource limits
+  - `AgentCodeExecutor` - High-level interface for agents to execute code
+  - `InputValidator` - Security validation and dangerous pattern detection
+  - `ExecutionResult` - Dataclass containing execution output and metadata
+  - `ValidationResult` - Dataclass for validation status and findings
+
+### Module: src/mcp_tools/
+- **Maps to capability**: MCP Integration
+- **Responsibility**: Define MCP tools, handle request routing, integrate with MCP server
+- **File structure**:
+  ```
+  mcp_tools/
+  ├── __init__.py              # Exports: CodeExecutionTool, register_tools
+  ├── code_execution_tool.py   # MCP tool definition and handler
+  └── server_integration.py    # Server registration and initialization
+  ```
+- **Exports**:
+  - `CodeExecutionTool` - MCP tool wrapper for execute_code functionality
+  - `register_tools()` - Register tools with MCP server
+  - `tool_execute_code()` - Handler for execute_code tool invocation
+  - `MCPToolDefinition` - Tool definition with schema
+
+</structural-decomposition>
+
+---
+
+<dependency-graph>
+
+## Dependency Chain
+
+### Foundation Layer (Phase 0)
+No dependencies - these are built first.
+
+- **Base Types & Data Models**: Provides core data structures (SearchResult, ExecutionResult, ValidationResult) and type definitions used across all modules
+- **Configuration Management**: Provides environment configuration, resource limit settings, allowed module whitelist, and runtime parameters
+- **Logging Infrastructure**: Provides structured logging, error tracking, debug output, and audit trail capabilities
+- **Error Handling Framework**: Provides custom exception types, error codes, and standardized error response formatting
+
+### Code Intelligence Layer (Phase 1)
+Depends on Foundation Layer (base-types, logging, error-handling).
+
+- **Code Search API**: Depends on [base-types, logging, error-handling]. Provides BM25 and vector search capabilities, hybrid fusion
+- **Reranking Engine**: Depends on [base-types, logging, error-handling]. Provides semantic reranking using cross-encoder models
+- **Result Filtering**: Depends on [base-types, logging, error-handling]. Provides filtering by domain, score, metadata
+- **Result Processing**: Depends on [code-search-api, reranking-engine, result-filtering]. Aggregates and compacts results
+
+### Security & Execution Layer (Phase 2)
+Depends on Foundation Layer and Code Intelligence Layer.
+
+- **Input Validator**: Depends on [base-types, logging, error-handling]. Performs AST analysis and dangerous pattern detection
+- **CodeExecutionSandbox**: Depends on [base-types, input-validator, logging, error-handling]. Provides isolated code execution
+- **AgentCodeExecutor**: Depends on [code-execution-sandbox, input-validator, code-intelligence-layer]. Orchestrates execution workflow
+
+### Integration Layer (Phase 3)
+Depends on all previous layers.
+
+- **MCP Tool Definitions**: Depends on [code-executor, result-processing, base-types]. Defines tool schemas and parameters
+- **Request Handler**: Depends on [mcp-tool-definitions, code-executor, result-processing]. Routes and processes requests
+- **Server Integration**: Depends on [request-handler, configuration, logging, error-handling]. Implements MCP server lifecycle
+
+### Validation Layer (Phase 4)
+Depends on all implementation layers for comprehensive testing.
+
+- **Unit Tests**: Tests all foundation and code intelligence modules in isolation
+- **Integration Tests**: Tests interactions between security/execution layer and integration layer
+- **End-to-End Tests**: Tests complete request-response cycles through MCP server
+- **Security Tests**: Penetration testing and validation bypass attempts
+
+</dependency-graph>
+
+---
+
+<implementation-roadmap>
+
+## Development Phases
+
+### Phase 0: Foundation & Setup
+**Goal**: Establish project infrastructure, core type definitions, testing framework, and security specifications for the Code Execution with MCP system.
+
+**Entry Criteria**:
+- PRD specification approved and validated
+- Technical architecture plan completed
+- Development environment requirements documented
+- Security requirements and constraints defined
+
+**Tasks**:
+- [ ] **Initialize project structure and development environment** (depends on: none)
+  - Acceptance criteria:
+    - Directory structure follows constitutional organization policies (src/, tests/, docs/)
+    - Git repository initialized with appropriate .gitignore and branch protection rules
+    - Development dependencies installed (Python 3.11+, MCP SDK, pytest, security tools)
+    - Pre-commit hooks configured for linting, type checking, and security scanning
+    - CI/CD pipeline configured and operational
+  - Test strategy:
+    - Verify directory structure matches specification
+    - Run `pytest --collect-only` to verify test discovery
+    - Execute pre-commit hooks on sample files
+    - Verify CI pipeline triggers and passes on initial commit
+
+- [ ] **Define and document core data models and interfaces** (depends on: none)
+  - Acceptance criteria:
+    - SearchResult, CodeSearchRequest, ExecutionRequest, ExecutionResult dataclasses defined
+    - Type hints and pydantic validation for all models
+    - Interface contracts documented with docstrings
+    - All models have serialization/deserialization support
+  - Test strategy:
+    - Unit tests for model validation (valid/invalid inputs)
+    - Serialization round-trip tests
+    - Type checking with mypy (100% coverage)
+
+- [ ] **Set up testing infrastructure and CI/CD pipeline** (depends on: project initialization)
+  - Acceptance criteria:
+    - pytest configured with coverage reporting
+    - GitHub Actions workflow for automated testing
+    - Security scanning tools integrated (bandit, safety)
+    - Performance benchmarking framework established
+  - Test strategy:
+    - Run test suite locally and in CI
+    - Verify coverage reporting accuracy
+    - Confirm security scan detects intentional vulnerabilities
+
+- [ ] **Create security sandbox specification and constraints** (depends on: none)
+  - Acceptance criteria:
+    - Resource limits documented (CPU cores, memory MB, execution seconds)
+    - Filesystem access restrictions specified
+    - Network isolation requirements documented
+    - Python module whitelist created with rationale for each allowed module
+  - Test strategy:
+    - Security architecture review
+    - Specification validation against OWASP guidelines
+    - Whitelist review for completeness and safety
+
+**Exit Criteria**:
+- All development tools installed and verified working
+- Core data models defined with passing type checks
+- CI/CD pipeline executes successfully on all commits
+- Security specification reviewed and approved by security team
+- Repository has clean initial commit with foundation code
+
+**Delivers**:
+- Developers can clone repository and run tests locally
+- CI/CD automatically validates code quality on commits
+- Clear security boundaries established for implementation
+- Foundation for parallel development of Phase 1-3 components
+
+---
+
+### Phase 1: Code Search & Processing APIs
+**Goal**: Implement core search functionality with hybrid search, semantic reranking, filtering, and result processing.
+
+**Entry Criteria**:
+- Phase 0 exit criteria met
+- Search APIs architecture approved
+- Sample knowledge base available for integration testing
+
+**Tasks**:
+- [ ] **Implement HybridSearchAPI with keyword and semantic search** (depends on: Phase 0)
+  - Acceptance criteria:
+    - BM25 keyword search implemented using rank_bm25 library
+    - Vector search implemented with pretrained embeddings
+    - Hybrid fusion algorithm combines both approaches with configurable weights (0-1)
+    - API returns SearchResult objects with relevance scores (0-1 normalized)
+    - Handles edge cases: empty queries, no results, malformed inputs
+    - Full code execution stays in-environment (no context leakage)
+  - Test strategy:
+    - Unit tests: 20+ scenarios (function names, docstrings, imports, etc.)
+    - Integration tests: search against sample codebase (100+ files)
+    - Performance tests: <500ms for typical queries
+    - Edge case validation: empty strings, special characters, unicode
+
+- [ ] **Implement SemanticReranker for result optimization** (depends on: HybridSearchAPI)
+  - Acceptance criteria:
+    - Cross-encoder model integrated (cross-encoder/ms-marco-MiniLM-L-6-v2)
+    - Reranking improves NDCG@10 by >15% on test queries
+    - Configurable reranking depth and threshold
+    - Efficient batching for multiple results
+    - Returns reranked SearchResult objects with updated scores
+  - Test strategy:
+    - Unit tests: scoring correctness with synthetic queries
+    - A/B tests: quality improvement measurement
+    - Performance tests: reranking overhead <200ms for top-10
+
+- [ ] **Implement FilterEngine for context-aware filtering** (depends on: HybridSearchAPI)
+  - Acceptance criteria:
+    - File type filters (by extension, language)
+    - Path-based filters (include/exclude patterns regex)
+    - Metadata filters (custom field matching)
+    - Composite filters with AND/OR logic
+    - Returns filtered SearchResult subset
+  - Test strategy:
+    - Unit tests: 25+ filter combinations
+    - Integration tests: filtering on multi-language codebase
+    - Performance tests: filtering overhead <50ms
+
+- [ ] **Implement ResultProcessor for output formatting** (depends on: SemanticReranker, FilterEngine)
+  - Acceptance criteria:
+    - Multiple output formats (JSON, markdown, compact text)
+    - Context extraction (surrounding lines, full functions)
+    - Syntax highlighting metadata for code snippets
+    - Token-efficient compaction (target: <5000 tokens for 10 results)
+    - Pagination support for large result sets
+  - Test strategy:
+    - Unit tests: format correctness for each type
+    - Snapshot tests: consistent formatting
+    - Token counting: verify compaction targets
+
+- [ ] **Create comprehensive integration test suite for search pipeline** (depends on: all Phase 1 tasks)
+  - Acceptance criteria:
+    - End-to-end tests: search → rerank → filter → format workflow
+    - Test coverage ≥90% for Phase 1 components
+    - Performance benchmarks documented
+    - Error handling validation for all failure modes
+  - Test strategy:
+    - 30+ integration scenarios
+    - Load testing: 100 concurrent searches
+    - Failure injection: network errors, resource exhaustion
+    - Regression test suite established
+
+**Exit Criteria**:
+- All search APIs pass unit and integration tests
+- Code coverage ≥90% for Phase 1
+- Performance benchmarks <1s end-to-end search
+- Code review and architecture approval
+- Documentation complete with API examples
+
+**Delivers**:
+- Developers can perform hybrid search on knowledge base
+- Results are accurately ranked and filtered
+- Multiple output formats support different use cases
+- Comprehensive test suite prevents regressions
+
+---
+
+### Phase 2: Sandbox & Execution Engine
+**Goal**: Build secure code execution environment with resource isolation, validation, and orchestration.
+
+**Entry Criteria**:
+- Phase 0 security specification approved
+- Phase 1 search APIs operational
+- Sandbox technology evaluated (RestrictedPython + threading)
+- Security testing framework in place
+
+**Tasks**:
+- [ ] **Implement CodeExecutionSandbox with resource isolation** (depends on: Phase 0 security spec)
+  - Acceptance criteria:
+    - Execution environment isolated (no filesystem access outside temp dir, no network)
+    - Resource limits enforced: memory <512MB, execution <30s, single-threaded
+    - Restricted global namespace (only safe builtins)
+    - Execution results captured (stdout, stderr, return value, exceptions)
+    - Clean environment reset between executions
+    - Support for async code execution (async/await)
+  - Test strategy:
+    - Security tests: 15+ attack vectors blocked
+    - Resource limit tests: CPU, memory, timeout enforcement
+    - Stability tests: 1000+ executions without leaks
+    - Output capture tests: all streams captured correctly
+
+- [ ] **Implement InputValidator for code safety checking** (depends on: CodeExecutionSandbox)
+  - Acceptance criteria:
+    - AST-based analysis for dangerous patterns (eval, exec, import violations)
+    - Static analysis prevents code injection attacks
+    - Configurable safety rules with whitelist/denylist
+    - Clear error messages for validation failures
+    - Validation completes in <100ms
+  - Test strategy:
+    - 50+ malicious code samples blocked
+    - Legitimate code passes validation
+    - Performance: <100ms validation
+    - Security audit: penetration testing
+
+- [ ] **Implement AgentCodeExecutor for orchestrated execution** (depends on: CodeExecutionSandbox, InputValidator)
+  - Acceptance criteria:
+    - Workflow: validate → execute → capture → cleanup
+    - Retry logic with exponential backoff (max 3 retries)
+    - Execution metadata logging (duration, resource usage, exit status)
+    - Error recovery and graceful degradation
+    - Support for multi-step execution plans
+  - Test strategy:
+    - Integration tests: end-to-end workflows
+    - Failure injection: validate retry logic
+    - Concurrency tests: parallel executions
+    - Performance: <5s overhead for typical queries
+
+- [ ] **Implement result validation and output sanitization** (depends on: AgentCodeExecutor)
+  - Acceptance criteria:
+    - Output sanitization removes XSS/injection vectors
+    - Result size limits enforced (max 10MB output)
+    - Structured error reporting with stack traces
+    - Execution artifacts logged for debugging
+  - Test strategy:
+    - Security: malicious output sanitization
+    - Size limits: large outputs truncated
+    - Error format: consistent structure
+    - Audit trail: all executions logged
+
+**Exit Criteria**:
+- Sandbox successfully isolates code execution
+- Security testing: zero isolation breaches
+- Resource limits enforced 100%
+- Code review and security audit approved
+- Execution performance <5s overhead
+- All tests pass with ≥90% coverage
+
+**Delivers**:
+- Agents can execute untrusted code safely
+- System administrators configure resource limits
+- Security team can audit all executions
+- Users receive validated, sanitized results
+
+---
+
+### Phase 3: MCP Integration & Full System Testing
+**Goal**: Integrate code search and execution into MCP server with complete testing and production readiness.
+
+**Entry Criteria**:
+- Phase 1 and Phase 2 complete and validated
+- MCP SDK configured
+- Tool definitions specified
+- Integration test plan approved
+
+**Tasks**:
+- [ ] **Define MCP tool schemas for search and execution** (depends on: Phase 1, Phase 2)
+  - Acceptance criteria:
+    - `execute_code` tool: code (string), description (string), timeout (int, optional)
+    - `search_code` tool: query (string), top_k (int), filters (dict, optional)
+    - JSON schema validation for all inputs
+    - Tool descriptions with realistic examples
+    - Error response schemas defined
+  - Test strategy:
+    - Schema validation: valid/invalid inputs
+    - Documentation: examples execute correctly
+    - Protocol compliance: validate against MCP spec
+
+- [ ] **Implement MCP server with tool registration** (depends on: MCP tool schemas)
+  - Acceptance criteria:
+    - Server initializes and registers tools correctly
+    - Tools discoverable via MCP list_tools
+    - Request routing to search/execution handlers
+    - Error handling with MCP-compliant error responses
+    - Server lifecycle management (startup, shutdown, cleanup)
+  - Test strategy:
+    - MCP client tests: tool discovery and invocation
+    - Protocol tests: MCP specification compliance
+    - Error handling: malformed requests
+    - Load: 50 concurrent requests
+
+- [ ] **Create end-to-end integration test suite** (depends on: MCP server)
+  - Acceptance criteria:
+    - Full workflows: search → execute → results
+    - Multi-step scenarios validated
+    - Error propagation through MCP boundary
+    - Performance: <2s end-to-end latency
+    - All integration points tested
+  - Test strategy:
+    - 20+ realistic usage scenarios
+    - Failure modes: network errors, timeouts
+    - Load testing: sustained throughput
+    - Regression suite: critical paths
+
+- [ ] **Implement monitoring, logging, and observability** (depends on: MCP server)
+  - Acceptance criteria:
+    - Structured logging for all operations
+    - Metrics: request rates, latencies, error rates
+    - Health check endpoint
+    - Execution audit trail with retention policy
+  - Test strategy:
+    - Log validation: completeness
+    - Metrics accuracy: verification
+    - Health checks: various states
+    - Audit trail: retention verification
+
+- [ ] **Perform security audit and penetration testing** (depends on: all Phase 3 tasks)
+  - Acceptance criteria:
+    - Third-party security audit completed
+    - All high/critical vulnerabilities remediated
+    - Zero isolation breaches in penetration testing
+    - Security documentation updated
+    - Incident response plan established
+  - Test strategy:
+    - External audit by security firm
+    - Automated vulnerability scanning
+    - Manual penetration testing
+    - Security checklist (OWASP top 10)
+
+**Exit Criteria**:
+- MCP server operational with tools discoverable
+- End-to-end tests pass 95%+ success rate
+- Security audit: zero unresolved critical issues
+- Performance: 99th percentile <3s
+- Documentation: complete and approved
+- Production deployment checklist validated
+
+**Delivers**:
+- Production-ready MCP server with tools
+- Users can search and execute code via MCP
+- Comprehensive monitoring and observability
+- Security-validated system
+- Complete documentation
+
+</implementation-roadmap>
+
+---
+
+<test-strategy>
+
+## Test Pyramid
+
+```
+        /\
+       /E2E\       ← 5% (End-to-end, full workflows)
+      /------\
+     /Integration\ ← 25% (Module interactions)
+    /------------\
+   /  Unit Tests  \ ← 70% (Fast, isolated, deterministic)
+  /----------------\
+```
+
+## Coverage Requirements
+- **Line coverage**: 85% minimum
+- **Branch coverage**: 80% minimum
+- **Function coverage**: 90% minimum
+- **Critical path coverage**: 100% (security, execution, error handling)
+
+## Critical Test Scenarios
+
+### CodeExecutionSandbox Security & Isolation
+**Happy path**:
+- Execute simple Python code (print, arithmetic)
+- Expected: Successful execution, stdout captured, clean exit
+
+**Edge cases**:
+- Code execution timeout (exceeds 30s limit)
+- Expected: TimeoutError raised, partial output captured if any
+- Code with valid allowed imports (json, math, datetime)
+- Expected: Successful execution with module available
+
+**Error cases**:
+- Code attempts forbidden import (os, subprocess, socket)
+- Expected: ImportError blocked, security violation logged
+- Code contains dangerous patterns (eval, exec, __import__)
+- Expected: Execution blocked, SecurityError raised
+- Code with syntax errors
+- Expected: SyntaxError caught, error message returned
+
+**Integration points**:
+- MCP tool invokes sandbox with code payload
+- Expected: Code executes in isolation, results sanitized, returned to MCP layer
+
+### HybridSearchAPI Functionality
+**Happy path**:
+- Execute search with valid query, returns top_k ranked results
+- Expected: Results ordered by relevance score, limited to top_k
+
+**Edge cases**:
+- Query with no matching results
+- Expected: Empty result set, no errors
+- Reranking disabled (rerank=false)
+- Expected: Results returned without reranking step
+- Large result set (1000+ matches)
+- Expected: top_k selected correctly, performance <1s
+
+**Error cases**:
+- Empty query string
+- Expected: ValidationError, clear message
+- Search backend unavailable
+- Expected: ServiceError, graceful fallback
+- Timeout during search
+- Expected: TimeoutError, partial results if available
+
+**Integration points**:
+- Sandbox executes code calling HybridSearchAPI
+- Expected: Results stay in-environment, compact output returned
+
+### MCP Tool Invocation End-to-End
+**Happy path**:
+- Client invokes execute_code tool with valid Python code
+- Expected: Code executes in sandbox, results formatted, returned to client in <2s
+
+**Edge cases**:
+- Tool invoked with missing optional parameters
+- Expected: Defaults applied, execution proceeds
+- Multiple concurrent tool invocations
+- Expected: Each handled independently, no race conditions
+
+**Error cases**:
+- Tool invocation with malformed parameters
+- Expected: ValidationError with parameter details
+- Tool execution fails (timeout, exception)
+- Expected: Error message propagated to client
+
+**Integration points**:
+- MCP client → MCP server → Tool routing → Module execution → Response formatting
+- Expected: End-to-end flow completes, errors propagate correctly
+
+## Test Generation Guidelines
+
+### Unit Test Generation (70%)
+- **Target**: Individual functions and classes (SearchAPI, Sandbox, etc.)
+- **Mock external dependencies**: Database, filesystem, network calls
+- **Focus areas**: Input validation, business logic, edge cases, error handling
+- **Coverage**: >90% for tested functions
+- **Naming**: `test_<module>_<function>_<scenario>`
+
+### Integration Test Generation (25%)
+- **Target**: Module interactions (API + Sandbox, Reranker + Filter, etc.)
+- **Test real integrations** with test fixtures
+- **Focus areas**: Data flow, API contracts, error propagation
+- **Coverage**: >80% for integration paths
+- **Naming**: `test_integration_<module1>_<module2>_<scenario>`
+
+### End-to-End Test Generation (5%)
+- **Target**: Full workflows through MCP server
+- **Test complete paths**: Client → MCP → Tool → Execution → Response
+- **Focus areas**: User workflows, performance, observability
+- **Coverage**: >90% for critical user paths
+- **Naming**: `test_e2e_<workflow>_<scenario>`
+
+### Security Test Generation
+- **Target**: Sandbox isolation, input validation, error handling
+- **Focus**: Attack vectors, bypass attempts, resource exhaustion
+- **Coverage**: 100% of critical security paths
+- **Tools**: Bandit for static analysis, custom penetration tests
+
+</test-strategy>
+
+---
+
+<architecture>
+
+## System Components
+
+**1. Sandbox Isolation Layer**
+- **Responsibility**: Execute untrusted Python code with strict resource constraints and security controls
+- **Key Features**: Whitelist-based module restrictions, timeout enforcement, memory limits, output capture
+
+**2. API Abstraction Layer**
+- **Responsibility**: Provide high-level Python APIs for search, filtering, reranking operations
+- **Key Features**: Unified search interface, composable operations, in-environment processing
+
+**3. Result Processing Pipeline**
+- **Responsibility**: Format and compact execution results for token efficiency
+- **Key Features**: Multiple output formats, intelligent truncation, field selection, metadata preservation
+
+**4. MCP Server Integration Layer**
+- **Responsibility**: Register tools, handle requests, manage MCP protocol communication
+- **Key Features**: Tool schema definition, request routing, error normalization, session management
+
+## Data Models
+
+```python
+@dataclass
+class SearchResult:
+    document_id: str
+    title: str
+    content: str
+    relevance_score: float  # 0.0-1.0 normalized
+    source: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class ExecutionResult:
+    success: bool
+    output: str
+    error: Optional[str] = None
+    execution_time_ms: int
+    resources_used: Dict[str, Any]  # memory_mb, cpu_percent, etc.
+
+@dataclass
+class ValidationResult:
+    is_safe: bool
+    blocked_operations: List[str]
+    risk_level: str  # "safe", "medium", "high"
+```
+
+## Technology Stack
+
+**Language**: Python 3.11+
+- **Rationale**: Rich sandboxing ecosystem, excellent MCP SDK support, async/await for concurrent execution
+- **Trade-offs**: GIL limits true parallelism, more memory overhead than compiled alternatives
+- **Alternatives considered**: Node.js (weaker sandboxing), Go (compilation overhead for dynamic code)
+
+**Sandboxing Approach**: RestrictedPython + threading timeouts (baseline), Docker containerization (optional)
+- **Rationale**: Cross-platform compatibility, minimal external dependencies, production-grade with Docker
+- **Trade-offs**: Threading timeouts imperfect for infinite loops, Docker adds 100-300ms startup
+- **Alternatives considered**: Firecracker VM (complexity), gVisor (limited platform support)
+
+**Security Model**: Whitelist-based (explicit allowed imports vs blacklist)
+- **Rationale**: Secure by default, easier to audit, impossible to enumerate all dangerous operations
+- **Trade-offs**: More restrictive, requires careful API design
+- **Alternatives considered**: Blacklist (incomplete, easy to bypass)
+
+**MCP Integration**: Official Python MCP SDK
+- **Rationale**: First-party protocol support, guaranteed compliance, active maintenance
+- **Trade-offs**: Coupled to Anthropic release cycle
+- **Alternatives considered**: Custom protocol implementation (high maintenance)
+
+## Design Decisions
+
+**Decision: Token-First Result Processing**
+- **Rationale**: Fundamental goal of this feature is 98% token reduction
+- **Implementation**: ResultProcessor truncates content, selects essential fields, uses compact JSON
+- **Trade-offs**: Users receive truncated results (design for agent use, not human readability)
+
+**Decision: Single-Threaded Execution Model**
+- **Rationale**: Simpler reasoning about state, matches MCP request-response pattern
+- **Trade-offs**: Cannot parallelize multiple queries, blocking on long operations
+- **Alternatives**: Worker pool (resource overhead), async (complexity)
+
+**Decision: Explicit Allowlist for Modules**
+- **Rationale**: Impossible to enumerate all dangerous patterns, whitelist is safer
+- **Trade-offs**: More restrictive for users
+- **Alternatives**: Blacklist (incomplete), full trust (unacceptable risk)
+
+</architecture>
+
+---
+
+<risks>
+
+## Technical Risks
+
+**Risk: Timeout Mechanism Failure**
+- **Impact**: High (infinite loops crash server or consume resources)
+- **Likelihood**: Medium (Python threading.Timer is best-effort, not guaranteed)
+- **Mitigation**:
+  - Multi-layer timeout (signal.alarm on Unix, watchdog thread, instruction counting)
+  - Document platform-specific limitations
+  - Test timeout enforcement with 1000+ test cases
+- **Fallback**: Fall back to subprocess-based execution with hard kill after grace period
+
+**Risk: Memory Exhaustion**
+- **Impact**: High (OOM kills server process, affects all users)
+- **Likelihood**: Medium (large allocations in user code or memory leaks)
+- **Mitigation**:
+  - Set `resource.setrlimit()` memory caps
+  - Monitor with tracemalloc during execution
+  - Reject code with obvious memory bombs (very large literals)
+- **Fallback**: Docker-based execution with `--memory` flag for hard kernel limits
+
+**Risk: Security Validation Bypass**
+- **Impact**: Critical (arbitrary code execution, data exfiltration)
+- **Likelihood**: Low (conservative whitelist approach)
+- **Mitigation**:
+  - Regular security audits of allowed builtins
+  - Community review of security model
+  - Penetration testing by external firm
+  - Rapid patching for any discovered bypasses
+- **Fallback**: Disable feature immediately if bypass confirmed, patch and re-enable
+
+**Risk: Token Usage Not Improving**
+- **Impact**: Medium (feature doesn't deliver promised value)
+- **Likelihood**: Medium (compaction logic may be insufficient)
+- **Mitigation**:
+  - A/B testing with real queries baseline vs code execution
+  - Metrics tracking token reduction % in production
+  - User feedback loop during beta
+  - Iterative refinement of ResultProcessor
+- **Fallback**: Add user controls for verbosity level, provide raw output option
+
+**Risk: Performance Overhead**
+- **Impact**: Medium (feature adoption blocked by latency)
+- **Likelihood**: Low (sandboxing overhead typically <50ms)
+- **Mitigation**:
+  - Benchmark critical paths with realistic workloads
+  - Lazy initialization of sandbox environment
+  - Performance budgets in tests (<100ms overhead)
+- **Fallback**: Make code execution opt-in, provide bypass for trusted environments
+
+## Dependency Risks
+
+**Risk: MCP SDK Breaking Changes**
+- **Impact**: High (feature breaks with new SDK versions)
+- **Likelihood**: Medium (SDK in active development)
+- **Mitigation**:
+  - Pin SDK version with tested compatibility range
+  - Subscribe to SDK release notes
+  - Integration tests covering SDK interfaces
+- **Fallback**: Fork SDK or implement minimal protocol layer
+
+**Risk: RestrictedPython Maintenance**
+- **Impact**: Medium (security patches delayed, Python incompatibility)
+- **Likelihood**: Low (mature project, but small team)
+- **Mitigation**:
+  - Monitor project activity and security advisories
+  - Maintain fork capability
+  - Fallback to manual AST filtering
+- **Fallback**: Switch to custom sandbox using `ast` module
+
+**Risk: Docker Unavailability**
+- **Impact**: Low (optional advanced feature degrades gracefully)
+- **Likelihood**: High (many users won't have Docker)
+- **Mitigation**:
+  - Make Docker fully optional with clear documentation
+  - Detect Docker availability at runtime
+  - Provide helpful error messages with setup links
+- **Fallback**: Threading-based sandbox always available as baseline
+
+## Scope Risks
+
+**Risk: Scope Creep to Full REPL**
+- **Impact**: High (timeline delays, complexity explosion)
+- **Likelihood**: High (natural feature expansion pressure)
+- **Mitigation**:
+  - Strict v1 scope: read-only operations, no persistent state
+  - Defer REPL features, package installation to v2+
+  - Clear documentation of intentional limitations
+  - Timebox v1 implementation to 2-3 weeks
+- **Fallback**: Cut advanced features, ship minimal viable sandbox
+
+**Risk: Underestimation of Security Hardening**
+- **Impact**: High (delays release or ships with vulnerabilities)
+- **Likelihood**: Medium (security is hard, edge cases numerous)
+- **Mitigation**:
+  - Allocate 30-40% of timeline to security review
+  - Engage security specialists early
+  - Comprehensive attack scenario test suite
+  - Limited beta before general release
+- **Fallback**: Launch with explicit "beta" label, gather field data
+
+**Risk: Integration Complexity**
+- **Impact**: Medium (refactoring existing code, regression risks)
+- **Likelihood**: Medium (depends on current server architecture coupling)
+- **Mitigation**:
+  - Design as isolated module with clear interfaces
+  - Feature flag for gradual rollout
+  - Comprehensive regression test suite
+  - Incremental integration with rollback points
+- **Fallback**: Ship as separate MCP server initially, merge later
+
+**Risk: Documentation Insufficiency**
+- **Impact**: Medium (low adoption, high support burden)
+- **Likelihood**: High (common failure mode)
+- **Mitigation**:
+  - Allocate 20% of timeline to docs and examples
+  - Include 10+ realistic use case examples
+  - Video walkthrough for setup and patterns
+  - FAQ from beta user feedback
+- **Fallback**: Comprehensive README-only approach
+
+</risks>
+
+---
+
+<appendix>
+
+## References
+
+### Official Documentation
+- [Anthropic: Code Execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)
+- [MCP Specification](https://modelcontextprotocol.io/)
+- [Claude API Documentation](https://docs.claude.com/)
+
+### Research & Best Practices
+- [Python Security Best Practices](https://owasp.org/www-community/attacks/Code_Injection)
+- [Sandbox Design Patterns](https://cheatsheetseries.owasp.org/cheatsheets/Sandbox_Bypass_Cheat_Sheet.html)
+- RestrictedPython Documentation
+- Pydantic Security Validation
+
+### Related Systems
+- [Pydantic Python Sandbox MCP](https://github.com/pydantic/pydantic-mcp-server)
+- [Code Sandbox MCP Server](https://github.com/Automata-Labs-team/code-sandbox-mcp)
+- [E2B Sandbox](https://e2b.dev/)
+
+## Glossary
+
+**Code Execution**: Running Python code dynamically within a controlled sandbox environment
+**Sandbox**: Isolated execution environment with resource limits and security restrictions
+**Token**: Unit of text processed by Claude models; approximately 4 characters
+**Whitelist**: Explicit list of allowed operations (secure by default)
+**MCP**: Model Context Protocol - standardized interface for AI tool integration
+**Hybrid Search**: Combination of keyword (BM25) and semantic (vector) search
+**Reranking**: Re-scoring and reordering search results using more sophisticated models
+
+## Open Questions
+
+1. **Docker Support**: Should v1 include Docker as a sandbox backend option, or defer to v2?
+   - Decision: Defer Docker to v2, focus on threading-based baseline for v1
+
+2. **Result Caching**: Should we cache frequent search queries or execution results?
+   - Decision: No caching in v1 to avoid stale results, implement cache-busting strategy if added
+
+3. **State Persistence**: Should executed code be able to save state between invocations?
+   - Decision: No persistent state in v1 (security risk), each execution starts clean
+
+4. **Package Installation**: Should users be able to install packages (pip install) dynamically?
+   - Decision: No package installation in v1 (security risk), whitelist of pre-installed packages only
+
+5. **Async Support**: Should we support async/await in user code?
+   - Decision: Yes, use asyncio.run() to execute async code, makes APIs more flexible
+
+## Implementation Notes for Developers
+
+### Phase 0 - Foundation
+- Create branch `work/mcp-code-execution-phase-0`
+- Coordinate with existing BMCIS Knowledge MCP team
+- Review existing code organization and patterns
+
+### Phase 1 - Search APIs
+- Integrate with existing search infrastructure (BM25, vector search)
+- Ensure compatibility with current database layer
+- Performance test against production data
+
+### Phase 2 - Sandbox
+- Start with RestrictedPython + threading baseline
+- Plan for optional Docker upgrade in v1.1 or v2
+- Security audit early in phase
+
+### Phase 3 - MCP Integration
+- Register new tools in existing MCP server
+- Update system prompts to inform agents about code execution
+- Beta test with friendly agent implementations
+
+## Success Criteria for MVP
+
+✅ Token reduction: 98%+ for test workflows (150K → 2K)
+✅ Latency improvement: 4x faster execution (1.2s → 300ms)
+✅ Cost reduction: 98% cheaper per query ($0.45 → $0.01)
+✅ Security: Zero isolation breaches in penetration testing
+✅ Reliability: >99.9% uptime, <1% error rate
+✅ Adoption: >80% of agents with 10+ searches adopt feature
+✅ Documentation: Complete API docs, 10+ examples, setup guide
+
+</appendix>
+
+---
+
+## Task Master Integration
+
+This PRD is formatted for `task-master parse-prd` parsing with explicit dependency graphs and phased breakdown:
+
+1. **Functional decomposition** defines WHAT capabilities the system delivers
+2. **Structural decomposition** defines WHERE code lives (module structure)
+3. **Dependency graph** defines HOW to sequence development (topological order)
+4. **Implementation roadmap** defines TASKS in each phase with acceptance criteria
+5. **Test strategy** defines VALIDATION approach at each level
+6. **Architecture & risks** document DECISIONS and CONSTRAINTS
+
+Run: `task-master parse-prd docs/mcp-as-tools/PRD_CODE_EXECUTION_WITH_MCP.md --research`
+
+---
+
+**Document Version**: 1.0
+**Created**: November 2024
+**Status**: Ready for Task Master Parsing
+**Audience**: Engineering Team
+**Next Step**: Parse with Task Master → Create task graph → Begin Phase 0

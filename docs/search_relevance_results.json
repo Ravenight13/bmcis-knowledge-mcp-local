@@ -1,0 +1,733 @@
+{
+  "timestamp": "2025-11-09T21:18:49.276486",
+  "queries": [
+    {
+      "query": "ProSource commission rates and vendor structure",
+      "category": "vendor_entity",
+      "total_results": 10,
+      "top_k": 10,
+      "results": [
+        {
+          "rank": 1,
+          "text_preview": "$0.00   STEWART FILMSCREEN: 8 records, $0.00   STORM AUDIO: 4 records, $0.00   TRANSIENT PROTECTION DESIGN: 6 records, $0.00   VERBATIM LIGHTING: 1 re",
+          "source_file": "PROCESSING_SUMMARY_20250914_215931.txt",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 2,
+          "text_preview": "SOLUTIONS: 2 records, $0.00   SEURA: 10 records, $0.00   STORM AUDIO: 2 records, $0.00   TRANSIENT PROTECTION DESIGN: 5 records, $0.00   TOTAL RECORDS",
+          "source_file": "PROCESSING_SUMMARY_20250914_201159.txt",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "0   STEWART FILMSCREEN: 2 records, $0.00   STORM AUDIO: 1 records, $0.00   TRANSIENT PROTECTION DESIGN: 5 records, $0.00   VERBATIM LIGHTING: 1 record",
+          "source_file": "PROCESSING_SUMMARY_20250914_201200.txt",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 4,
+          "text_preview": "JOSH AI: 29 records, $0.00   K-ARRAY: 1 records, $0.00   LED INSPIRATIONS: 6 records, $0.00   LUTRON: 218 records, $0.00   MASIMO: 34 records, $0.00  ",
+          "source_file": "PROCESSING_SUMMARY_20250914_180613.txt",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 5,
+          "text_preview": "ds, $0.00   LUTRON: 200 records, $0.00   MASIMO: 33 records, $0.00   SEELESS SOLUTIONS: 3 records, $0.00   STEWART FILMSCREEN: 7 records, $0.00   STOR",
+          "source_file": "COMMISSION_PROCESSING_202503_20250915_171832_Summary.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 6,
+          "text_preview": "*Type 5 Investigator:** Excellent for technical depth and analytical approach   - **Experience:** Lighting industry background with manufacturer repre",
+          "source_file": "Enneagram_Team_Development_Plan.md",
+          "relevance_score": 0.65,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 7,
+          "text_preview": "nical content routes through assigned Storytellers for category expertise  **3. Scalable Communication Excellence** - System grows automatically with ",
+          "source_file": "02_Email_Sender_Alignment_System_COMPREHENSIVE_ANALYSIS.md",
+          "relevance_score": 0.35,
+          "has_keywords": true,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 8,
+          "text_preview": "ENERGY GROUP: 1 records, $0.00   SEELESS SOLUTIONS: 4 records, $0.00   STEWART FILMSCREEN: 5 records, $0.00   STORM AUDIO: 1 records, $0.00   STRAIGHT",
+          "source_file": "PROCESSING_SUMMARY_20250914_200510.txt",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 9,
+          "text_preview": "ns, file I/O) to  ensure rapid response  FR-005: System MUST respond within 100ms under normal load  FR-006: System MUST include service name, version",
+          "source_file": "speckit_specify_research_101225.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 10,
+          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
+          "source_file": "PROCESSING_SUMMARY_20250914_201143.txt",
+          "relevance_score": 0.8500000000000001,
+          "has_keywords": true,
+          "reasoning": "Highly relevant - contains key concepts"
+        }
+      ],
+      "avg_relevance": 0.31,
+      "ranking_quality": 0.7777777777777778,
+      "evaluation_time": 2.2148659229278564
+    },
+    {
+      "query": "What is the organizational structure of BMCIS sales teams?",
+      "category": "organizational",
+      "total_results": 10,
+      "top_k": 10,
+      "results": [
+        {
+          "rank": 1,
+          "text_preview": "e gap (FR-### \u2192 plan but no task)? \u2500\u2500\u2500\u2500\u2500\u25ba WARNING (should fix) \u251c\u2500 Missing documentation? \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u25ba WARNING (should fix) \u251c\u2500 Optimizati",
+          "source_file": "speckit_documentation_generation_prompts_v2.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 2,
+          "text_preview": "\"\"\"Generate embedding for single text chunk\"\"\"         response = await self.client.embeddings.create(             model=self.model,             input",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "ut``, ``putmask`` behave like their ndarray counterparts -----------------------------------------------------------  Previously, ``putmask`` was used",
+          "source_file": "API_CHANGES.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 4,
+          "text_preview": "a accuracy improvement, Salesforce optimization needed  DEVELOPMENT_INTERVENTIONS: - Monthly coaching sessions with VP Sales - Peer mentoring from hig",
+          "source_file": "Sales_Performance_Analytics.md",
+          "relevance_score": 0.6000000000000001,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 5,
+          "text_preview": "CHAR(500),     created_at TIMESTAMP DEFAULT NOW() );  -- Strategic initiatives tracking CREATE TABLE strategic_initiatives (     initiative_id SERIAL ",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 6,
+          "text_preview": "llows...] ```  Generate comprehensive domain pattern catalog. ```  ---  ### Prompt 8: Generate Error Recovery & Troubleshooting Guide  ``` Create a co",
+          "source_file": "speckit_documentation_generation_prompts.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 7,
+          "text_preview": "t begins design. This human-in-the-loop refinement cycle prevents cascading errors where flawed planning documents produce misaligned implementations.",
+          "source_file": "BMAD_research.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 8,
+          "text_preview": "UDIO: 2 records, $0.00   STRAIGHT WIRE: 3 records, $0.00   TRANSIENT PROTECTION DESIGN: 6 records, $0.00   TOTAL RECORDS: 319   TOTAL EXTRACTED: $0.00",
+          "source_file": "PROCESSING_SUMMARY_20250914_181515.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 9,
+          "text_preview": "issues   **Structure**:   ``` ## Prerequisites - [Tool] [Exact version - Node.js 20.10.0]  ## Installation ```bash # Exact commands that work npm inst",
+          "source_file": "speckit_plan_ai_101225.md",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 10,
+          "text_preview": "_name, COUNT(*) FROM documents UNION ALL SELECT 'document_chunks', COUNT(*) FROM document_chunks UNION ALL SELECT 'team_members', COUNT(*) FROM team_m",
+          "source_file": "PostgreSQL_pgvector_Quick_Reference.md",
+          "relevance_score": 0.6000000000000001,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        }
+      ],
+      "avg_relevance": 0.21500000000000002,
+      "ranking_quality": 0.5555555555555556,
+      "evaluation_time": 0.04833817481994629
+    },
+    {
+      "query": "Dealer classification and segmentation",
+      "category": "classification",
+      "total_results": 10,
+      "top_k": 10,
+      "results": [
+        {
+          "rank": 1,
+          "text_preview": "ployment - Real-time code watching or live updates - Code modification or refactoring tools  **Rationale**: Scope creep prevention requires explicit b",
+          "source_file": "constitution.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 2,
+          "text_preview": "# Git Repository Authentication - Technical Notes  **Repository:** https://github.com/Ravenight13/bmcis-vp-sales-system   **Status:** Authentication r",
+          "source_file": "Git_Authentication_Notes.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "your NON-NEGOTIABLE principles]** ([why it's highest priority]) 2. **[Next principle]** ([why it's next]) 3. **[Next principle]** ([why it's next]) 4.",
+          "source_file": "constitution-template.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 4,
+          "text_preview": "separation from HOW implementation details  ### VII. Test-Driven Development  Test tasks MUST precede implementation tasks. Integration tests MUST val",
+          "source_file": "constitution.md",
+          "relevance_score": 0.30000000000000004,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 5,
+          "text_preview": "[pkg_config] numpy = numpy._core.lib.pkgconfig  [array_api] numpy = numpy  [pyinstaller40] hook-dirs = numpy:_pyinstaller_hooks_dir  [console_scripts]",
+          "source_file": "entry_points.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 6,
+          "text_preview": "ter Role Directory] Return \u2192 [Master Compilation Playbook]",
+          "source_file": "Inside Sales | Rep Playbook.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 7,
+          "text_preview": "II NON-NEGOTIABLE testing mandate - Using plan.md artifacts: research.md (tech decisions), data-model.md (entities), contracts/ (APIs)  CRITICAL: Spec",
+          "source_file": "speckit_documentation_generation_prompts_v2.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 8,
+          "text_preview": "acticality Check**: - [ ] Principles are achievable with current team/resources - [ ] No contradictory principles - [ ] Grace periods defined for adop",
+          "source_file": "speckit_constitution_ai_101225.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 9,
+          "text_preview": "toring platform], performance regression detection  ---  ### V. Git Workflow & Version Control (NON-NEGOTIABLE)  **Principle**: Disciplined version co",
+          "source_file": "constitution-template.md",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 10,
+          "text_preview": "e gap (FR-### \u2192 plan but no task)? \u2500\u2500\u2500\u2500\u2500\u25ba WARNING (should fix) \u251c\u2500 Missing documentation? \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u25ba WARNING (should fix) \u251c\u2500 Optimizati",
+          "source_file": "speckit_documentation_generation_prompts_v2.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        }
+      ],
+      "avg_relevance": 0.075,
+      "ranking_quality": 0.7777777777777778,
+      "evaluation_time": 0.04499506950378418
+    },
+    {
+      "query": "Lutron lighting control specifications",
+      "category": "product",
+      "total_results": 10,
+      "top_k": 10,
+      "results": [
+        {
+          "rank": 1,
+          "text_preview": "45.00 LED INSPIRATIONS: $739.00 ACOUSTIC INNOVATIONS: $675.00 STRAIGHT WIRE: $164.00 AMINA AUDIO: $84.00",
+          "source_file": "validation_report_20250914_200510.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 2,
+          "text_preview": "- Audio Expert | bkirkpatrick@bellandmccoy.com | 972.351.6909 - **Blair Lucas** - Video Expert | blucas@bellandmccoy.com | 817.807.0027  ---  ## \ud83d\udcda Ess",
+          "source_file": "Kamal_Tehfeh_Welcome_Package.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "f content becoming outdated as technology evolves  7. **Competitive Response and Advantage Erosion**    - Competitors may copy approach or develop alt",
+          "source_file": "06_Costa_Rica_Builder_Developer_Strategy_Analysis.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 4,
+          "text_preview": "mendations + roadmap     3. STRATEGIC VALIDATION: Cross-system verification (Both Systems)    \u2514\u2500 Current System: Operational feasibility assessment   ",
+          "source_file": "Strategic_Decision_Framework.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 5,
+          "text_preview": "ENT INITIATIVE RESOURCE ALLOCATION ``` ACTIVE_INITIATIVES_INVESTMENT: Initiative 1 (Lighting Storyteller): 15% VP Sales time, 10% Operations Director ",
+          "source_file": "Strategic_Initiatives_Log.md",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 6,
+          "text_preview": "### 3. **Window Coverings Specialists = High-Value Targets**  - Only 13 dealers, but $531K average revenue - Highest per-dealer revenue of any segment",
+          "source_file": "DEALER_TYPE_INSIGHTS.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 7,
+          "text_preview": "peline Management:** Maintain opportunity records, update deal stages, and ensure CRM data accuracy - **Territory Coordination:** Support Outside Sale",
+          "source_file": "Inside_Sales_Rep_Expanded_Role_Definition.md",
+          "relevance_score": 0.30000000000000004,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 8,
+          "text_preview": "# Inside Sales Admin Training Reference Guide  **Purpose:** Comprehensive training documentation for Inside Sales Admin role   **Audience:** New hires",
+          "source_file": "Inside_Sales_Admin_Training_Reference_Guide.md",
+          "relevance_score": 0.45,
+          "has_keywords": true,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 9,
+          "text_preview": "ntent + SMM) 3.\tCapture (Videographer) 4.\tEdit (Video Editor) 5.\tPublish & Measure (SMM) 6.\tReview & Iterate (All)   \ud83e\uddf0 Tooling \u2022\tBox.com (source & exp",
+          "source_file": "Marketing Team | Department Hub.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 10,
+          "text_preview": "P Sales as primary support during transition 2. **Phased Implementation:** Stagger new hire onboarding and role expansion to prevent overload 3. **Ven",
+          "source_file": "Inside_Sales_Rep_Expanded_Role_Definition.md",
+          "relevance_score": 0.45,
+          "has_keywords": true,
+          "reasoning": "Low relevance - minimal keyword match"
+        }
+      ],
+      "avg_relevance": 0.20500000000000002,
+      "ranking_quality": 0.4444444444444444,
+      "evaluation_time": 0.03625607490539551
+    },
+    {
+      "query": "Weekly sales targets and performance metrics",
+      "category": "metrics",
+      "total_results": 10,
+      "top_k": 10,
+      "results": [
+        {
+          "rank": 1,
+          "text_preview": "+ Redis hybrid (15ms latency). Decision: Hybrid approach. Rationale: Meets real-time requirement (<50ms) while maintaining ACID guarantees. Trade-off:",
+          "source_file": "speckit_plan_research_101225.md",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 2,
+          "text_preview": "high-end integrators prefer specialized groups' boutique feel. The 2021 Azione merger addresses this perception gap by maintaining premium brand ident",
+          "source_file": "Nationwide_Complete_Intelligence_Report.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "y dues of $750 ($3,000 annually) compare favorably to competitors while the business-focused education through VITAL Management and peer-driven Leader",
+          "source_file": "Azione_Complete_Intelligence_Report.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 4,
+          "text_preview": "Steps to validate transcendental functions: 1) Add a file 'umath-validation-set-<ufuncname>.txt', where ufuncname is name of    the function in NumPy ",
+          "source_file": "umath-validation-set-README.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 5,
+          "text_preview": "UDIO: 2 records, $0.00   STRAIGHT WIRE: 3 records, $0.00   TRANSIENT PROTECTION DESIGN: 6 records, $0.00   TOTAL RECORDS: 319   TOTAL EXTRACTED: $0.00",
+          "source_file": "PROCESSING_SUMMARY_20250914_181515.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 6,
+          "text_preview": "g of Salesforce Architect into leadership strategy.   Reference: This deep dive links back to the [Master Role Directory] for overall organizational c",
+          "source_file": "Leadership Playbook.md",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 7,
+          "text_preview": "ns, file I/O) to  ensure rapid response  FR-005: System MUST respond within 100ms under normal load  FR-006: System MUST include service name, version",
+          "source_file": "speckit_specify_research_101225.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 8,
+          "text_preview": "t in the 2020 Italy trip contest. This exceptional involvement reflects the peer networking benefits that distinguish Azione from transactional buying",
+          "source_file": "Azione_Complete_Intelligence_Report.md",
+          "relevance_score": 0.65,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 9,
+          "text_preview": "y, scalable business practices  **Note:** More common in commercial/enterprise integrators than residential  ### Professional Trade Associations **Loc",
+          "source_file": "Industry_Organizations_Certification_Standards.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 10,
+          "text_preview": "ion: 100% match between files and database records - [ ] Performance benchmarks met (queries <1s) - [ ] Bidirectional sync working (files \u2194 database) ",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.8500000000000001,
+          "has_keywords": true,
+          "reasoning": "Highly relevant - contains key concepts"
+        }
+      ],
+      "avg_relevance": 0.24000000000000005,
+      "ranking_quality": 0.5555555555555556,
+      "evaluation_time": 0.04736208915710449
+    },
+    {
+      "query": "Commission processing procedures and timeline",
+      "category": "process",
+      "total_results": 10,
+      "top_k": 10,
+      "results": [
+        {
+          "rank": 1,
+          "text_preview": "backed by proven results.\"  ---  ## APPENDIX: SUPPORTING DATA  ### Historical Performance Data (2023-2025)  **2023 Actual:** - Total Revenue: $32.3M -",
+          "source_file": "Lutron_100M_Presentation_FINAL.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 2,
+          "text_preview": "ut``, ``putmask`` behave like their ndarray counterparts -----------------------------------------------------------  Previously, ``putmask`` was used",
+          "source_file": "API_CHANGES.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "tion** ```javascript // Prepare ALL CSV content in memory (v7.1 format): const csvData = [];  for (const vendor of allVendors) {     // v7.1 PROPER HE",
+          "source_file": "Commission_Processing_Pure_Mechanical_v8.0.md",
+          "relevance_score": 0.5,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 4,
+          "text_preview": "ContextBundle:         \"\"\"         Load context dynamically based on query semantics         \"\"\"         # 1. Classify query intent         intent = a",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 5,
+          "text_preview": "d satisfy both those terms and this License would be to refrain entirely from conveying the Program.    13. Use with the GNU Affero General Public Lic",
+          "source_file": "LICENSE.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 6,
+          "text_preview": "cabling, connectivity, mounting, AV infrastructure | Jacob Hartmann | [legrand.us/c2g](https://legrand.us/c2g) |  ---  ## NETWORKING CATEGORY VENDORS ",
+          "source_file": "Vendor_Line_Card_Database.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 7,
+          "text_preview": "st summaryAmount = summaryTotals[vendor] || 0;     const detailAmount = detailTotals[vendor] || 0;     const diff = Math.abs(summaryAmount - detailAmo",
+          "source_file": "Commission_Processing_Optimized_v6.0.md",
+          "relevance_score": 0.30000000000000004,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 8,
+          "text_preview": "# Commission Processing Mismatch Tracker  **Processing Date:** [TO BE POPULATED]   **Month/Year:** [TO BE POPULATED]   **Total Vendors Processed:** [T",
+          "source_file": "Mismatch_Tracker_Template.md",
+          "relevance_score": 0.65,
+          "has_keywords": true,
+          "reasoning": "Somewhat relevant - has some keywords"
+        },
+        {
+          "rank": 9,
+          "text_preview": ".7%** \ud83d\ude80\ud83d\ude80\ud83d\ude80 |  **Status:** \ud83d\udfe2 **ONLY DISTRIBUTOR GROWING IN 2025** **Trend:** V-shaped recovery + expansion **Key Move:** Added 2nd location (Little Rock",
+          "source_file": "DISTRIBUTION_VISUAL_SUMMARY.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 10,
+          "text_preview": "LED INSPIRATIONS: 6 records, $0.00   LUTRON: 211 records, $0.00   MASIMO: 74 records, $0.00   MONITOR AUDIO: 9 records, $0.00   SEELESS SOLUTIONS: 6 r",
+          "source_file": "PROCESSING_SUMMARY_20250914_180613.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        }
+      ],
+      "avg_relevance": 0.165,
+      "ranking_quality": 0.6666666666666667,
+      "evaluation_time": 0.044782161712646484
+    },
+    {
+      "query": "Team member profiles and specializations",
+      "category": "people",
+      "total_results": 10,
+      "top_k": 10,
+      "results": [
+        {
+          "rank": 1,
+          "text_preview": "elif status == \"WARNING\":                 await self.alert_service.warning(check_name, message)      async def check_sync_lag(self):         \"\"\"      ",
+          "source_file": "ARCHITECTURE_ASSESSMENT_SEMANTIC_SEARCH_EVOLUTION.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 2,
+          "text_preview": "ion delivery    - Feedback collection and program improvement    - Storyteller training and preparation requirements  ---  ## TARGET FOCUS AREAS - **P",
+          "source_file": "EXEC_MEETING_DAY3_OFFICE_HOURS_TOPIC.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
+          "source_file": "PROCESSING_SUMMARY_20250914_201142.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 4,
+          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
+          "source_file": "PROCESSING_SUMMARY_20250914_214202.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 5,
+          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
+          "source_file": "PROCESSING_SUMMARY_20250914_220004.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 6,
+          "text_preview": "ities    - Robin and Chris must adapt their training approaches and time allocation    - Team communication needed to prevent confusion about strategy",
+          "source_file": "05_RA3_to_ILS_Training_Strategy.md",
+          "relevance_score": 0.25,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 7,
+          "text_preview": "================================================================================ COMMISSION PROCESSING SUMMARY REPORT ================================",
+          "source_file": "PROCESSING_SUMMARY_20250914_200848.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 8,
+          "text_preview": "d:** [Timestamp]   **Strategic Value Score:** [1-10 rating for overall strategic intelligence captured]   **Processing Efficiency:** [Time required vs",
+          "source_file": "Email_Analysis_Template.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 9,
+          "text_preview": "$0.00   STEWART FILMSCREEN: 8 records, $0.00   STORM AUDIO: 4 records, $0.00   TRANSIENT PROTECTION DESIGN: 6 records, $0.00   VERBATIM LIGHTING: 1 re",
+          "source_file": "PROCESSING_SUMMARY_20250914_215931.txt",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 10,
+          "text_preview": "t focus, and training type - **Training Effectiveness Measurement:** Success rates, completion times, and retention rates - **Advancement Timeline Ana",
+          "source_file": "02_Lutron_Dealer_Life_Progression_COMPREHENSIVE_ANALYSIS.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        }
+      ],
+      "avg_relevance": 0.025,
+      "ranking_quality": 0.8888888888888888,
+      "evaluation_time": 0.04373669624328613
+    },
+    {
+      "query": "Market intelligence and competitive analysis",
+      "category": "market",
+      "total_results": 10,
+      "top_k": 10,
+      "results": [
+        {
+          "rank": 1,
+          "text_preview": "rnance: from implicit tribal knowledge to explicit, AI-enforceable principles. The constitution serves as \"architectural DNA,\" capturing organizationa",
+          "source_file": "speckit_constitution_reference_101225.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 2,
+          "text_preview": "e  ### The foundational concept  Spec-kit constitutions codify organizational wisdom that typically lives in tribal knowledge: testing approaches, arc",
+          "source_file": "speckit_constitution_reference_101225.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 3,
+          "text_preview": "compliance) coexist with team flexibility (tool choices, workflows) through constitutional inheritance.  **7. Success requires both technology and cul",
+          "source_file": "speckit_constitution_reference_101225.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 4,
+          "text_preview": "# GitHub Spec-Kit Constitution: Comprehensive Guide to Project Governance  ## BLUF: Bottom Line Up Front  **GitHub's Spec-Kit constitutions transform ",
+          "source_file": "speckit_constitution_reference_101225.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 5,
+          "text_preview": "# AI Agent Guide: /constitution Command Execution & Review  ## Section 1: Constitution Overview  **Bottom Line**: The constitution is your project's \"",
+          "source_file": "speckit_constitution_ai_101225.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 6,
+          "text_preview": "eamlining development.\"  **Quality assurance baked in:** Security requirements aren't afterthoughts\u2014they're specified from day one. Design systems are",
+          "source_file": "speckit_constitution_reference_101225.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 7,
+          "text_preview": "to domain-specific constitutional patterns for **github/spec-kit framework**.  FRAMEWORK: https://github.com/github/spec-kit DOCUMENT TITLE: speckit_d",
+          "source_file": "speckit_documentation_generation_prompts_v2.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 8,
+          "text_preview": "- [ ] Non-Goals prevent scope creep - [ ] Principle priorities ordered - [ ] Version and dates filled in  ---  ## Technology Domain Addenda  This sect",
+          "source_file": "constitution-template.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 9,
+          "text_preview": "ire migration plan - Define which constitution version each feature follows - Track exceptions with sunset dates ```  ### Measuring constitutional adh",
+          "source_file": "speckit_constitution_reference_101225.md",
+          "relevance_score": 0.2,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        },
+        {
+          "rank": 10,
+          "text_preview": "ally, and ensure new features integrate architecturally with existing code.  ### Constitutional principles vs coding standards  **This distinction is ",
+          "source_file": "speckit_constitution_reference_101225.md",
+          "relevance_score": 0.0,
+          "has_keywords": false,
+          "reasoning": "Low relevance - minimal keyword match"
+        }
+      ],
+      "avg_relevance": 0.02,
+      "ranking_quality": 0.8888888888888888,
+      "evaluation_time": 0.038137197494506836
+    }
+  ]
+}

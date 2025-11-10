@@ -7,11 +7,12 @@ error handling and progress tracking.
 
 import logging
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Final
+from typing import Final
 
 from src.document_parsing.models import ProcessedChunk
-from src.embedding.model_loader import ModelLoader, EXPECTED_EMBEDDING_DIMENSION
+from src.embedding.model_loader import EXPECTED_EMBEDDING_DIMENSION, ModelLoader
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,7 @@ class EmbeddingGenerator:
                         f"{len(batches)}: {len(batch_results)} chunks"
                     )
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.error(f"Error processing batch: {e}")
                     self.failed_count += 1
 
@@ -346,7 +347,7 @@ class EmbeddingGenerator:
         """
         if not self.validator.validate_embedding(embedding):
             raise ValueError(
-                f"Invalid embedding: wrong dimension or non-numeric values"
+                "Invalid embedding: wrong dimension or non-numeric values"
             )
 
         # Create enriched chunk with embedding
