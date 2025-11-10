@@ -14,9 +14,12 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import Any, Literal
+from datetime import datetime, timezone
+from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+T = TypeVar('T')
 
 # ==============================================================================
 # PHASE B: Pagination & Filtering Models (Task 10.3)
@@ -1008,6 +1011,387 @@ class AuthenticationError(BaseModel):
     error_code: str = Field(..., description="Error code (e.g., AUTH_INVALID_KEY)")
     message: str = Field(..., description="Actionable error message")
     details: str | None = Field(default=None, description="Additional error details")
+
+
+# ==============================================================================
+# PHASE C: Response Formatting Models (Task 10.4)
+# ==============================================================================
+# Comprehensive response envelope, metadata, and formatting models for
+# Claude Desktop integration and improved result ranking
+# ==============================================================================
+
+
+class ResponseMetadata(BaseModel):
+    """Response-level metadata with operation context and status.
+
+    Provides standardized metadata for all MCP responses, including
+    operation identifier, schema version, timestamp, and execution status.
+
+    Token Budget: ~100-150 tokens per response
+
+    Example:
+        >>> metadata = ResponseMetadata(
+        ...     operation="semantic_search",
+        ...     version="1.0",
+        ...     timestamp="2025-11-09T15:30:45.123Z",
+        ...     request_id="req_abc123",
+        ...     status="success",
+        ...     message=None
+        ... )
+    """
+
+    operation: str = Field(
+        ..., description="Tool name/operation (e.g., semantic_search, find_vendor_info)"
+    )
+    version: str = Field(
+        default="1.0", description="Response schema version (semantic versioning)"
+    )
+    timestamp: str = Field(
+        ..., description="ISO 8601 timestamp with timezone (UTC)"
+    )
+    request_id: str = Field(
+        ..., description="Unique request identifier for tracing"
+    )
+    status: Literal["success", "partial", "error"] = Field(
+        ..., description="Response status (success/partial/error)"
+    )
+    message: str | None = Field(
+        default=None, description="Optional status message"
+    )
+
+    @field_validator("timestamp", mode="after")
+    @classmethod
+    def validate_timestamp_format(cls, v: str) -> str:
+        """Validate timestamp is ISO 8601 with timezone.
+
+        Args:
+            v: Timestamp string
+
+        Returns:
+            Validated timestamp string
+
+        Raises:
+            ValueError: If not valid ISO 8601 format with timezone
+        """
+        try:
+            # Try parsing as ISO format
+            dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
+            # Ensure it has timezone info
+            if dt.tzinfo is None:
+                raise ValueError("Timestamp must include timezone info (e.g., Z or +00:00)")
+            return v
+        except ValueError as e:
+            raise ValueError(f"Invalid ISO 8601 timestamp format: {e}") from e
+
+
+class ExecutionContext(BaseModel):
+    """Execution details for response tracking and optimization.
+
+    Captures execution metadata including token accounting, cache hits,
+    and performance metrics for Desktop UI and cost optimization.
+
+    Token Budget: ~50-100 tokens per response
+
+    Example:
+        >>> context = ExecutionContext(
+        ...     tokens_estimated=3400,
+        ...     tokens_used=3450,
+        ...     cache_hit=True,
+        ...     execution_time_ms=245.3,
+        ...     request_id="req_abc123"
+        ... )
+    """
+
+    tokens_estimated: int = Field(
+        ..., description="Estimated response token count", ge=0
+    )
+    tokens_used: int | None = Field(
+        default=None, description="Actual token count (when available)", ge=0
+    )
+    cache_hit: bool = Field(
+        ..., description="Whether result was served from cache"
+    )
+    execution_time_ms: float = Field(
+        ..., description="Execution time in milliseconds", ge=0.0
+    )
+    request_id: str = Field(
+        ..., description="Unique request identifier (matches ResponseMetadata.request_id)"
+    )
+
+    @field_validator("tokens_used", mode="after")
+    @classmethod
+    def validate_tokens_used_vs_estimated(
+        cls, v: int | None, info: Any
+    ) -> int | None:
+        """Validate tokens_used doesn't significantly exceed tokens_estimated.
+
+        Allows 10% overage for JSON serialization and metadata overhead.
+
+        Args:
+            v: Actual tokens used
+            info: Validation context with tokens_estimated
+
+        Returns:
+            Validated tokens_used or None
+        """
+        if v is None:
+            return v
+
+        estimated = info.data.get("tokens_estimated", 0)
+        # Allow 10% overage for serialization overhead
+        if v > estimated * 1.1:
+            raise ValueError(
+                f"Actual tokens_used ({v}) exceeds estimated ({estimated}) by "
+                f"more than 10% - check serialization"
+            )
+        return v
+
+
+class ResponseWarning(BaseModel):
+    """Warning about response conditions or configuration issues.
+
+    Provides actionable warnings for Desktop UI, such as token limits,
+    deprecated features, or suboptimal configurations.
+
+    Token Budget: ~50-100 tokens per warning
+
+    Example:
+        >>> warning = ResponseWarning(
+        ...     level="warning",
+        ...     code="TOKEN_LIMIT_WARNING",
+        ...     message="Response approaching context limit",
+        ...     suggestion="Reduce page_size or use ids_only mode"
+        ... )
+    """
+
+    level: Literal["info", "warning", "error"] = Field(
+        ..., description="Warning severity level"
+    )
+    code: str = Field(
+        ..., description="Machine-readable warning code (e.g., TOKEN_LIMIT_WARNING)"
+    )
+    message: str = Field(
+        ..., description="Human-readable warning message"
+    )
+    suggestion: str | None = Field(
+        default=None, description="Suggested remediation action"
+    )
+
+    @field_validator("code", mode="after")
+    @classmethod
+    def validate_code_format(cls, v: str) -> str:
+        """Validate warning code is SCREAMING_SNAKE_CASE.
+
+        Args:
+            v: Warning code
+
+        Returns:
+            Validated warning code
+
+        Raises:
+            ValueError: If not SCREAMING_SNAKE_CASE format
+        """
+        if not v or not all(c.isupper() or c == '_' or c.isdigit() for c in v):
+            raise ValueError(
+                f"Warning code must be SCREAMING_SNAKE_CASE, got: {v}"
+            )
+        return v
+
+
+class ConfidenceScore(BaseModel):
+    """Confidence indicators for score reliability and quality assessment.
+
+    Breaks down confidence into component dimensions (score reliability,
+    source quality, recency) for Desktop UI to make intelligent
+    filtering and ranking decisions.
+
+    All scores are 0.0-1.0. When not applicable, use None for all fields.
+
+    Token Budget: ~30-50 tokens per result
+
+    Example:
+        >>> confidence = ConfidenceScore(
+        ...     score_reliability=0.92,
+        ...     source_quality=0.88,
+        ...     recency=0.75
+        ... )
+    """
+
+    score_reliability: float = Field(
+        ..., description="Score trustworthiness (0.0-1.0)", ge=0.0, le=1.0
+    )
+    source_quality: float = Field(
+        ..., description="Source quality rating (0.0-1.0)", ge=0.0, le=1.0
+    )
+    recency: float = Field(
+        ..., description="Content recency score (0.0-1.0)", ge=0.0, le=1.0
+    )
+
+    @model_validator(mode="after")
+    def validate_complete_confidence(self) -> ConfidenceScore:
+        """Validate that confidence is complete (all fields present).
+
+        Either all fields must be populated (for valid confidence)
+        or this model should not be used (model should be None).
+
+        Returns:
+            Self if all fields are valid
+
+        Raises:
+            ValueError: If only some fields are populated
+        """
+        fields = [self.score_reliability, self.source_quality, self.recency]
+        none_count = sum(1 for f in fields if f is None)
+
+        # All fields should be present
+        if none_count > 0:
+            raise ValueError(
+                "ConfidenceScore must have all fields populated. "
+                "If confidence is not available, use None for the entire model."
+            )
+
+        return self
+
+
+class RankingContext(BaseModel):
+    """Context for result ranking and percentile positioning.
+
+    Provides ranking explanation and percentile position within
+    the result set for Desktop UI to present visual ranking.
+
+    Token Budget: ~30-50 tokens per result
+
+    Example:
+        >>> ranking = RankingContext(
+        ...     percentile=99,
+        ...     explanation="Highest combined semantic + keyword match",
+        ...     score_method="hybrid"
+        ... )
+    """
+
+    percentile: int = Field(
+        ..., description="Score percentile in result set (0-100)", ge=0, le=100
+    )
+    explanation: str = Field(
+        ..., description="Human-readable ranking explanation"
+    )
+    score_method: str = Field(
+        ..., description="Scoring method used (vector/bm25/hybrid)"
+    )
+
+
+class DeduplicationInfo(BaseModel):
+    """Information about result deduplication and similarity.
+
+    Flags duplicate or highly similar results and provides
+    list of similar chunk IDs for intelligent filtering.
+
+    Token Budget: ~20-30 tokens per result
+
+    Example:
+        >>> dedup = DeduplicationInfo(
+        ...     is_duplicate=False,
+        ...     similar_chunk_ids=[2, 5, 8],
+        ...     confidence=0.85
+        ... )
+    """
+
+    is_duplicate: bool = Field(
+        ..., description="Whether this result is a duplicate of a higher-ranked result"
+    )
+    similar_chunk_ids: list[int] = Field(
+        default_factory=list, description="Other chunk IDs with high similarity (>0.8)"
+    )
+    confidence: float = Field(
+        ..., description="Confidence in similarity assessment (0.0-1.0)",
+        ge=0.0, le=1.0
+    )
+
+
+class EnhancedSemanticSearchResult(SearchResultMetadata):
+    """Extended semantic search result with confidence and ranking metadata.
+
+    Enhances SearchResultMetadata with confidence scores, ranking context,
+    and deduplication information for Claude Desktop integration.
+
+    Token Budget: ~150-250 tokens per result (extends SearchResultMetadata)
+
+    Example:
+        >>> result = EnhancedSemanticSearchResult(
+        ...     chunk_id=1,
+        ...     source_file="docs/auth.md",
+        ...     source_category="security",
+        ...     hybrid_score=0.85,
+        ...     rank=1,
+        ...     chunk_index=0,
+        ...     total_chunks=10,
+        ...     confidence=ConfidenceScore(
+        ...         score_reliability=0.92,
+        ...         source_quality=0.88,
+        ...         recency=0.75
+        ...     ),
+        ...     ranking=RankingContext(
+        ...         percentile=99,
+        ...         explanation="Highest combined match",
+        ...         score_method="hybrid"
+        ...     ),
+        ...     deduplication=DeduplicationInfo(
+        ...         is_duplicate=False,
+        ...         similar_chunk_ids=[2, 5],
+        ...         confidence=0.85
+        ...     )
+        ... )
+    """
+
+    confidence: ConfidenceScore | None = Field(
+        default=None, description="Confidence indicators for score reliability"
+    )
+    ranking: RankingContext = Field(
+        ..., description="Ranking context and explanation"
+    )
+    deduplication: DeduplicationInfo | None = Field(
+        default=None, description="Deduplication info (optional)"
+    )
+
+
+class MCPResponseEnvelope(BaseModel, Generic[T]):
+    """Generic wrapper for all MCP tool responses.
+
+    Standard envelope for all MCP responses with metadata, execution context,
+    and optional pagination/warnings for consistent Desktop integration.
+
+    Serializes with 'metadata' field name (no leading underscore for Pydantic v2
+    compatibility). Clients can rename to '_metadata' in post-processing if needed.
+
+    Token Budget: ~150-300 tokens overhead per response
+
+    Example:
+        >>> envelope = MCPResponseEnvelope(
+        ...     metadata=ResponseMetadata(...),
+        ...     results=[SearchResultMetadata(...)],
+        ...     pagination=PaginationMetadata(...),
+        ...     execution_context=ExecutionContext(...),
+        ...     warnings=[]
+        ... )
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    metadata: ResponseMetadata = Field(
+        ..., description="Response metadata (operation, status, timestamp)"
+    )
+    results: T = Field(
+        ..., description="Tool-specific results (type varies by operation)"
+    )
+    pagination: PaginationMetadata | None = Field(
+        default=None, description="Pagination metadata (null for non-paginated responses)"
+    )
+    execution_context: ExecutionContext = Field(
+        ..., description="Execution metrics and token accounting"
+    )
+    warnings: list[ResponseWarning] = Field(
+        default_factory=list, description="List of warnings (empty if none)"
+    )
 
 
 class AuthenticationConfig(BaseModel):
