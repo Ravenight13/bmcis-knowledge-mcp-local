@@ -107,9 +107,9 @@ class ProcessedChunk(BaseModel):
         min_length=64,
         max_length=64,
     )
-    context_header: str = Field(
+    context_header: str | None = Field(
+        default="",
         description="Hierarchical context header",
-        min_length=1,
         max_length=1024,
     )
     source_file: str = Field(
@@ -134,10 +134,9 @@ class ProcessedChunk(BaseModel):
         description="Total chunks in document",
         ge=1,
     )
-    chunk_token_count: int = Field(
+    chunk_token_count: int | None = Field(
+        default=None,
         description="Token count in chunk",
-        ge=1,
-        le=1024,  # Max reasonable token count
     )
     metadata: dict[str, Any] = Field(
         default_factory=dict,
