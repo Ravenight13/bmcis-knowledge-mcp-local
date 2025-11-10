@@ -1,0 +1,312 @@
+================================================================================
+BMCIS KNOWLEDGE MCP - CODEBASE SEARCH RESULTS SUMMARY
+================================================================================
+
+SEARCH PERFORMED: Knowledge graph implementation, reranking logic, result 
+ranking/scoring, and relevance metrics
+
+LOCATION: /Users/cliffclarke/Claude_Code/bmcis-knowledge-mcp-local
+
+================================================================================
+1. KNOWLEDGE GRAPH IMPLEMENTATION
+================================================================================
+
+Files Located:
+  /src/knowledge_graph/models.py                    (326 lines)
+  /src/knowledge_graph/graph_service.py             (418 lines)
+  /src/knowledge_graph/query_repository.py          (150+ lines)
+  /src/knowledge_graph/cache.py
+  /src/knowledge_graph/cache_protocol.py
+  /src/knowledge_graph/cache_config.py
+
+Key Components:
+  - KnowledgeEntity (nodes with UUID PKs, confidence scores, mention counts)
+  - EntityRelationship (directed edges, 3 types: hierarchical/mentions/similar)
+  - EntityMention (provenance tracking - where entities appear)
+  - KnowledgeGraphService (service layer with dependency injection)
+  - KnowledgeGraphCache (LRU cache for hot-path optimization)
+  - KnowledgeGraphQueryRepository (optimized SQL CTEs for graph traversal)
+
+Entity Types (from spaCy NER):
+  PERSON, ORG, PRODUCT, GPE, EVENT, FACILITY, LAW, LANGUAGE, DATE, TIME, 
+  MONEY, PERCENT
+
+Relationship Types:
+  hierarchical (parent/child, creator/creation)
+  mentions-in-document (co-occurrence in same chunk)
+  similar-to (semantic similarity, bidirectional)
+
+Performance Characteristics:
+  Cache hit:      <2 microseconds
+  Cache miss:     5-20 milliseconds
+  1-hop query:    P50 <5ms, P95 <10ms
+  2-hop query:    P50 <20ms, P95 <50ms
+  Target hit rate: >80% with LRU caching
+
+================================================================================
+2. RERANKING LOGIC
+================================================================================
+
+Files Located:
+  /src/search/cross_encoder_reranker.py             (849 lines)
+  /src/search/reranker_protocol.py
+
+Model Used: cross-encoder/ms-marco-MiniLM-L-6-v2
+  - 6 layers, 384 hidden dimensions
+  - Trained on MS MARCO dataset
+  - Fast pair-wise relevance scoring
+
+Key Components:
+  - RerankerConfig: Centralized configuration (model, device, batch_size, etc)
+  - QueryAnalysis: Detects query complexity (length, operators, quotes)
+  - CandidateSelector: Adaptive pool sizing based on query complexity
+  - CrossEncoderReranker: Main reranking engine with lazy model loading
+
+Adaptive Pool Sizing:
+  Complexity Score = (keyword_count / 10) * 0.6 + operator_bonus + quote_bonus
+  Pool Size = base_size * (1 + complexity * 1.2)
+  Capped to: [5, max_pool_size]
+
+Reranking Pipeline:
+  1. Select adaptive candidate pool based on query complexity
+  2. Score query-document pairs using cross-encoder
+  3. Normalize scores via sigmoid (0-1)
+  4. Filter by confidence threshold
+  5. Select top-K by confidence
+  6. Rerank with updated metadata
+
+Performance Targets:
+  Model loading:    <5 seconds
+  Batch inference:  <100ms for 50 pairs
+  Pool calculation: <1ms
+  Overall:         <200ms
+
+================================================================================
+3. RESULT RANKING & SCORING
+================================================================================
+
+Files Located:
+  /src/search/rrf.py                                (383 lines)
+  /src/search/boosting.py                           (100+ lines)
+  /src/search/boost_optimizer.py
+  /src/search/boost_strategies.py
+  /src/search/hybrid_search.py                      (797 lines)
+
+A. RECIPROCAL RANK FUSION (RRF)
+   
+   Algorithm: score = 1 / (k + rank)
+   Purpose: Merge vector and BM25 results with uniform scoring
+   
+   Key Capabilities:
+   - merge_results(vector, bm25): Merge two sources with configurable weights
+   - fuse_multiple(sources_dict): Merge 3+ sources
+   - Deduplication by chunk_id
+   - Score combination: (v_score * 0.6) + (bm25_score * 0.4)
+   
+   Performance: <50ms for merging 100 results from each source
+
+B. MULTI-FACTOR BOOSTING SYSTEM
+   
+   Boost Factors (Cumulative, max 1.0):
+   1. Vendor Matching:     +15% if document vendor matches query
+   2. Document Type:       +10% if doc type matches (api_docs, guide, kb, etc)
+   3. Recency:            +5%  if document <30 days old
+   4. Entity Matching:     +10% if query entities found in document
+   5. Topic Matching:      +8%  if document topic matches
+   
+   Topics Recognized:
+   - authentication (JWT, OAuth, SAML, MFA, tokens)
+   - api_design (REST, GraphQL, webhooks, versioning)
+   - data_handling (database, caching, migration)
+   - deployment (Docker, K8s, CI/CD)
+   - optimization (performance, latency, benchmarking)
+   - error_handling (exceptions, debugging)
+   
+   Performance: <10ms for 100 results
+
+C. COMPLETE SCORING PIPELINE
+   
+   Initial Score (Vector: 0-1, BM25: 0-∞)
+       ↓
+   RRF Merging → (0-1)
+       ↓
+   Multi-Factor Boosting (+5-15% cumulative)
+       ↓
+   Cross-Encoder Reranking (optional, 0-1)
+       ↓
+   Final Filtering (min_score, top_k)
+       ↓
+   Results (1-indexed rank)
+
+Score Types in SearchResult:
+  - similarity_score: Vector search (0-1)
+  - bm25_score: BM25 search (0-∞)
+  - hybrid_score: Combined/boosted/reranked (0-1)
+  - confidence: Cross-encoder confidence (0-1)
+
+================================================================================
+4. HYBRID SEARCH ORCHESTRATION
+================================================================================
+
+Files Located:
+  /src/search/hybrid_search.py                      (797 lines)
+
+Architecture:
+  Query
+    ↓
+  QueryRouter (auto-select strategy)
+    ↓
+  [Vector Search] [BM25 Search] (parallel with ThreadPoolExecutor)
+    ↓
+  RRF Merging
+    ↓
+  BoostingSystem
+    ↓
+  Final Filtering
+    ↓
+  Results (ranked 1-K)
+
+Search Strategies:
+  - "vector":   Semantic similarity only
+  - "bm25":     Full-text search only
+  - "hybrid":   Combined with RRF merging
+  - None:       Auto-select based on QueryRouter analysis
+
+Methods:
+  - search():                  Basic search with auto-routing
+  - search_with_explanation(): Returns routing and ranking explanation
+  - search_with_profile():     Returns performance timing breakdown
+
+Performance Targets:
+  Vector search:    <100ms
+  BM25 search:      <50ms
+  RRF merging:      <50ms
+  Boosting:         <10ms
+  Filtering:        <5ms
+  End-to-end:       P50 <300ms, P95 <500ms
+
+Parameters:
+  - query: Search query string
+  - top_k: Results to return (1-1000, default 10)
+  - strategy: "vector", "bm25", "hybrid", or None
+  - boosts: BoostWeights configuration (vendor, doc_type, recency, entity, topic)
+  - filters: Metadata filters (JSONB operators)
+  - min_score: Score threshold (0-1, default 0.0)
+  - use_parallel: Enable parallel vector/BM25 (default True)
+
+================================================================================
+5. KNOWLEDGE GRAPH IN MCP TOOLS
+================================================================================
+
+Files Located:
+  /src/mcp/tools/find_vendor_info.py                (200+ lines)
+  /src/mcp/tools/semantic_search.py
+
+find_vendor_info Tool:
+  Purpose: Retrieve vendor information from knowledge graph
+  
+  Progressive Disclosure Modes (token efficiency):
+  - ids_only:   100-500 tokens (vendor ID + counts)
+  - metadata:   2-4K tokens (default, IDs + stats)
+  - preview:    5-10K tokens (metadata + top entities/relationships)
+  - full:       10-50K+ tokens (complete graph, max 100 entities)
+  
+  Workflow:
+  1. Find vendor by case-insensitive exact match
+  2. Traverse 1-hop relationships for related entities
+  3. Format based on response_mode
+  4. Apply field filtering if requested
+  5. Support pagination with cursor encoding
+  
+  Caching:
+  - Key: vendor:hash(vendor_name, response_mode)
+  - TTL: 300 seconds
+  - Progressive loading to minimize tokens
+
+semantic_search Tool:
+  Purpose: Hybrid search with explanation via MCP
+  Uses: HybridSearch + CrossEncoderReranker pipeline
+
+================================================================================
+6. FILE LOCATION SUMMARY
+================================================================================
+
+Knowledge Graph Files:
+  src/knowledge_graph/models.py
+  src/knowledge_graph/graph_service.py
+  src/knowledge_graph/query_repository.py
+  src/knowledge_graph/cache.py
+  src/knowledge_graph/cache_protocol.py
+  src/knowledge_graph/cache_config.py
+  src/knowledge_graph/service_factory.py
+
+Search & Ranking Files:
+  src/search/hybrid_search.py
+  src/search/rrf.py
+  src/search/cross_encoder_reranker.py
+  src/search/reranker_protocol.py
+  src/search/boosting.py
+  src/search/boost_optimizer.py
+  src/search/boost_strategies.py
+  src/search/vector_search.py
+  src/search/bm25_search.py
+  src/search/query_router.py
+  src/search/results.py
+  src/search/config.py
+
+MCP Tools:
+  src/mcp/tools/find_vendor_info.py
+  src/mcp/tools/semantic_search.py
+
+Total Lines of Code:
+  - Knowledge graph: 900+ lines
+  - Search & ranking: 2800+ lines
+  - MCP tools: 500+ lines
+  - Total: 4200+ lines
+
+================================================================================
+7. DOCUMENTATION GENERATED
+================================================================================
+
+Created Files:
+  docs/CODEBASE_SEARCH_REPORT.md    (414 lines, comprehensive analysis)
+  docs/QUICK_REFERENCE.md           (Quick reference guide with code examples)
+
+These documents include:
+  - Component descriptions
+  - Architecture diagrams
+  - Code examples for common patterns
+  - Performance characteristics
+  - Troubleshooting guide
+  - Extensibility points
+  - Configuration patterns
+
+================================================================================
+8. KEY FINDINGS
+================================================================================
+
+Strengths:
+  1. Well-structured, modular architecture with clear separation of concerns
+  2. Multiple ranking strategies (RRF, multi-factor boosting, cross-encoder)
+  3. Sophisticated caching with dependency injection for flexibility
+  4. Parallel search execution for performance
+  5. Progressive disclosure pattern for token efficiency in MCP
+  6. Comprehensive error handling and type safety
+  7. Performance instrumentation (profiling, explanations)
+
+Integration Points:
+  - Vector ↔ BM25 via RRFScorer
+  - Merged ↔ Boosting via BoostingSystem
+  - Boosted ↔ Reranking via CrossEncoderReranker
+  - Graph ↔ Search via find_vendor_info MCP tool
+  - All components wrapped for MCP protocol compliance
+
+Extensibility:
+  - Custom cache implementations via CacheProtocol
+  - Custom rerankers via RerankerProtocol
+  - Custom boost strategies via BoostStrategy ABC
+  - Entity types/relationships in enums
+
+================================================================================
+END OF SUMMARY
+================================================================================
